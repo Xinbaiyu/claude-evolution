@@ -1,0 +1,47 @@
+{
+  "name": "claude-evolution",
+  "version": "0.1.0",
+  "description": "Self-evolution system for Claude Code to learn from historical sessions",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "claude-evolution": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/cli/index.ts",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "test:http": "node test-http-api.js",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "claude",
+    "ai",
+    "learning",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "chalk": "^5.3.0",
+    "chokidar": "^4.0.1",
+    "commander": "^12.1.0",
+    "fs-extra": "^11.2.0",
+    "node-cron": "^3.0.3",
+    "uuid": "^13.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/chokidar": "^1.7.5",
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^22.10.2",
+    "@types/node-cron": "^3.0.11",
+    "@types/uuid": "^10.0.0",
+    "@vitest/coverage-v8": "^2.1.8",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
