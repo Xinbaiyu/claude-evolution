@@ -1,0 +1,10 @@
+{
+  "name": "claude-evolution-server",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "dev": "tsx watch index.ts",
+    "build": "tsc"
+  }
+}

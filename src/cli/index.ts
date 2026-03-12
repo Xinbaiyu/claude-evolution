@@ -45,9 +45,10 @@ program
 program
   .command('review')
   .description('Review pending suggestions')
-  .action(async () => {
+  .option('-v, --verbose', '显示详细信息（包括证据引用）')
+  .action(async (options) => {
     try {
-      await reviewCommand();
+      await reviewCommand(options);
     } catch (error) {
       console.error('查看建议失败:', error);
       process.exit(1);
