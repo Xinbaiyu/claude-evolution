@@ -1,7 +1,15 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
 import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
+import type { WebSocketManager } from '../websocket.js';
+import type { NotificationManager } from '../notifications.js';
+
+// 扩展 Express Request 类型以包含 wsManager 和 notificationManager
+interface RequestWithWS extends Request {
+  wsManager?: WebSocketManager;
+  notificationManager?: NotificationManager;
+}
 
 const router = Router();
 
@@ -71,7 +79,7 @@ router.get('/suggestions/:id', async (req, res) => {
 });
 
 // POST /api/suggestions/:id/approve - 批准建议
-router.post('/suggestions/:id/approve', async (req, res) => {
+router.post('/suggestions/:id/approve', async (req: RequestWithWS, res) => {
   try {
     const { id } = req.params;
     const pendingPath = path.join(SUGGESTIONS_DIR, 'pending.json');
@@ -99,6 +107,11 @@ router.post('/suggestions/:id/approve', async (req, res) => {
     await fs.writeJson(pendingPath, pending, { spaces: 2 });
     await fs.writeJson(approvedPath, approved, { spaces: 2 });
 
+    // 触发 WebSocket 事件
+    if (req.wsManager) {
+      req.wsManager.emitSuggestionApproved(suggestion);
+    }
+
     res.json({
       success: true,
       data: suggestion,
@@ -112,7 +125,7 @@ router.post('/suggestions/:id/approve', async (req, res) => {
 });
 
 // POST /api/suggestions/:id/reject - 拒绝建议
-router.post('/suggestions/:id/reject', async (req, res) => {
+router.post('/suggestions/:id/reject', async (req: RequestWithWS, res) => {
   try {
     const { id } = req.params;
     const pendingPath = path.join(SUGGESTIONS_DIR, 'pending.json');
@@ -139,6 +152,11 @@ router.post('/suggestions/:id/reject', async (req, res) => {
 
     await fs.writeJson(pendingPath, pending, { spaces: 2 });
     await fs.writeJson(rejectedPath, rejected, { spaces: 2 });
+
+    // 触发 WebSocket 事件
+    if (req.wsManager) {
+      req.wsManager.emitSuggestionRejected(suggestion);
+    }
 
     res.json({
       success: true,
