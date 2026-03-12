@@ -176,17 +176,17 @@ npm run test:e2e:review
 
 ### Phase 1.3: 实时刷新 (P0)
 
-- [ ] **3.8** 在分析流程中集成 WebSocket 事件触发
+- [x] **3.8** 在分析流程中集成 WebSocket 事件触发
   - 修改 `src/learners/analyzer.ts`
   - 分析完成后触发 `analysis_complete` 事件
   - 新建议生成后触发 `new_suggestions` 事件
 
-- [ ] **6.6** 实现 Dashboard WebSocket 事件监听和数据刷新
+- [x] **6.6** 实现 Dashboard WebSocket 事件监听和数据刷新
   - 监听 WebSocket 事件
   - 自动重新获取系统状态
   - 更新指标卡片
 
-- [ ] **5.6** 实现 WebSocket 连接状态指示器
+- [x] **5.6** 实现 WebSocket 连接状态指示器
   - 右上角显示连接状态（已连接/断开/重连中）
   - 断开时提示用户
 

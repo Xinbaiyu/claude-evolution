@@ -1,45 +1,59 @@
 import { useEffect, useState } from 'react';
-
-interface SystemStatus {
-  scheduler: {
-    enabled: boolean;
-    interval: string;
-    lastRun: string | null;
-  };
-  suggestions: {
-    pending: number;
-    approved: number;
-    rejected: number;
-    total: number;
-  };
-  metrics: {
-    avgConfidence: number;
-  };
-  server: {
-    uptime: number;
-    version: string;
-  };
-}
+import { apiClient, ApiError } from '../api/client';
+import type { SystemStatus } from '../api/client';
+import { wsClient } from '../api/websocket';
+import { toast } from '../components/Toast';
 
 export default function Dashboard() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [wsConnected, setWsConnected] = useState(false);
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 30000); // Refresh every 30s
-    return () => clearInterval(interval);
+
+    // WebSocket 连接状态监听
+    const unsubscribeConnection = wsClient.onConnectionChange(setWsConnected);
+
+    // WebSocket 事件监听
+    const unsubscribeAnalysis = wsClient.on('analysis_complete', () => {
+      toast.success('分析完成，数据已刷新');
+      fetchStatus();
+    });
+
+    const unsubscribeApprove = wsClient.on('suggestion_approved', () => {
+      fetchStatus();
+    });
+
+    const unsubscribeReject = wsClient.on('suggestion_rejected', () => {
+      fetchStatus();
+    });
+
+    const unsubscribeNewSuggestions = wsClient.on('new_suggestions', () => {
+      toast.info('有新建议待审核');
+      fetchStatus();
+    });
+
+    // 清理
+    return () => {
+      unsubscribeConnection();
+      unsubscribeAnalysis();
+      unsubscribeApprove();
+      unsubscribeReject();
+      unsubscribeNewSuggestions();
+    };
   }, []);
 
   const fetchStatus = async () => {
     try {
-      const response = await fetch('http://localhost:10010/api/status');
-      const data = await response.json();
-      if (data.success) {
-        setStatus(data.data);
-      }
+      setLoading(true);
+      const data = await apiClient.getStatus();
+      setStatus(data);
     } catch (error) {
+      const errorMessage =
+        error instanceof ApiError ? error.message : '加载系统状态失败';
       console.error('Failed to fetch status:', error);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -102,6 +116,23 @@ export default function Dashboard() {
 
             {/* System Status Indicator */}
             <div className="flex items-center gap-4">
+              {/* WebSocket 连接状态 */}
+              <div className="text-right">
+                <div className="text-xs text-slate-500 font-mono">实时连接</div>
+                <div className="flex items-center gap-2 mt-1">
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      wsConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                    }`}
+                  ></div>
+                  <span className="text-sm font-mono font-bold">
+                    {wsConnected ? '已连接' : '断开'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="h-12 w-px bg-slate-700"></div>
+
               <div className="text-right">
                 <div className="text-xs text-slate-500 font-mono">调度器</div>
                 <div className="flex items-center gap-2 mt-1">
