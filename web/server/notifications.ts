@@ -69,24 +69,58 @@ export class NotificationManager {
     console.log(`[Notification] Preparing notification: ${options.title}`);
     console.log(`[Notification] Target URL: ${targetUrl}`);
 
+    // macOS 使用 AppleScript (更可靠)
+    if (process.platform === 'darwin') {
+      this.sendMacOSNotification(options, targetUrl);
+    } else {
+      // Windows/Linux 使用 node-notifier
+      this.sendNodeNotification(options, targetUrl);
+    }
+  }
+
+  /**
+   * macOS 使用 AppleScript 发送通知
+   */
+  private sendMacOSNotification(options: NotificationOptions, targetUrl: string): void {
+    const escapedTitle = options.title.replace(/"/g, '\\"');
+    const escapedMessage = options.message.replace(/"/g, '\\"');
+    const escapedSubtitle = '点击通知打开详情'.replace(/"/g, '\\"');
+
+    // 创建 AppleScript 命令
+    const script = `
+      display notification "${escapedMessage}" with title "${escapedTitle}" subtitle "${escapedSubtitle}" sound name "default"
+    `;
+
+    exec(`osascript -e '${script}'`, (error, stdout, stderr) => {
+      if (error) {
+        console.error('[Notification] AppleScript error:', error);
+        // 降级到 node-notifier
+        this.sendNodeNotification(options, targetUrl);
+        return;
+      }
+
+      console.log(`[Notification] Sent via AppleScript: ${options.title}`);
+
+      // AppleScript 通知不支持点击事件，所以直接打开浏览器
+      console.log(`[Notification] Auto-opening browser: ${targetUrl}`);
+      setTimeout(() => {
+        this.openBrowser(targetUrl);
+      }, 1000); // 1 秒后自动打开
+    });
+  }
+
+  /**
+   * Windows/Linux 使用 node-notifier
+   */
+  private sendNodeNotification(options: NotificationOptions, targetUrl: string): void {
     const notificationOptions: any = {
       title: options.title,
       message: options.message,
-      sound: true, // 始终播放声音
-      wait: true, // 等待用户交互
-      timeout: 30, // 30 秒后自动关闭
+      sound: true,
+      wait: true,
+      timeout: 30,
+      open: targetUrl,
     };
-
-    // macOS 特殊处理 - 添加可点击的操作
-    if (process.platform === 'darwin') {
-      notificationOptions.actions = ['查看', '关闭'];
-      notificationOptions.dropdownLabel = '操作';
-      notificationOptions.closeLabel = '关闭';
-      // 添加 subtitle 使通知更显眼
-      notificationOptions.subtitle = '点击查看详情';
-    } else {
-      notificationOptions.open = targetUrl;
-    }
 
     notifier.notify(notificationOptions, (err, response, metadata) => {
       if (err) {
@@ -97,21 +131,15 @@ export class NotificationManager {
       console.log(`[Notification] Sent: ${options.title}`);
       console.log(`[Notification] Response:`, response);
 
-      // 任何交互都打开浏览器（不只是 click）
       if (response !== 'timeout' && response !== 'closed') {
         console.log(`[Notification] User interacted (${response}), opening: ${targetUrl}`);
         this.openBrowser(targetUrl);
       }
     });
 
-    // 监听所有通知事件
     notifier.once('click', () => {
       console.log(`[Notification] Click event, opening: ${targetUrl}`);
       this.openBrowser(targetUrl);
-    });
-
-    notifier.once('timeout', () => {
-      console.log(`[Notification] Notification timed out`);
     });
   }
 
