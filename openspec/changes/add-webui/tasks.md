@@ -15,9 +15,9 @@
 - [x] 2.4 实现建议批准 API (POST /api/suggestions/:id/approve)
 - [x] 2.5 实现建议拒绝 API (POST /api/suggestions/:id/reject)
 - [x] 2.6 实现批量批准 API (POST /api/suggestions/batch/approve)
-- [ ] 2.7 实现系统状态 API (GET /api/status)
-- [ ] 2.8 实现配置读取 API (GET /api/config)
-- [ ] 2.9 实现配置更新 API (PATCH /api/config)
+- [x] 2.7 实现系统状态 API (GET /api/status)
+- [x] 2.8 实现配置读取 API (GET /api/config)
+- [x] 2.9 实现配置更新 API (PATCH /api/config)
 - [x] 2.10 实现手动分析触发 API (POST /api/analyze)
 - [x] 2.11 添加文件锁保护并发写入
 - [x] 2.12 添加 API 错误处理中间件
@@ -25,13 +25,13 @@
 
 ## 3. WebSocket 实时通知实现
 
-- [ ] 3.1 创建 WebSocket 服务器并与 Express 集成
-- [ ] 3.2 实现客户端连接管理（连接池）
-- [ ] 3.3 实现心跳机制（ping/pong）
-- [ ] 3.4 实现"analysis_complete"事件推送
-- [ ] 3.5 实现"new_suggestions"事件推送
-- [ ] 3.6 实现"suggestion_approved"事件推送
-- [ ] 3.7 实现"suggestion_rejected"事件推送
+- [x] 3.1 创建 WebSocket 服务器并与 Express 集成
+- [x] 3.2 实现客户端连接管理（连接池）
+- [x] 3.3 实现心跳机制（ping/pong）
+- [x] 3.4 实现"analysis_complete"事件推送
+- [x] 3.5 实现"new_suggestions"事件推送
+- [x] 3.6 实现"suggestion_approved"事件推送
+- [x] 3.7 实现"suggestion_rejected"事件推送
 - [ ] 3.8 在分析流程中集成事件触发
 
 ## 4. 守护进程模式实现
@@ -111,18 +111,18 @@
 
 ## 10. 系统级桌面通知实现
 
-- [ ] 10.1 添加 node-notifier 依赖到 package.json
-- [ ] 10.2 创建通知管理模块 `web/server/notifications.ts`
-- [ ] 10.3 实现通知类型到页面路由的映射配置
-- [ ] 10.4 实现分析完成系统通知（跳转到 /review）
-- [ ] 10.5 实现分析失败系统通知（跳转到 /dashboard）
-- [ ] 10.6 实现新建议生成通知（跳转到 /review）
-- [ ] 10.7 实现配置变更通知（跳转到 /settings）
-- [ ] 10.8 实现系统错误通知（跳转到 /dashboard）
-- [ ] 10.9 在分析流程完成后触发系统通知
+- [x] 10.1 添加 node-notifier 依赖到 package.json
+- [x] 10.2 创建通知管理模块 `web/server/notifications.ts`
+- [x] 10.3 实现通知类型到页面路由的映射配置
+- [x] 10.4 实现分析完成系统通知（跳转到 /review）
+- [x] 10.5 实现分析失败系统通知（跳转到 /dashboard）
+- [x] 10.6 实现新建议生成通知（跳转到 /review）
+- [x] 10.7 实现配置变更通知（跳转到 /settings）
+- [x] 10.8 实现系统错误通知（跳转到 /dashboard）
+- [x] 10.9 在分析流程完成后触发系统通知
 - [ ] 10.10 在 Settings 页面添加通知启用/禁用开关
-- [ ] 10.11 在启动时检测系统通知可用性（Linux）
-- [ ] 10.12 添加通知不可用时的日志警告和用户提示
+- [x] 10.11 在启动时检测系统通知可用性（Linux）
+- [x] 10.12 添加通知不可用时的日志警告和用户提示
 
 ## 11. UI 样式和交互优化
 
