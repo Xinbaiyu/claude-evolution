@@ -17,3 +17,14 @@ body {
   color: #c9d1d9;
   font-family: Inter, -apple-system, sans-serif;
 }
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

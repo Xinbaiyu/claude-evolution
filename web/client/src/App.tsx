@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Dashboard from './pages/Dashboard';
 import Review from './pages/Review';
 import Settings from './pages/Settings';
+import Toast from './components/Toast';
 
 function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -29,7 +30,12 @@ function App() {
     }
   };
 
-  return renderPage();
+  return (
+    <>
+      {renderPage()}
+      <Toast />
+    </>
+  );
 }
 
 export default App;
