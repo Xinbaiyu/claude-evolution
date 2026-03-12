@@ -182,10 +182,13 @@ router.post('/analyze', async (req: RequestWithManagers, res) => {
 
     // 发送桌面通知
     if (req.notificationManager) {
+      console.log('[DEBUG] Sending notification...');
       req.notificationManager.notifyAnalysisComplete({
         newSuggestions: pending.length,
         duration,
       });
+    } else {
+      console.log('[DEBUG] notificationManager not found in request');
     }
 
     res.json({

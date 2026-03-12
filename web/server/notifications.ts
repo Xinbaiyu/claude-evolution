@@ -66,16 +66,27 @@ export class NotificationManager {
     const targetRoute = NOTIFICATION_ROUTES[options.type];
     const targetUrl = `${this.baseUrl}${targetRoute}`;
 
-    const notificationOptions = {
+    console.log(`[Notification] Preparing notification: ${options.title}`);
+    console.log(`[Notification] Target URL: ${targetUrl}`);
+
+    const notificationOptions: any = {
       title: options.title,
       message: options.message,
-      sound: options.sound !== false,
-      wait: options.wait !== false, // 等待用户交互
-      icon: this.getIconPath(),
-      // 点击通知时打开的 URL
-      open: targetUrl,
-      timeout: 10, // 10 秒后自动关闭
+      sound: true, // 始终播放声音
+      wait: true, // 等待用户交互
+      timeout: 30, // 30 秒后自动关闭
     };
+
+    // macOS 特殊处理 - 添加可点击的操作
+    if (process.platform === 'darwin') {
+      notificationOptions.actions = ['查看', '关闭'];
+      notificationOptions.dropdownLabel = '操作';
+      notificationOptions.closeLabel = '关闭';
+      // 添加 subtitle 使通知更显眼
+      notificationOptions.subtitle = '点击查看详情';
+    } else {
+      notificationOptions.open = targetUrl;
+    }
 
     notifier.notify(notificationOptions, (err, response, metadata) => {
       if (err) {
@@ -84,18 +95,23 @@ export class NotificationManager {
       }
 
       console.log(`[Notification] Sent: ${options.title}`);
+      console.log(`[Notification] Response:`, response);
 
-      // 处理点击事件（跨平台兼容）
-      if (metadata && metadata.activationType === 'clicked') {
-        console.log(`[Notification] User clicked notification, opening: ${targetUrl}`);
+      // 任何交互都打开浏览器（不只是 click）
+      if (response !== 'timeout' && response !== 'closed') {
+        console.log(`[Notification] User interacted (${response}), opening: ${targetUrl}`);
         this.openBrowser(targetUrl);
       }
     });
 
-    // 监听点击事件（备用方案）
-    notifier.on('click', () => {
-      console.log(`[Notification] Click event detected, opening: ${targetUrl}`);
+    // 监听所有通知事件
+    notifier.once('click', () => {
+      console.log(`[Notification] Click event, opening: ${targetUrl}`);
       this.openBrowser(targetUrl);
+    });
+
+    notifier.once('timeout', () => {
+      console.log(`[Notification] Notification timed out`);
     });
   }
 
