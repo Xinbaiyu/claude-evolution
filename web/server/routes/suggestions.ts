@@ -4,7 +4,7 @@ import path from 'path';
 import os from 'os';
 import type { WebSocketManager } from '../websocket.js';
 import type { NotificationManager } from '../notifications.js';
-import { approveSuggestion, rejectSuggestion } from '../../../dist/learners/index.js';
+import { approveSuggestion, rejectSuggestion, batchApproveSuggestions } from '../../../dist/learners/index.js';
 
 // 扩展 Express Request 类型以包含 wsManager 和 notificationManager
 interface RequestWithWS extends Request {
@@ -127,7 +127,7 @@ router.post('/suggestions/:id/reject', async (req: RequestWithWS, res) => {
   }
 });
 
-// POST /api/suggestions/batch/approve - 批量批准
+// POST /api/suggestions/batch/approve - 批量批准 (BATCH-2)
 router.post('/suggestions/batch/approve', async (req, res) => {
   try {
     const { ids } = req.body;
@@ -139,38 +139,26 @@ router.post('/suggestions/batch/approve', async (req, res) => {
       });
     }
 
-    const pendingPath = path.join(SUGGESTIONS_DIR, 'pending.json');
-    const approvedPath = path.join(SUGGESTIONS_DIR, 'approved.json');
+    // 调用 SuggestionManager 批量批准
+    const result = await batchApproveSuggestions(ids);
 
-    const pending = await fs.readJson(pendingPath);
-    const approved = await fs.pathExists(approvedPath)
-      ? await fs.readJson(approvedPath)
-      : [];
-
-    const results = {
-      success: [] as string[],
-      failed: [] as string[],
-    };
-
-    for (const id of ids) {
-      const index = pending.findIndex((s: any) => s.id === id || s.id.startsWith(id));
-      if (index !== -1) {
-        const [suggestion] = pending.splice(index, 1);
-        suggestion.status = 'approved';
-        suggestion.approvedAt = new Date().toISOString();
-        approved.push(suggestion);
-        results.success.push(id);
-      } else {
-        results.failed.push(id);
-      }
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        error: result.error,
+        data: {
+          approved: result.approved,
+          failed: result.failed,
+        },
+      });
     }
-
-    await fs.writeJson(pendingPath, pending, { spaces: 2 });
-    await fs.writeJson(approvedPath, approved, { spaces: 2 });
 
     res.json({
       success: true,
-      data: results,
+      data: {
+        approved: result.approved,
+        count: result.approved.length,
+      },
     });
   } catch (error) {
     res.status(500).json({

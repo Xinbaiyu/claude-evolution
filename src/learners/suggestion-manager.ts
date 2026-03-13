@@ -272,3 +272,189 @@ async function regenerateLearnedContent(): Promise<void> {
   const config = await loadConfig();
   await generateCLAUDEmd(config);
 }
+
+// ====== Phase 2.5.2: 事务回滚机制 ======
+
+/**
+ * 快照接口
+ */
+interface Snapshot {
+  timestamp: string;
+  pendingBackup: string;
+  approvedBackup: string;
+}
+
+/**
+ * 创建快照 (TX-1)
+ */
+async function createSnapshot(): Promise<Snapshot> {
+  const evolutionDir = getEvolutionDir();
+  const timestamp = new Date().toISOString().replace(/:/g, '-');
+
+  const snapshotDir = path.join(evolutionDir, 'snapshots', timestamp);
+  await fs.ensureDir(snapshotDir);
+
+  const pendingPath = getSuggestionsPath();
+  const approvedPath = getApprovedSuggestionsPath();
+
+  const pendingBackup = path.join(snapshotDir, 'pending.json');
+  const approvedBackup = path.join(snapshotDir, 'approved.json');
+
+  // 复制文件到快照目录
+  if (await fs.pathExists(pendingPath)) {
+    await fs.copy(pendingPath, pendingBackup);
+  }
+
+  if (await fs.pathExists(approvedPath)) {
+    await fs.copy(approvedPath, approvedBackup);
+  }
+
+  logger.debug(`✓ 创建快照: ${snapshotDir}`);
+
+  return {
+    timestamp,
+    pendingBackup,
+    approvedBackup,
+  };
+}
+
+/**
+ * 从快照回滚 (TX-2)
+ */
+async function rollbackFromSnapshot(snapshot: Snapshot): Promise<void> {
+  logger.warn('⚠️ 检测到错误，正在回滚更改...');
+
+  const pendingPath = getSuggestionsPath();
+  const approvedPath = getApprovedSuggestionsPath();
+
+  // 恢复备份文件
+  if (await fs.pathExists(snapshot.pendingBackup)) {
+    await fs.copy(snapshot.pendingBackup, pendingPath);
+  }
+
+  if (await fs.pathExists(snapshot.approvedBackup)) {
+    await fs.copy(snapshot.approvedBackup, approvedPath);
+  }
+
+  logger.success('✓ 已回滚到批准前的状态');
+}
+
+/**
+ * 清理快照 (TX-3)
+ */
+async function cleanupSnapshot(snapshot: Snapshot): Promise<void> {
+  const snapshotDir = path.dirname(snapshot.pendingBackup);
+
+  try {
+    await fs.remove(snapshotDir);
+    logger.debug(`✓ 清理快照: ${snapshotDir}`);
+  } catch (error) {
+    // 清理失败不影响主流程
+    logger.debug(`清理快照失败: ${snapshotDir}`);
+  }
+
+  // 清理旧快照（保留最近 3 个）
+  await cleanupOldSnapshots();
+}
+
+/**
+ * 清理旧快照（保留最近 3 个）
+ */
+async function cleanupOldSnapshots(): Promise<void> {
+  const evolutionDir = getEvolutionDir();
+  const snapshotsDir = path.join(evolutionDir, 'snapshots');
+
+  if (!(await fs.pathExists(snapshotsDir))) {
+    return;
+  }
+
+  const snapshots = await fs.readdir(snapshotsDir);
+  const sortedSnapshots = snapshots.sort().reverse(); // 最新的在前
+
+  // 删除第 4 个之后的快照
+  for (let i = 3; i < sortedSnapshots.length; i++) {
+    const oldSnapshot = path.join(snapshotsDir, sortedSnapshots[i]);
+    try {
+      await fs.remove(oldSnapshot);
+      logger.debug(`✓ 清理旧快照: ${sortedSnapshots[i]}`);
+    } catch (error) {
+      // 忽略清理错误
+    }
+  }
+}
+
+// ====== Phase 2.5.3: 批量批准实现 ======
+
+/**
+ * 批量批准结果接口
+ */
+export interface BatchApprovalResult {
+  success: boolean;
+  approved: string[];
+  failed: string[];
+  error?: string;
+}
+
+/**
+ * 批量批准建议 (BATCH-1)
+ */
+export async function batchApproveSuggestions(
+  ids: string[]
+): Promise<BatchApprovalResult> {
+  // 1. 创建快照
+  const snapshot = await createSnapshot();
+
+  const approved: string[] = [];
+  const failed: string[] = [];
+  let failedId: string | null = null;
+  let errorMessage: string | null = null;
+
+  try {
+    // 2. 逐个批准（不立即生成 CLAUDE.md）
+    for (const id of ids) {
+      try {
+        await moveSuggestionToApproved(id);
+        approved.push(id);
+      } catch (error) {
+        // 遇到错误立即回滚
+        failedId = id;
+        errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        await rollbackFromSnapshot(snapshot);
+
+        return {
+          success: false,
+          approved: [],
+          failed: [id],
+          error: errorMessage,
+        };
+      }
+    }
+
+    // 3. 所有批准成功后，才生成 CLAUDE.md
+    await regenerateLearnedContent();
+
+    // 4. 清理快照
+    await cleanupSnapshot(snapshot);
+
+    logger.success(`✓ 批量批准完成: ${approved.length} 条建议`);
+
+    return {
+      success: true,
+      approved,
+      failed: [],
+    };
+  } catch (error) {
+    // 发生意外错误，回滚所有更改
+    errorMessage = error instanceof Error ? error.message : 'Batch approval failed';
+
+    await rollbackFromSnapshot(snapshot);
+
+    return {
+      success: false,
+      approved: [],
+      failed: ids,
+      error: errorMessage,
+    };
+  }
+}
