@@ -79,6 +79,48 @@ router.get('/suggestions/:id', async (req, res) => {
   }
 });
 
+// POST /api/suggestions/batch/approve - 批量批准 (BATCH-2)
+// 注意：必须在 /:id/approve 之前定义，避免路由冲突
+router.post('/suggestions/batch/approve', async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'ids must be a non-empty array',
+      });
+    }
+
+    // 调用 SuggestionManager 批量批准
+    const result = await batchApproveSuggestions(ids);
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        error: result.error,
+        data: {
+          approved: result.approved,
+          failed: result.failed,
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        approved: result.approved,
+        count: result.approved.length,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
 // POST /api/suggestions/:id/approve - 批准建议
 router.post('/suggestions/:id/approve', async (req: RequestWithWS, res) => {
   try {
@@ -118,47 +160,6 @@ router.post('/suggestions/:id/reject', async (req: RequestWithWS, res) => {
 
     res.json({
       success: true,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-// POST /api/suggestions/batch/approve - 批量批准 (BATCH-2)
-router.post('/suggestions/batch/approve', async (req, res) => {
-  try {
-    const { ids } = req.body;
-
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'ids must be a non-empty array',
-      });
-    }
-
-    // 调用 SuggestionManager 批量批准
-    const result = await batchApproveSuggestions(ids);
-
-    if (!result.success) {
-      return res.status(500).json({
-        success: false,
-        error: result.error,
-        data: {
-          approved: result.approved,
-          failed: result.failed,
-        },
-      });
-    }
-
-    res.json({
-      success: true,
-      data: {
-        approved: result.approved,
-        count: result.approved.length,
-      },
     });
   } catch (error) {
     res.status(500).json({
