@@ -8,6 +8,10 @@ export default function Review() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // 批量选择状态
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectAll, setSelectAll] = useState(false);
+
   useEffect(() => {
     fetchSuggestions();
   }, []);
@@ -50,6 +54,49 @@ export default function Review() {
     } catch (err) {
       const errorMessage =
         err instanceof ApiError ? err.message : '拒绝失败';
+      toast.error(errorMessage);
+    }
+  };
+
+  // 全选/取消全选
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(suggestions.map((s) => s.id));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  // 切换单个选中状态
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((selectedId) => selectedId !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  // 批量批准
+  const handleBatchApprove = async () => {
+    if (selectedIds.length === 0) {
+      toast.error('请先选择要批准的建议');
+      return;
+    }
+
+    try {
+      await apiClient.batchApproveSuggestions(selectedIds);
+      toast.success(`已批准 ${selectedIds.length} 条建议`);
+
+      // 清空选择并刷新
+      setSelectedIds([]);
+      setSelectAll(false);
+      fetchSuggestions();
+    } catch (err) {
+      const errorMessage =
+        err instanceof ApiError ? err.message : '批量批准失败';
       toast.error(errorMessage);
     }
   };
@@ -116,16 +163,55 @@ export default function Review() {
 
         {!loading && !error && suggestions.length > 0 && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-slate-400 font-mono">
-                共 {suggestions.length} 条待审核建议
+            <div className="flex items-center justify-between mb-4 border-b-2 border-slate-700 pb-4">
+              {/* 左侧：全选 + 已选数量 */}
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectAll}
+                    onChange={handleSelectAll}
+                    className="w-5 h-5 bg-slate-800 border-2 border-amber-500 checked:bg-amber-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-mono font-bold text-slate-300">
+                    全选
+                  </span>
+                </label>
+
+                {selectedIds.length > 0 ? (
+                  <span className="text-amber-500 font-mono font-bold">
+                    已选 {selectedIds.length} 条
+                  </span>
+                ) : (
+                  <span className="text-slate-500 font-mono">
+                    共 {suggestions.length} 条待审核建议
+                  </span>
+                )}
               </div>
+
+              {/* 右侧：批量批准按钮 */}
+              <button
+                onClick={handleBatchApprove}
+                disabled={selectedIds.length === 0}
+                className={`
+                  border-2 font-mono font-bold py-2 px-6 transition-colors
+                  ${
+                    selectedIds.length > 0
+                      ? 'border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500'
+                      : 'border-slate-700 bg-slate-800 text-slate-600 cursor-not-allowed'
+                  }
+                `}
+              >
+                {selectedIds.length > 0 ? `批准 ${selectedIds.length} 条` : '批量批准'}
+              </button>
             </div>
 
             {suggestions.map((suggestion) => (
               <SuggestionCard
                 key={suggestion.id}
                 suggestion={suggestion}
+                selected={selectedIds.includes(suggestion.id)}
+                onToggleSelect={handleToggleSelect}
                 onApprove={handleApprove}
                 onReject={handleReject}
               />
@@ -139,11 +225,13 @@ export default function Review() {
 
 interface SuggestionCardProps {
   suggestion: Suggestion;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
 }
 
-function SuggestionCard({ suggestion, onApprove, onReject }: SuggestionCardProps) {
+function SuggestionCard({ suggestion, selected, onToggleSelect, onApprove, onReject }: SuggestionCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [confirmingReject, setConfirmingReject] = useState(false);
 
@@ -254,10 +342,20 @@ function SuggestionCard({ suggestion, onApprove, onReject }: SuggestionCardProps
 
   return (
     <div
-      className={`border-4 ${typeBorders[suggestion.type]} bg-slate-900 p-4`}
+      className={`border-4 ${typeBorders[suggestion.type]} bg-slate-900 p-4 transition-all ${
+        selected ? 'ring-2 ring-amber-500 bg-slate-800' : ''
+      }`}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
+          {/* 复选框 */}
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect(suggestion.id)}
+            className="w-5 h-5 bg-slate-800 border-2 border-amber-500 checked:bg-amber-500 cursor-pointer mt-1"
+          />
+
           <span
             className={`px-2 py-1 text-xs font-bold border-2 ${typeBorders[suggestion.type]}`}
           >
