@@ -50,7 +50,7 @@ app.use('/api', suggestionsRouter);
 app.use('/api', systemRouter);
 
 // 静态文件服务（前端构建产物）
-const clientDistPath = path.join(__dirname, '../../client/dist');
+const clientDistPath = path.join(__dirname, '../client/dist');
 app.use(express.static(clientDistPath));
 
 // SPA fallback - 所有未匹配的路由返回 index.html
