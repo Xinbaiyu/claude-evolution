@@ -208,23 +208,26 @@ npm run test:e2e:review
 - ✅ 用户可以在 Web UI 审核建议
 - ✅ Dashboard 实时刷新（分析完成时）
 - ✅ 桌面通知提醒用户
-- ✅ 核心流程 E2E 测试通过
+- ✅ WebSocket 连接状态可视化
 
 **验收标准**:
 ```bash
 # 完整用户流程
-1. [ ] 启动 Web UI (./start-ui.sh)
-2. [ ] 访问 http://localhost:10010
-3. [ ] Dashboard 显示正确数据
-4. [ ] 点击"审核建议"进入 Review 页面
-5. [ ] 看到待审批建议列表
-6. [ ] 批准一个建议
-7. [ ] 看到成功提示
-8. [ ] 建议从列表消失
-9. [ ] 返回 Dashboard，指标更新
-10. [ ] 运行分析，Dashboard 自动刷新
-11. [ ] 收到桌面通知
+1. [x] 启动 Web UI (./start-ui.sh)
+2. [x] 访问 http://localhost:10010
+3. [x] Dashboard 显示正确数据
+4. [x] 右上角显示 WebSocket 连接状态
+5. [x] 点击"审核建议"进入 Review 页面
+6. [ ] 看到待审批建议列表
+7. [ ] 批准一个建议
+8. [ ] 看到成功 Toast 提示
+9. [ ] 建议从列表消失
+10. [ ] Dashboard 自动刷新（无需手动刷新页面）
+11. [ ] 运行分析，Dashboard 自动刷新
+12. [ ] 收到桌面通知
 ```
+
+**实施完成度**: Phase 1.1-1.3 全部完成 ✓
 
 ---
 
@@ -347,6 +350,247 @@ npm run test:daemon
 - ✅ `claude-evolution status` 查看状态
 - ✅ 配置文件支持 Web 配置
 - ✅ 守护进程测试通过
+
+---
+
+## 📦 Sprint 2.5: 批量操作与数据流修复 (紧急优先级)
+
+**目标**: 修复批准数据流 bug，实现批量批准功能
+
+**背景**: 发现 CLI approve 命令存在数据覆盖 bug，Web Server 缺少 CLAUDE.md 更新逻辑。需要重构 SuggestionManager 并实现批量批准功能。
+
+**相关文档**:
+- 设计决策: `design.md` - 决策 8 和 9
+- 功能规格: `specs/batch-approval/spec.md`
+
+### Phase 2.5.1: 数据流修复 (P0 - 阻塞 bug)
+
+**问题**: CLI approve 只写入单个建议，覆盖所有已批准内容；Web Server 不更新 CLAUDE.md
+
+- [ ] **BUG-1** 在 SuggestionManager 中添加 `loadApprovedSuggestions()`
+  - 读取 `~/.claude-evolution/suggestions/approved.json`
+  - 返回所有已批准建议数组
+
+- [ ] **BUG-2** 在 SuggestionManager 中添加 `moveSuggestionToApproved(id)`
+  - 从 pending.json 中移除建议
+  - 添加到 approved.json
+  - 不触发 CLAUDE.md 生成
+
+- [ ] **BUG-3** 在 SuggestionManager 中添加 `regenerateLearnedContent()`
+  - 读取**所有**已批准建议（而不是单个）
+  - 按类型分组（preference/pattern/workflow）
+  - 调用 `writeLearnedContent(all_preferences, all_patterns, all_workflows)`
+  - 调用 `generateCLAUDEmd()`
+
+- [ ] **BUG-4** 修改 `approveSuggestion(id)` 调用新逻辑
+  ```typescript
+  export async function approveSuggestion(id: string): Promise<void> {
+    await moveSuggestionToApproved(id);
+    await regenerateLearnedContent(); // ← 新增
+  }
+  ```
+
+- [ ] **BUG-5** 修复 CLI approve 命令 (`src/cli/commands/approve.ts`)
+  - 删除错误的 `writeLearnedContent([single_item], [], [])` 调用
+  - `approveSuggestion()` 内部已处理完整逻辑
+  - 保留日志输出和成功提示
+
+- [ ] **BUG-6** 修复 Web Server approve 路由 (`web/server/routes/suggestions.ts`)
+  - 删除直接操作 JSON 文件的代码
+  - 改为调用 `approveSuggestion(id)` from `../../dist/learners/index.js`
+  - 保留 WebSocket 事件推送
+
+**✅ 验证检查点**:
+```bash
+# 数据流修复验证
+1. [ ] CLI approve 一个建议 → learned/*.md 包含所有已批准内容（不覆盖）
+2. [ ] CLI approve all → learned/*.md 包含所有建议
+3. [ ] Web UI approve → CLAUDE.md 正确更新
+4. [ ] 手动检查 approved.json → 所有批准建议都在
+```
+
+---
+
+### Phase 2.5.2: 事务回滚机制 (P0)
+
+- [ ] **TX-1** 在 SuggestionManager 中添加 `createSnapshot()`
+  ```typescript
+  interface Snapshot {
+    timestamp: string;
+    pendingBackup: string;
+    approvedBackup: string;
+  }
+  ```
+  - 创建 `~/.claude-evolution/snapshots/<timestamp>/` 目录
+  - 复制 pending.json 和 approved.json 到快照目录
+
+- [ ] **TX-2** 在 SuggestionManager 中添加 `rollbackFromSnapshot(snapshot)`
+  - 恢复 pending.json 从快照
+  - 恢复 approved.json 从快照
+  - 记录回滚日志
+
+- [ ] **TX-3** 在 SuggestionManager 中添加 `cleanupSnapshot(snapshot)`
+  - 删除快照目录
+  - 清理旧快照（保留最近 3 个）
+
+---
+
+### Phase 2.5.3: 批量批准后端实现 (P0)
+
+- [ ] **BATCH-1** 实现 `batchApproveSuggestions(ids: string[])`
+  ```typescript
+  export async function batchApproveSuggestions(
+    ids: string[]
+  ): Promise<{ success: boolean; approved: string[]; failed: string[]; error?: string }> {
+    const snapshot = await createSnapshot();
+    try {
+      for (const id of ids) {
+        await moveSuggestionToApproved(id); // 可能抛出异常
+      }
+      await regenerateLearnedContent(); // 只生成一次
+      await cleanupSnapshot(snapshot);
+      return { success: true, approved: ids, failed: [] };
+    } catch (error) {
+      await rollbackFromSnapshot(snapshot);
+      return {
+        success: false,
+        approved: [],
+        failed: [id_that_failed],
+        error: error.message
+      };
+    }
+  }
+  ```
+
+- [ ] **BATCH-2** 修改 Web Server 批量批准路由
+  - 调用 `batchApproveSuggestions(ids)`
+  - 返回统一的成功/失败响应
+  - 失败时返回 500 + 错误信息
+
+---
+
+### Phase 2.5.4: 批量批准前端 UI (P1)
+
+- [ ] **UI-1** Review 页面添加批量选择功能
+  - 每个建议卡片左侧添加 Checkbox
+  - 列表顶部添加"全选" Checkbox
+  - 状态管理: `useState<string[]>()` 存储选中 ID
+
+- [ ] **UI-2** 批量批准按钮
+  - 列表顶部显示"批量批准"按钮
+  - 未选中时禁用
+  - 显示选中数量："批准 N 条"
+
+- [ ] **UI-3** 创建 BatchApprovalModal 组件
+  - **确认阶段**: 显示即将批准的建议数量
+  - **进度阶段**:
+    - 进度条 (0-100%)
+    - 文字提示 "正在批准 N/M 条建议..."
+    - 逐项状态列表（最多显示 5 条）
+    - 预计剩余时间
+  - **成功阶段**:
+    - 成功图标 + "批准完成"
+    - 统计信息
+    - 2 秒后自动关闭
+  - **错误阶段**:
+    - 错误图标 + "批准失败"
+    - 错误信息
+    - "所有更改已回滚"提示
+    - "重试"/"关闭"按钮
+
+- [ ] **UI-4** 实现批量批准流程
+  ```typescript
+  const handleBatchApprove = async () => {
+    setShowModal(true);
+    setModalStatus('processing');
+    try {
+      const result = await apiClient.batchApproveSuggestions(selectedIds);
+      if (result.success) {
+        setModalStatus('success');
+        setTimeout(() => { setShowModal(false); }, 2000);
+        fetchSuggestions(); // 刷新列表
+      } else {
+        setModalStatus('error');
+        setErrorMessage(result.error);
+      }
+    } catch (err) {
+      setModalStatus('error');
+      setErrorMessage(err.message);
+    }
+  };
+  ```
+
+- [ ] **UI-5** 使用 frontend-design skill 设计进度 Modal
+  - 调用 `/frontend-design` skill
+  - 需求：批量批准进度 Modal，符合 Neo-brutalist 风格
+  - 参考 Dashboard 的设计语言（深色、工业风、黄色强调）
+
+---
+
+### Phase 2.5.5: 性能测试 (P1)
+
+- [ ] **PERF-1** 创建性能测试脚本
+  - 文件: `tests/performance/regenerate-learned-content.perf.ts`
+  - 使用 Vitest
+  - 生成模拟数据（10/50/100 个建议）
+
+- [ ] **PERF-2** 测试用例：小规模 (10 个建议)
+  - 预期: ≤ 100ms
+  - 断言: `expect(duration).toBeLessThan(100)`
+
+- [ ] **PERF-3** 测试用例：中等规模 (50 个建议)
+  - 预期: ≤ 200ms
+  - 断言: `expect(duration).toBeLessThan(200)`
+
+- [ ] **PERF-4** 测试用例：大规模 (100 个建议)
+  - 预期: ≤ 500ms
+  - 断言: `expect(duration).toBeLessThan(500)`
+
+- [ ] **PERF-5** 测试用例：批量 vs 逐个对比
+  - 批量操作应快 5 倍以上
+  - 断言: `expect(individualDuration / batchDuration).toBeGreaterThan(5)`
+
+---
+
+### Sprint 2.5 交付物
+
+- ✅ **数据流 bug 修复**: CLI 和 Web Server 都正确更新 CLAUDE.md
+- ✅ **批量批准**: 用户可通过复选框批量选择和批准建议
+- ✅ **原子性保证**: 批量操作全部成功或全部回滚
+- ✅ **进度反馈**: 实时进度 Modal，用户体验流畅
+- ✅ **性能优化**: 批量操作比逐个操作快 5-10 倍
+
+**验收标准**:
+```bash
+# 完整批量批准流程
+1. [ ] 打开 Review 页面，看到多个待审批建议
+2. [ ] 每个建议左侧显示 checkbox
+3. [ ] 选中 5 个建议
+4. [ ] 列表顶部显示"已选 5 条"
+5. [ ] 点击"批准 5 条"按钮
+6. [ ] 弹出确认对话框
+7. [ ] 确认后显示进度 Modal
+8. [ ] 进度条从 0% → 100%，平滑动画
+9. [ ] 逐项状态显示 ⟳ → ✓
+10. [ ] 完成后显示成功状态
+11. [ ] 2 秒后 Modal 自动关闭
+12. [ ] 建议列表刷新，批准的建议消失
+13. [ ] Dashboard 指标更新（WebSocket 推送）
+
+# 错误回滚测试
+1. [ ] 模拟文件权限错误
+2. [ ] 批量批准开始
+3. [ ] 中途失败，显示错误 Modal
+4. [ ] 提示"所有更改已回滚"
+5. [ ] 检查 pending.json 和 approved.json 未改变
+6. [ ] 点击"重试"，重新发起批准
+7. [ ] 修复权限后成功批准
+
+# 性能测试
+1. [ ] 运行 `npm run test:performance`
+2. [ ] 所有性能测试通过
+3. [ ] 批量操作速度明显快于逐个操作
+```
 
 ---
 

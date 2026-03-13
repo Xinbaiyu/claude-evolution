@@ -4,6 +4,7 @@ import path from 'path';
 import os from 'os';
 import type { WebSocketManager } from '../websocket.js';
 import type { NotificationManager } from '../notifications.js';
+import { approveSuggestion, rejectSuggestion } from '../../../dist/learners/index.js';
 
 // 扩展 Express Request 类型以包含 wsManager 和 notificationManager
 interface RequestWithWS extends Request {
@@ -82,39 +83,17 @@ router.get('/suggestions/:id', async (req, res) => {
 router.post('/suggestions/:id/approve', async (req: RequestWithWS, res) => {
   try {
     const { id } = req.params;
-    const pendingPath = path.join(SUGGESTIONS_DIR, 'pending.json');
-    const approvedPath = path.join(SUGGESTIONS_DIR, 'approved.json');
 
-    const pending = await fs.readJson(pendingPath);
-    const approved = await fs.pathExists(approvedPath)
-      ? await fs.readJson(approvedPath)
-      : [];
-
-    const index = pending.findIndex((s: any) => s.id === id || s.id.startsWith(id));
-    if (index === -1) {
-      return res.status(404).json({
-        success: false,
-        error: 'Suggestion not found',
-      });
-    }
-
-    const [suggestion] = pending.splice(index, 1);
-    suggestion.status = 'approved';
-    suggestion.approvedAt = new Date().toISOString();
-
-    approved.push(suggestion);
-
-    await fs.writeJson(pendingPath, pending, { spaces: 2 });
-    await fs.writeJson(approvedPath, approved, { spaces: 2 });
+    // 调用 SuggestionManager（内部已处理 CLAUDE.md 更新）
+    await approveSuggestion(id);
 
     // 触发 WebSocket 事件
     if (req.wsManager) {
-      req.wsManager.emitSuggestionApproved(suggestion);
+      req.wsManager.emitSuggestionApproved({ id });
     }
 
     res.json({
       success: true,
-      data: suggestion,
     });
   } catch (error) {
     res.status(500).json({
@@ -128,39 +107,17 @@ router.post('/suggestions/:id/approve', async (req: RequestWithWS, res) => {
 router.post('/suggestions/:id/reject', async (req: RequestWithWS, res) => {
   try {
     const { id } = req.params;
-    const pendingPath = path.join(SUGGESTIONS_DIR, 'pending.json');
-    const rejectedPath = path.join(SUGGESTIONS_DIR, 'rejected.json');
 
-    const pending = await fs.readJson(pendingPath);
-    const rejected = await fs.pathExists(rejectedPath)
-      ? await fs.readJson(rejectedPath)
-      : [];
-
-    const index = pending.findIndex((s: any) => s.id === id || s.id.startsWith(id));
-    if (index === -1) {
-      return res.status(404).json({
-        success: false,
-        error: 'Suggestion not found',
-      });
-    }
-
-    const [suggestion] = pending.splice(index, 1);
-    suggestion.status = 'rejected';
-    suggestion.rejectedAt = new Date().toISOString();
-
-    rejected.push(suggestion);
-
-    await fs.writeJson(pendingPath, pending, { spaces: 2 });
-    await fs.writeJson(rejectedPath, rejected, { spaces: 2 });
+    // 调用 SuggestionManager
+    await rejectSuggestion(id);
 
     // 触发 WebSocket 事件
     if (req.wsManager) {
-      req.wsManager.emitSuggestionRejected(suggestion);
+      req.wsManager.emitSuggestionRejected({ id });
     }
 
     res.json({
       success: true,
-      data: suggestion,
     });
   } catch (error) {
     res.status(500).json({

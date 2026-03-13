@@ -4,6 +4,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { Suggestion, Preference, Pattern, Workflow } from '../types/index.js';
 import { getEvolutionDir } from '../config/loader.js';
 import { logger } from '../utils/index.js';
+import { writeLearnedContent, generateCLAUDEmd } from '../generators/index.js';
+import { loadConfig } from '../config/index.js';
 
 /**
  * 建议管理器
@@ -95,24 +97,11 @@ export async function getSuggestion(id: string): Promise<Suggestion | null> {
 }
 
 /**
- * 批准建议
+ * 批准建议 (BUG-4: 使用新逻辑)
  */
 export async function approveSuggestion(id: string): Promise<void> {
-  const suggestions = await loadPendingSuggestions();
-  const suggestion = suggestions.find((s) => s.id === id);
-
-  if (!suggestion) {
-    throw new Error(`建议不存在: ${id}`);
-  }
-
-  if (suggestion.status !== 'pending') {
-    throw new Error(`建议已处理: ${id} (${suggestion.status})`);
-  }
-
-  suggestion.status = 'approved';
-  suggestion.reviewedAt = new Date().toISOString();
-
-  await savePendingSuggestions(suggestions);
+  await moveSuggestionToApproved(id);
+  await regenerateLearnedContent();
   logger.success(`✓ 已批准建议: ${id}`);
 }
 
@@ -120,21 +109,36 @@ export async function approveSuggestion(id: string): Promise<void> {
  * 拒绝建议
  */
 export async function rejectSuggestion(id: string): Promise<void> {
-  const suggestions = await loadPendingSuggestions();
-  const suggestion = suggestions.find((s) => s.id === id);
+  const pending = await loadPendingSuggestions();
+  const rejectedPath = path.join(getEvolutionDir(), 'suggestions/rejected.json');
 
-  if (!suggestion) {
+  const index = pending.findIndex((s) => s.id === id);
+  if (index === -1) {
     throw new Error(`建议不存在: ${id}`);
   }
 
+  const suggestion = pending[index];
   if (suggestion.status !== 'pending') {
     throw new Error(`建议已处理: ${id} (${suggestion.status})`);
   }
 
+  // 从 pending 中移除
+  pending.splice(index, 1);
+
+  // 更新状态
   suggestion.status = 'rejected';
   suggestion.reviewedAt = new Date().toISOString();
 
-  await savePendingSuggestions(suggestions);
+  // 添加到 rejected.json
+  const rejected = (await fs.pathExists(rejectedPath))
+    ? await fs.readJSON(rejectedPath)
+    : [];
+  rejected.push(suggestion);
+
+  // 保存两个文件
+  await savePendingSuggestions(pending);
+  await fs.writeJSON(rejectedPath, rejected, { spaces: 2 });
+
   logger.success(`✓ 已拒绝建议: ${id}`);
 }
 
@@ -174,4 +178,97 @@ export function getItemType(
     return 'workflow';
   }
   throw new Error('无法判断项目类型');
+}
+
+/**
+ * 获取已批准建议文件路径
+ */
+function getApprovedSuggestionsPath(): string {
+  return path.join(getEvolutionDir(), 'suggestions/approved.json');
+}
+
+/**
+ * 加载所有已批准建议 (BUG-1)
+ */
+export async function loadApprovedSuggestions(): Promise<Suggestion[]> {
+  const filePath = getApprovedSuggestionsPath();
+
+  if (!(await fs.pathExists(filePath))) {
+    return [];
+  }
+
+  try {
+    return await fs.readJSON(filePath);
+  } catch (error) {
+    logger.error('加载已批准建议失败:', error);
+    return [];
+  }
+}
+
+/**
+ * 保存已批准建议
+ */
+async function saveApprovedSuggestions(suggestions: Suggestion[]): Promise<void> {
+  const filePath = getApprovedSuggestionsPath();
+  await fs.ensureDir(path.dirname(filePath));
+  await fs.writeJSON(filePath, suggestions, { spaces: 2 });
+}
+
+/**
+ * 移动建议到已批准列表 (BUG-2)
+ */
+async function moveSuggestionToApproved(id: string): Promise<Suggestion> {
+  const pending = await loadPendingSuggestions();
+  const approved = await loadApprovedSuggestions();
+
+  const index = pending.findIndex((s) => s.id === id);
+  if (index === -1) {
+    throw new Error(`建议不存在: ${id}`);
+  }
+
+  const suggestion = pending[index];
+  if (suggestion.status !== 'pending') {
+    throw new Error(`建议已处理: ${id} (${suggestion.status})`);
+  }
+
+  // 从 pending 中移除
+  pending.splice(index, 1);
+
+  // 更新状态并添加到 approved
+  suggestion.status = 'approved';
+  suggestion.reviewedAt = new Date().toISOString();
+  approved.push(suggestion);
+
+  // 保存两个文件
+  await savePendingSuggestions(pending);
+  await saveApprovedSuggestions(approved);
+
+  return suggestion;
+}
+
+/**
+ * 重新生成学习内容 (BUG-3)
+ */
+async function regenerateLearnedContent(): Promise<void> {
+  const approved = await loadApprovedSuggestions();
+
+  // 按类型分组
+  const preferences = approved
+    .filter((s) => s.type === 'preference')
+    .map((s) => s.item as Preference);
+
+  const patterns = approved
+    .filter((s) => s.type === 'pattern')
+    .map((s) => s.item as Pattern);
+
+  const workflows = approved
+    .filter((s) => s.type === 'workflow')
+    .map((s) => s.item as Workflow);
+
+  // 重新生成 learned/ 文件（包含所有已批准内容）
+  await writeLearnedContent(preferences, patterns, workflows);
+
+  // 重新生成 CLAUDE.md
+  const config = await loadConfig();
+  await generateCLAUDEmd(config);
 }
