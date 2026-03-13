@@ -24,30 +24,30 @@
 - [x] 3.3 Implement EventEmitter-based event bus
 - [x] 3.4 Implement state update methods for scheduler
 - [x] 3.5 Implement state update methods for Web Server
-- [ ] 3.6 Add unit tests for SharedState
+- [x] 3.6 Add unit tests for SharedState
 
 ## 4. Start Command
 
-- [ ] 4.1 Create `src/cli/commands/start.ts`
-- [ ] 4.2 Implement duplicate start detection
-- [ ] 4.3 Implement foreground mode startup
-- [ ] 4.4 Implement background mode (fork + detach)
-- [ ] 4.5 Integrate CronScheduler startup
-- [ ] 4.6 Integrate Web Server startup
-- [ ] 4.7 Handle command options (--daemon, --port, --no-scheduler, --no-web)
-- [ ] 4.8 Write PID file on successful start
-- [ ] 4.9 Add integration test for start command
+- [x] 4.1 Create `src/cli/commands/start.ts`
+- [x] 4.2 Implement duplicate start detection
+- [x] 4.3 Implement foreground mode startup
+- [x] 4.4 Implement background mode (fork + detach)
+- [x] 4.5 Integrate CronScheduler startup
+- [x] 4.6 Integrate Web Server startup
+- [x] 4.7 Handle command options (--daemon, --port, --no-scheduler, --no-web)
+- [x] 4.8 Write PID file on successful start
+- [x] 4.9 Add integration test for start command
 
 ## 5. Stop Command
 
-- [ ] 5.1 Create `src/cli/commands/stop.ts`
-- [ ] 5.2 Implement PID file reading
-- [ ] 5.3 Send SIGTERM signal to process
-- [ ] 5.4 Wait for process exit with timeout
-- [ ] 5.5 Implement force kill on timeout (SIGKILL)
-- [ ] 5.6 Delete PID file after stop
-- [ ] 5.7 Handle "not running" scenario
-- [ ] 5.8 Add integration test for stop command
+- [x] 5.1 Create `src/cli/commands/stop.ts`
+- [x] 5.2 Implement PID file reading
+- [x] 5.3 Send SIGTERM signal to process
+- [x] 5.4 Wait for process exit with timeout
+- [x] 5.5 Implement force kill on timeout (SIGKILL)
+- [x] 5.6 Delete PID file after stop
+- [x] 5.7 Handle "not running" scenario
+- [x] 5.8 Add integration test for stop command
 
 ## 6. Restart Command
 
