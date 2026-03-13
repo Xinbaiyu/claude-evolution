@@ -6,6 +6,9 @@ import { analyzeCommand } from './commands/analyze.js';
 import { reviewCommand } from './commands/review.js';
 import { approveCommand, rejectCommand } from './commands/approve.js';
 import { configListCommand, configSetCommand } from './commands/config.js';
+import { statusCommand } from './commands/status.js';
+import { historyCommand } from './commands/history.js';
+import { diffCommand } from './commands/diff.js';
 
 const program = new Command();
 
@@ -106,6 +109,61 @@ configCmd
       await configSetCommand(field, value);
     } catch (error) {
       console.error('设置配置失败:', error);
+      process.exit(1);
+    }
+  });
+
+// status 命令
+program
+  .command('status')
+  .description('Show system status')
+  .action(async () => {
+    try {
+      await statusCommand();
+    } catch (error) {
+      console.error('获取状态失败:', error);
+      process.exit(1);
+    }
+  });
+
+// history 命令
+program
+  .command('history')
+  .description('Show approval/rejection history')
+  .option('-l, --limit <number>', '显示数量', '10')
+  .option('-t, --type <type>', '过滤类型 (approved/rejected/all)', 'all')
+  .action(async (options) => {
+    try {
+      const limit = parseInt(options.limit, 10);
+      const type = options.type;
+
+      if (isNaN(limit) || limit <= 0) {
+        console.error('错误: --limit 必须是正整数');
+        process.exit(1);
+      }
+
+      if (!['approved', 'rejected', 'all'].includes(type)) {
+        console.error('错误: --type 必须是 approved, rejected 或 all');
+        process.exit(1);
+      }
+
+      await historyCommand({ limit, type });
+    } catch (error) {
+      console.error('查看历史失败:', error);
+      process.exit(1);
+    }
+  });
+
+// diff 命令
+program
+  .command('diff')
+  .description('Show configuration differences')
+  .option('--no-color', '禁用彩色输出')
+  .action(async (options) => {
+    try {
+      await diffCommand({ noColor: !options.color });
+    } catch (error) {
+      console.error('生成差异失败:', error);
       process.exit(1);
     }
   });

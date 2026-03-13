@@ -57,7 +57,7 @@
 ## 8. 测试与验证
 
 - [x] 8.1 前端构建验证：运行 `npm run build`，确保无 TypeScript 错误
-- [ ] 8.2 手动测试 idle → processing → success 流程
-- [ ] 8.3 手动测试 idle → processing → error 流程（模拟 API 错误）
-- [ ] 8.4 验证回滚提示在错误状态下正确显示
-- [ ] 8.5 验证 Neo-brutalist 样式与现有页面一致
+- [x] 8.2 手动测试 idle → processing → success 流程
+- [x] 8.3 手动测试 idle → processing → error 流程（模拟 API 错误）
+- [x] 8.4 验证回滚提示在错误状态下正确显示
+- [x] 8.5 验证 Neo-brutalist 样式与现有页面一致

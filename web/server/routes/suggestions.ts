@@ -4,7 +4,7 @@ import path from 'path';
 import os from 'os';
 import type { WebSocketManager } from '../websocket.js';
 import type { NotificationManager } from '../notifications.js';
-import { approveSuggestion, rejectSuggestion, batchApproveSuggestions } from '../../../dist/learners/index.js';
+import { approveSuggestion, rejectSuggestion, batchApproveSuggestions, batchRejectSuggestions } from '../../../dist/learners/index.js';
 
 // 扩展 Express Request 类型以包含 wsManager 和 notificationManager
 interface RequestWithWS extends Request {
@@ -111,6 +111,48 @@ router.post('/suggestions/batch/approve', async (req, res) => {
       data: {
         approved: result.approved,
         count: result.approved.length,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+// POST /api/suggestions/batch/reject - 批量拒绝 (BATCH-REJECT-2)
+// 注意：必须在 /:id/reject 之前定义，避免路由冲突
+router.post('/suggestions/batch/reject', async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'ids must be a non-empty array',
+      });
+    }
+
+    // 调用 SuggestionManager 批量拒绝
+    const result = await batchRejectSuggestions(ids);
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        error: result.error,
+        data: {
+          rejected: result.rejected,
+          failed: result.failed,
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        rejected: result.rejected,
+        count: result.rejected.length,
       },
     });
   } catch (error) {

@@ -159,6 +159,11 @@ async function detectPreferenceConflict(
   const evolutionDir = getEvolutionDir();
   const sourceDir = path.join(evolutionDir, 'source');
 
+  // 检查 source 目录是否存在
+  if (!(await fs.pathExists(sourceDir))) {
+    return null;
+  }
+
   // 读取所有 source 文件
   const sourceFiles = await fs.readdir(sourceDir);
   for (const file of sourceFiles) {

@@ -1,0 +1,9 @@
+- [x] 2.1 创建 src/learners/suggestion-manager.test.ts
+- [x] 2.2 测试 approveSuggestion() - 成功批准场景
+- [x] 2.3 测试 approveSuggestion() - 建议不存在场景
+- [x] 2.4 测试 rejectSuggestion() - 成功拒绝场景
+- [x] 2.5 测试 mergeSuggestions() - 非冲突合并
+- [x] 2.6 测试 mergeSuggestions() - 冲突检测
+- [x] 2.7 测试事务回滚机制 - 部分失败时回滚
+- [x] 2.8 测试数据持久化 - 验证 JSON 文件正确写入
+- [x] 2.9 达到 80%+ 覆盖率

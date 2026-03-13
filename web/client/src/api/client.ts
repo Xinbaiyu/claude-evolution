@@ -191,6 +191,19 @@ export const apiClient = {
   },
 
   /**
+   * 批量拒绝建议 (BATCH-REJECT-4)
+   */
+  async batchRejectSuggestions(ids: string[]): Promise<void> {
+    const response = await request('/suggestions/batch/reject', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.success) {
+      throw new ApiError(response.error || '批量拒绝失败');
+    }
+  },
+
+  /**
    * 获取系统状态
    */
   async getStatus(): Promise<SystemStatus> {

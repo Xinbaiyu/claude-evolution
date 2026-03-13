@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { apiClient, ApiError } from '../api/client';
 import type { Suggestion } from '../api/client';
 import { toast } from '../components/Toast';
@@ -15,24 +15,35 @@ export default function Review() {
 
   // 7.2: Modal 控制状态
   const [modalOpen, setModalOpen] = useState(false);
+  // BATCH-REJECT-5: 批量拒绝 Modal 控制状态
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+
+  // DEBUG: 计数器
+  const fetchCountRef = useRef(0);
 
   useEffect(() => {
     fetchSuggestions();
   }, []);
 
   const fetchSuggestions = async () => {
+    fetchCountRef.current += 1;
+    console.log(`📋 fetchSuggestions called (${fetchCountRef.current} times total)`);
+    console.trace('Call stack:'); // 打印调用栈
     try {
       setLoading(true);
       setError(null);
       const data = await apiClient.getSuggestions();
+      console.log('✅ fetchSuggestions success, got', data.length, 'suggestions');
       setSuggestions(data);
     } catch (err) {
       const errorMessage =
         err instanceof ApiError ? err.message : '加载建议列表失败';
+      console.error('❌ fetchSuggestions error:', errorMessage);
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {
       setLoading(false);
+      console.log('🏁 fetchSuggestions finished, loading =', false);
     }
   };
 
@@ -85,6 +96,7 @@ export default function Review() {
 
   // 批量批准
   const handleBatchApprove = async () => {
+    console.log('🔵 handleBatchApprove called');
     if (selectedIds.length === 0) {
       toast.error('请先选择要批准的建议');
       return;
@@ -92,26 +104,53 @@ export default function Review() {
 
     try {
       await apiClient.batchApproveSuggestions(selectedIds);
-      toast.success(`已批准 ${selectedIds.length} 条建议`);
-
-      // 清空选择并刷新
-      setSelectedIds([]);
-      setSelectAll(false);
-      fetchSuggestions();
+      console.log('✅ batchApproveSuggestions success');
+      // 注意: 不在这里刷新,由 onSuccess 回调处理
     } catch (err) {
       const errorMessage =
         err instanceof ApiError ? err.message : '批量批准失败';
+      console.error('❌ batchApproveSuggestions error:', errorMessage);
+      toast.error(errorMessage);
+      throw err; // 重新抛出错误以便 Modal 捕获
+    }
+  };
+
+  // BATCH-REJECT-6: 批量拒绝
+  const handleBatchReject = async () => {
+    console.log('🔴 handleBatchReject called');
+    if (selectedIds.length === 0) {
+      toast.error('请先选择要拒绝的建议');
+      return;
+    }
+
+    try {
+      await apiClient.batchRejectSuggestions(selectedIds);
+      console.log('✅ batchRejectSuggestions success');
+      // 注意: 不在这里刷新,由 onSuccess 回调处理
+    } catch (err) {
+      const errorMessage =
+        err instanceof ApiError ? err.message : '批量拒绝失败';
+      console.error('❌ batchRejectSuggestions error:', errorMessage);
       toast.error(errorMessage);
       throw err; // 重新抛出错误以便 Modal 捕获
     }
   };
 
   // 7.6: onSuccess 回调：清空选择状态、刷新建议列表
-  const handleBatchApproveSuccess = () => {
+  const handleBatchApproveSuccess = useCallback(() => {
+    console.log('🟢 handleBatchApproveSuccess called');
     setSelectedIds([]);
     setSelectAll(false);
     fetchSuggestions();
-  };
+  }, []); // 空依赖数组,函数引用不会变化
+
+  // BATCH-REJECT-7: onSuccess 回调：清空选择状态、刷新建议列表
+  const handleBatchRejectSuccess = useCallback(() => {
+    console.log('🟣 handleBatchRejectSuccess called');
+    setSelectedIds([]);
+    setSelectAll(false);
+    fetchSuggestions();
+  }, []); // 空依赖数组,函数引用不会变化
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -201,21 +240,39 @@ export default function Review() {
                 )}
               </div>
 
-              {/* 右侧：批量批准按钮 */}
-              <button
-                onClick={() => setModalOpen(true)}
-                disabled={selectedIds.length === 0}
-                className={`
-                  border-2 font-mono font-bold py-2 px-6 transition-colors
-                  ${
-                    selectedIds.length > 0
-                      ? 'border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500'
-                      : 'border-slate-700 bg-slate-800 text-slate-600 cursor-not-allowed'
-                  }
-                `}
-              >
-                {selectedIds.length > 0 ? `批准 ${selectedIds.length} 条` : '批量批准'}
-              </button>
+              {/* 右侧：批量操作按钮 */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setModalOpen(true)}
+                  disabled={selectedIds.length === 0}
+                  className={`
+                    border-2 font-mono font-bold py-2 px-6 transition-colors
+                    ${
+                      selectedIds.length > 0
+                        ? 'border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500'
+                        : 'border-slate-700 bg-slate-800 text-slate-600 cursor-not-allowed'
+                    }
+                  `}
+                >
+                  {selectedIds.length > 0 ? `批准 ${selectedIds.length} 条` : '批量批准'}
+                </button>
+
+                {/* BATCH-REJECT-8: 批量拒绝按钮 */}
+                <button
+                  onClick={() => setRejectModalOpen(true)}
+                  disabled={selectedIds.length === 0}
+                  className={`
+                    border-2 font-mono font-bold py-2 px-6 transition-colors
+                    ${
+                      selectedIds.length > 0
+                        ? 'border-red-500 bg-red-500/10 hover:bg-red-500/20 text-red-500'
+                        : 'border-slate-700 bg-slate-800 text-slate-600 cursor-not-allowed'
+                    }
+                  `}
+                >
+                  {selectedIds.length > 0 ? `拒绝 ${selectedIds.length} 条` : '批量拒绝'}
+                </button>
+              </div>
             </div>
 
             {suggestions.map((suggestion) => (
@@ -240,6 +297,16 @@ export default function Review() {
         onClose={() => setModalOpen(false)}
         onConfirm={handleBatchApprove}
         onSuccess={handleBatchApproveSuccess}
+      />
+
+      {/* BATCH-REJECT-9: 批量拒绝 Modal */}
+      <BatchApprovalModal
+        type="reject"
+        isOpen={rejectModalOpen}
+        selectedCount={selectedIds.length}
+        onClose={() => setRejectModalOpen(false)}
+        onConfirm={handleBatchReject}
+        onSuccess={handleBatchRejectSuccess}
       />
     </div>
   );

@@ -282,6 +282,7 @@ interface Snapshot {
   timestamp: string;
   pendingBackup: string;
   approvedBackup: string;
+  rejectedBackup: string;  // 支持 rejected.json 备份
 }
 
 /**
@@ -296,9 +297,11 @@ async function createSnapshot(): Promise<Snapshot> {
 
   const pendingPath = getSuggestionsPath();
   const approvedPath = getApprovedSuggestionsPath();
+  const rejectedPath = path.join(evolutionDir, 'suggestions/rejected.json');
 
   const pendingBackup = path.join(snapshotDir, 'pending.json');
   const approvedBackup = path.join(snapshotDir, 'approved.json');
+  const rejectedBackup = path.join(snapshotDir, 'rejected.json');
 
   // 复制文件到快照目录
   if (await fs.pathExists(pendingPath)) {
@@ -309,12 +312,17 @@ async function createSnapshot(): Promise<Snapshot> {
     await fs.copy(approvedPath, approvedBackup);
   }
 
+  if (await fs.pathExists(rejectedPath)) {
+    await fs.copy(rejectedPath, rejectedBackup);
+  }
+
   logger.debug(`✓ 创建快照: ${snapshotDir}`);
 
   return {
     timestamp,
     pendingBackup,
     approvedBackup,
+    rejectedBackup,
   };
 }
 
@@ -324,8 +332,10 @@ async function createSnapshot(): Promise<Snapshot> {
 async function rollbackFromSnapshot(snapshot: Snapshot): Promise<void> {
   logger.warn('⚠️ 检测到错误，正在回滚更改...');
 
+  const evolutionDir = getEvolutionDir();
   const pendingPath = getSuggestionsPath();
   const approvedPath = getApprovedSuggestionsPath();
+  const rejectedPath = path.join(evolutionDir, 'suggestions/rejected.json');
 
   // 恢复备份文件
   if (await fs.pathExists(snapshot.pendingBackup)) {
@@ -334,6 +344,10 @@ async function rollbackFromSnapshot(snapshot: Snapshot): Promise<void> {
 
   if (await fs.pathExists(snapshot.approvedBackup)) {
     await fs.copy(snapshot.approvedBackup, approvedPath);
+  }
+
+  if (await fs.pathExists(snapshot.rejectedBackup)) {
+    await fs.copy(snapshot.rejectedBackup, rejectedPath);
   }
 
   logger.success('✓ 已回滚到批准前的状态');
@@ -453,6 +467,79 @@ export async function batchApproveSuggestions(
     return {
       success: false,
       approved: [],
+      failed: ids,
+      error: errorMessage,
+    };
+  }
+}
+
+// ====== Phase 2.5.4: 批量拒绝实现 ======
+
+/**
+ * 批量拒绝结果接口
+ */
+export interface BatchRejectionResult {
+  success: boolean;
+  rejected: string[];
+  failed: string[];
+  error?: string;
+}
+
+/**
+ * 批量拒绝建议 (BATCH-REJECT-1)
+ */
+export async function batchRejectSuggestions(
+  ids: string[]
+): Promise<BatchRejectionResult> {
+  // 1. 创建快照
+  const snapshot = await createSnapshot();
+
+  const rejected: string[] = [];
+  const failed: string[] = [];
+  let failedId: string | null = null;
+  let errorMessage: string | null = null;
+
+  try {
+    // 2. 逐个拒绝
+    for (const id of ids) {
+      try {
+        await rejectSuggestion(id);
+        rejected.push(id);
+      } catch (error) {
+        // 遇到错误立即回滚
+        failedId = id;
+        errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        await rollbackFromSnapshot(snapshot);
+
+        return {
+          success: false,
+          rejected: [],
+          failed: [id],
+          error: errorMessage,
+        };
+      }
+    }
+
+    // 3. 全部成功后，清理快照
+    await cleanupSnapshot(snapshot);
+
+    logger.success(`✓ 批量拒绝完成: ${rejected.length} 条建议`);
+
+    return {
+      success: true,
+      rejected,
+      failed: [],
+    };
+  } catch (error) {
+    // 发生意外错误，回滚所有更改
+    errorMessage = error instanceof Error ? error.message : 'Batch rejection failed';
+
+    await rollbackFromSnapshot(snapshot);
+
+    return {
+      success: false,
+      rejected: [],
       failed: ids,
       error: errorMessage,
     };

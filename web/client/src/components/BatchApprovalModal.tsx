@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 type ModalState = 'idle' | 'processing' | 'success' | 'error';
 
 interface BatchApprovalModalProps {
+  type?: 'approve' | 'reject'; // 默认 'approve'
   isOpen: boolean;
   selectedCount: number;
   onClose: () => void;
@@ -12,6 +13,7 @@ interface BatchApprovalModalProps {
 }
 
 export default function BatchApprovalModal({
+  type = 'approve', // 默认为批准模式
   isOpen,
   selectedCount,
   onClose,
@@ -21,14 +23,70 @@ export default function BatchApprovalModal({
 }: BatchApprovalModalProps) {
   const [state, setState] = useState<ModalState>('idle');
   const [error, setError] = useState<string>('');
+  // FIX: 用 state 保存初始数量
+  const [initialCount, setInitialCount] = useState(0);
 
-  // 6.4: 重置状态到 idle when Modal 重新打开
+  // 动态配置 (BATCH-REJECT-3)
+  const config = {
+    approve: {
+      title: '确认批准',
+      borderColor: 'border-amber-500',
+      textColor: 'text-amber-500',
+      bgColor: 'bg-amber-500/10',
+      hoverBgColor: 'hover:bg-amber-500/20',
+      buttonText: '确认批准',
+      processingText: '正在批准',
+      successIcon: '✓',
+      successTitle: '批准成功',
+      successText: '已批准',
+    },
+    reject: {
+      title: '确认拒绝',
+      borderColor: 'border-red-500',
+      textColor: 'text-red-500',
+      bgColor: 'bg-red-500/10',
+      hoverBgColor: 'hover:bg-red-500/20',
+      buttonText: '确认拒绝',
+      processingText: '正在拒绝',
+      successIcon: '✕',
+      successTitle: '拒绝成功',
+      successText: '已拒绝',
+    },
+  };
+
+  const cfg = config[type];
+
+  // FIX: 当 Modal 从关闭到打开时,立即设置初始数量(触发重渲染)
+  useEffect(() => {
+    if (isOpen) {
+      setInitialCount(selectedCount);
+      // FIX: 只在 idle 状态时重置,避免覆盖 processing/success/error
+      if (state === 'idle') {
+        setError('');
+      }
+    }
+  }, [isOpen, selectedCount, state]);
+
+  // FIX: Modal 打开时重置状态
   useEffect(() => {
     if (isOpen) {
       setState('idle');
       setError('');
     }
-  }, [isOpen]);
+  }, [isOpen]); // 只依赖 isOpen,不依赖 selectedCount
+
+  // FIX: 成功后自动关闭弹窗 (1.5秒后)
+  useEffect(() => {
+    if (state === 'success') {
+      const timer = setTimeout(() => {
+        if (onSuccess) onSuccess();
+        onClose();
+      }, 1500);
+
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]); // 只依赖 state,不依赖 onSuccess 和 onClose
 
   if (!isOpen) return null;
 
@@ -41,7 +99,7 @@ export default function BatchApprovalModal({
       setState('success');
     } catch (err) {
       // 6.3: 失败时设置状态和错误信息
-      setError(err instanceof Error ? err.message : '批准失败');
+      setError(err instanceof Error ? err.message : `${cfg.processingText.replace('正在', '')}失败`);
       setState('error');
     }
   };
@@ -50,22 +108,22 @@ export default function BatchApprovalModal({
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
       {/* idle 状态：确认对话框 */}
       {state === 'idle' && (
-        <div className="border-4 border-amber-500 bg-slate-900 p-8 max-w-md w-full">
+        <div className={`border-4 ${cfg.borderColor} bg-slate-900 p-8 max-w-md w-full`}>
           <h2
-            className="text-2xl font-black text-amber-500 mb-4"
+            className={`text-2xl font-black ${cfg.textColor} mb-4`}
             style={{ fontFamily: '"Noto Sans SC", "Archivo Black", sans-serif' }}
           >
-            确认批准
+            {cfg.title}
           </h2>
           <p className="text-slate-300 font-mono mb-6">
-            确认批准 {selectedCount} 条建议？
+            {cfg.title} {initialCount} 条建议？
           </p>
           <div className="flex gap-3">
             <button
               onClick={handleConfirm}
-              className="flex-1 border-2 border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-mono font-bold py-3 px-6 transition-colors"
+              className={`flex-1 border-2 ${cfg.borderColor} ${cfg.bgColor} ${cfg.hoverBgColor} ${cfg.textColor} font-mono font-bold py-3 px-6 transition-colors`}
             >
-              确认批准
+              {cfg.buttonText}
             </button>
             <button
               onClick={onClose}
@@ -79,17 +137,17 @@ export default function BatchApprovalModal({
 
       {/* processing 状态：处理中 */}
       {state === 'processing' && (
-        <div className="border-4 border-amber-500 bg-slate-900 p-8 max-w-md w-full">
+        <div className={`border-4 ${cfg.borderColor} bg-slate-900 p-8 max-w-md w-full`}>
           <div className="text-center">
             {/* Spinner */}
             <div className="flex justify-center mb-4">
-              <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+              <div className={`w-12 h-12 border-4 ${cfg.borderColor} border-t-transparent rounded-full animate-spin`}></div>
             </div>
             <h2
-              className="text-xl font-black text-amber-500 mb-2"
+              className={`text-xl font-black ${cfg.textColor} mb-2`}
               style={{ fontFamily: '"Noto Sans SC", "Archivo Black", sans-serif' }}
             >
-              正在批准 {selectedCount} 条建议...
+              {cfg.processingText} {initialCount} 条建议...
             </h2>
             <p className="text-slate-400 text-sm font-mono mt-4">
               请勿关闭浏览器
@@ -100,24 +158,24 @@ export default function BatchApprovalModal({
 
       {/* success 状态：成功 */}
       {state === 'success' && (
-        <div className="border-4 border-green-500 bg-slate-900 p-8 max-w-md w-full">
+        <div className={`border-4 ${type === 'approve' ? 'border-green-500' : cfg.borderColor} bg-slate-900 p-8 max-w-md w-full`}>
           <div className="text-center">
-            <div className="text-6xl mb-4">✓</div>
+            <div className="text-6xl mb-4">{cfg.successIcon}</div>
             <h2
-              className="text-2xl font-black text-green-400 mb-4"
+              className={`text-2xl font-black ${type === 'approve' ? 'text-green-400' : cfg.textColor} mb-4`}
               style={{ fontFamily: '"Noto Sans SC", "Archivo Black", sans-serif' }}
             >
-              批准成功
+              {cfg.successTitle}
             </h2>
             <p className="text-slate-300 font-mono mb-6">
-              已批准 {selectedCount} 条建议
+              {cfg.successText} {initialCount} 条建议
             </p>
             <button
               onClick={() => {
                 if (onSuccess) onSuccess();
                 onClose();
               }}
-              className="w-full border-2 border-green-500 bg-green-500/10 hover:bg-green-500/20 text-green-400 font-mono font-bold py-3 px-6 transition-colors"
+              className={`w-full border-2 ${type === 'approve' ? 'border-green-500 bg-green-500/10 hover:bg-green-500/20 text-green-400' : `${cfg.borderColor} ${cfg.bgColor} ${cfg.hoverBgColor} ${cfg.textColor}`} font-mono font-bold py-3 px-6 transition-colors`}
             >
               完成
             </button>
