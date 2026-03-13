@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { apiClient, ApiError } from '../api/client';
 import type { Suggestion } from '../api/client';
 import { toast } from '../components/Toast';
+import BatchApprovalModal from '../components/BatchApprovalModal';
 
 export default function Review() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -11,6 +12,9 @@ export default function Review() {
   // 批量选择状态
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(false);
+
+  // 7.2: Modal 控制状态
+  const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
     fetchSuggestions();
@@ -98,7 +102,15 @@ export default function Review() {
       const errorMessage =
         err instanceof ApiError ? err.message : '批量批准失败';
       toast.error(errorMessage);
+      throw err; // 重新抛出错误以便 Modal 捕获
     }
+  };
+
+  // 7.6: onSuccess 回调：清空选择状态、刷新建议列表
+  const handleBatchApproveSuccess = () => {
+    setSelectedIds([]);
+    setSelectAll(false);
+    fetchSuggestions();
   };
 
   return (
@@ -191,7 +203,7 @@ export default function Review() {
 
               {/* 右侧：批量批准按钮 */}
               <button
-                onClick={handleBatchApprove}
+                onClick={() => setModalOpen(true)}
                 disabled={selectedIds.length === 0}
                 className={`
                   border-2 font-mono font-bold py-2 px-6 transition-colors
@@ -219,6 +231,16 @@ export default function Review() {
           </div>
         )}
       </main>
+
+      {/* 7.4: 在底部渲染 BatchApprovalModal */}
+      {/* 7.5: 传递必要的 props */}
+      <BatchApprovalModal
+        isOpen={modalOpen}
+        selectedCount={selectedIds.length}
+        onClose={() => setModalOpen(false)}
+        onConfirm={handleBatchApprove}
+        onSuccess={handleBatchApproveSuccess}
+      />
     </div>
   );
 }
