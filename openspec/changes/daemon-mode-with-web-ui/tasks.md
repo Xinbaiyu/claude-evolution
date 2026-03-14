@@ -51,22 +51,22 @@
 
 ## 6. Restart Command
 
-- [ ] 6.1 Create `src/cli/commands/restart.ts`
-- [ ] 6.2 Call stop logic
-- [ ] 6.3 Wait for complete shutdown
-- [ ] 6.4 Call start logic
-- [ ] 6.5 Handle "not running" scenario (just start)
-- [ ] 6.6 Add integration test for restart command
+- [x] 6.1 Create `src/cli/commands/restart.ts`
+- [x] 6.2 Call stop logic
+- [x] 6.3 Wait for complete shutdown
+- [x] 6.4 Call start logic
+- [x] 6.5 Handle "not running" scenario (just start)
+- [x] 6.6 Add integration test for restart command
 
 ## 7. Logs Command
 
-- [ ] 7.1 Create `src/cli/commands/logs.ts`
-- [ ] 7.2 Implement tail -n functionality (default 50 lines)
-- [ ] 7.3 Implement follow mode (--follow flag)
-- [ ] 7.4 Implement level filtering (--level option)
-- [ ] 7.5 Add colored output for log levels
-- [ ] 7.6 Handle missing log file scenario
-- [ ] 7.7 Add integration test for logs command
+- [x] 7.1 Create `src/cli/commands/logs.ts`
+- [x] 7.2 Implement tail -n functionality (default 50 lines)
+- [x] 7.3 Implement follow mode (--follow flag)
+- [x] 7.4 Implement level filtering (--level option)
+- [x] 7.5 Add colored output for log levels
+- [x] 7.6 Handle missing log file scenario
+- [x] 7.7 Add integration test for logs command
 
 ## 8. macOS Auto-Start
 
