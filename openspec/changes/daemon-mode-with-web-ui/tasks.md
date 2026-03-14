@@ -126,14 +126,14 @@
 
 ## 14. CLI Registration
 
-- [ ] 14.1 Modify `src/cli/index.ts`
-- [ ] 14.2 Register start command
-- [ ] 14.3 Register stop command
-- [ ] 14.4 Register restart command
-- [ ] 14.5 Register logs command
+- [x] 14.1 Modify `src/cli/index.ts`
+- [x] 14.2 Register start command
+- [x] 14.3 Register stop command
+- [x] 14.4 Register restart command
+- [x] 14.5 Register logs command
 - [ ] 14.6 Register install command
 - [ ] 14.7 Register uninstall command
-- [ ] 14.8 Verify --help output includes all new commands
+- [x] 14.8 Verify --help output includes all new commands
 
 ## 15. Integration with Existing Components
 

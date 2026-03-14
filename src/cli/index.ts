@@ -9,6 +9,10 @@ import { configListCommand, configSetCommand } from './commands/config.js';
 import { statusCommand } from './commands/status.js';
 import { historyCommand } from './commands/history.js';
 import { diffCommand } from './commands/diff.js';
+import { startCommand } from './commands/start.js';
+import { stopCommand } from './commands/stop.js';
+import { restartCommand } from './commands/restart.js';
+import { logsCommand } from './commands/logs.js';
 
 const program = new Command();
 
@@ -164,6 +168,122 @@ program
       await diffCommand({ noColor: !options.color });
     } catch (error) {
       console.error('生成差异失败:', error);
+      process.exit(1);
+    }
+  });
+
+// ============================================
+// Daemon 守护进程命令
+// ============================================
+
+// start 命令
+program
+  .command('start')
+  .description('Start the daemon process')
+  .option('-d, --daemon', '后台运行')
+  .option('-p, --port <port>', 'Web UI 端口', '10010')
+  .option('--no-scheduler', '禁用调度器')
+  .option('--no-web', '禁用 Web UI')
+  .action(async (options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      if (isNaN(port) || port <= 0 || port > 65535) {
+        console.error('错误: 端口必须是 1-65535 之间的数字');
+        process.exit(1);
+      }
+
+      await startCommand({
+        daemon: options.daemon,
+        port,
+        noScheduler: !options.scheduler,
+        noWeb: !options.web,
+      });
+    } catch (error) {
+      console.error('启动失败:', error);
+      process.exit(1);
+    }
+  });
+
+// stop 命令
+program
+  .command('stop')
+  .description('Stop the daemon process')
+  .option('-f, --force', '强制终止（使用 SIGKILL）')
+  .option('-t, --timeout <seconds>', '超时时间（秒）', '30')
+  .action(async (options) => {
+    try {
+      const timeout = parseInt(options.timeout, 10) * 1000;
+      if (isNaN(timeout) || timeout <= 0) {
+        console.error('错误: 超时时间必须是正整数');
+        process.exit(1);
+      }
+
+      await stopCommand({
+        force: options.force,
+        timeout,
+      });
+    } catch (error) {
+      console.error('停止失败:', error);
+      process.exit(1);
+    }
+  });
+
+// restart 命令
+program
+  .command('restart')
+  .description('Restart the daemon process')
+  .option('-d, --daemon', '后台运行')
+  .option('-p, --port <port>', 'Web UI 端口', '10010')
+  .option('--no-scheduler', '禁用调度器')
+  .option('--no-web', '禁用 Web UI')
+  .action(async (options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      if (isNaN(port) || port <= 0 || port > 65535) {
+        console.error('错误: 端口必须是 1-65535 之间的数字');
+        process.exit(1);
+      }
+
+      await restartCommand({
+        daemon: options.daemon,
+        port,
+        noScheduler: !options.scheduler,
+        noWeb: !options.web,
+      });
+    } catch (error) {
+      console.error('重启失败:', error);
+      process.exit(1);
+    }
+  });
+
+// logs 命令
+program
+  .command('logs')
+  .description('View daemon logs')
+  .option('-f, --follow', '实时跟踪日志')
+  .option('-n, --lines <number>', '显示行数', '50')
+  .option('-l, --level <level>', '日志级别过滤 (INFO/WARN/ERROR)')
+  .action(async (options) => {
+    try {
+      const lines = parseInt(options.lines, 10);
+      if (isNaN(lines) || lines <= 0) {
+        console.error('错误: 行数必须是正整数');
+        process.exit(1);
+      }
+
+      const level = options.level?.toUpperCase();
+      if (level && !['INFO', 'WARN', 'ERROR'].includes(level)) {
+        console.error('错误: 日志级别必须是 INFO, WARN 或 ERROR');
+        process.exit(1);
+      }
+
+      await logsCommand({
+        follow: options.follow,
+        lines,
+        level: level as 'INFO' | 'WARN' | 'ERROR',
+      });
+    } catch (error) {
+      console.error('查看日志失败:', error);
       process.exit(1);
     }
   });
