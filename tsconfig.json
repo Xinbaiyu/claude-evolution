@@ -17,5 +17,5 @@
     "allowImportingTsExtensions": false
   },
   "include": ["src/**/*", "web/server/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "web/client"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "tests/**/*", "web/client"]
 }

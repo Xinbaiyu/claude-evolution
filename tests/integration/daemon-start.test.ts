@@ -5,8 +5,8 @@ import fs from 'fs-extra';
 import { ProcessManager } from '../../src/daemon/process-manager.js';
 import { startCommand } from '../../src/cli/commands/start.js';
 
-// 创建临时测试目录
-const testDir = path.join(homedir(), '.claude-evolution-test');
+// 创建唯一的临时测试目录 (避免并发冲突)
+const testDir = path.join(homedir(), `.claude-evolution-test-daemon-start-${Date.now()}`);
 const testPidFile = path.join(testDir, 'daemon.pid');
 
 // Mock config loader

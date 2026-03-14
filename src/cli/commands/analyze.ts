@@ -17,12 +17,7 @@ export async function analyzeCommand(options: { now?: boolean }): Promise<void> 
   try {
     // 检查环境变量
     if (!process.env.ANTHROPIC_API_KEY) {
-      console.error(
-        chalk.red('\n❌ 错误: 缺少 ANTHROPIC_API_KEY 环境变量\n')
-      );
-      console.log(chalk.gray('请设置环境变量:'));
-      console.log(chalk.cyan('  export ANTHROPIC_API_KEY=your-api-key\n'));
-      process.exit(1);
+      throw new Error('缺少 ANTHROPIC_API_KEY 环境变量。请设置: export ANTHROPIC_API_KEY=your-api-key');
     }
 
     // 运行分析流程
@@ -41,6 +36,7 @@ export async function analyzeCommand(options: { now?: boolean }): Promise<void> 
       console.log(chalk.gray('  检查: ~/.claude-mem/ 目录是否存在\n'));
     }
 
-    process.exit(1);
+    // 重新抛出异常，让调用方处理
+    throw error;
   }
 }

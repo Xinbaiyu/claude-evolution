@@ -121,7 +121,7 @@ function ToastItem({ message, onClose }: ToastItemProps) {
         relative
       `}
     >
-      <div className="flex items-start gap-2">
+      <div className="flex items-center gap-2">
         <span className="text-xl flex-shrink-0">{icons[message.type]}</span>
         <p className="flex-1">{message.message}</p>
       </div>

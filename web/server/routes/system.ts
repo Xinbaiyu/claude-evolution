@@ -5,6 +5,7 @@ import os from 'os';
 import type { WebSocketManager } from '../websocket.js';
 import type { NotificationManager } from '../notifications.js';
 import { ProcessManager } from '../../../src/daemon/process-manager.js';
+import { analyzeCommand } from '../../../src/cli/commands/analyze.js';
 
 interface RequestWithManagers extends Request {
   wsManager?: WebSocketManager;
@@ -16,6 +17,9 @@ const router = Router();
 const CONFIG_DIR = path.join(os.homedir(), '.claude-evolution');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 const SUGGESTIONS_DIR = path.join(CONFIG_DIR, 'suggestions');
+
+// 并发控制：防止多个分析同时运行
+let isAnalyzing = false;
 
 // GET /api/daemon/status - 获取守护进程状态 (新增)
 router.get('/daemon/status', async (req, res) => {
@@ -251,45 +255,77 @@ router.patch('/config', async (req, res) => {
 // POST /api/analyze - 手动触发分析
 router.post('/analyze', async (req: RequestWithManagers, res) => {
   try {
-    // 模拟分析过程
+    // 检查是否已有分析在运行
+    if (isAnalyzing) {
+      return res.status(409).json({
+        success: false,
+        error: '分析正在进行中，请稍候',
+      });
+    }
+
+    // 立即返回 202 Accepted，异步执行分析
+    res.status(202).json({
+      success: true,
+      message: '分析已启动',
+    });
+
+    // 异步执行真正的分析
+    isAnalyzing = true;
     const startTime = Date.now();
 
-    // 读取当前待处理建议数量
-    const pendingPath = path.join(SUGGESTIONS_DIR, 'pending.json');
-    const pending = await fs.pathExists(pendingPath)
-      ? await fs.readJson(pendingPath)
-      : [];
+    try {
+      console.log('[API] 开始执行分析...');
 
-    const duration = Math.round((Date.now() - startTime) / 1000);
+      // 调用真正的分析命令
+      await analyzeCommand({ now: true });
 
-    // 发送 WebSocket 事件
-    if (req.wsManager) {
-      req.wsManager.emitAnalysisComplete({
-        newSuggestions: pending.length,
-        duration,
-        timestamp: new Date().toISOString(),
-      });
+      const duration = Math.round((Date.now() - startTime) / 1000);
+      console.log(`[API] 分析完成，用时 ${duration}s`);
+
+      // 读取新生成的建议
+      const pendingPath = path.join(SUGGESTIONS_DIR, 'pending.json');
+      const pending = await fs.pathExists(pendingPath)
+        ? await fs.readJson(pendingPath)
+        : [];
+
+      console.log(`[API] 发现 ${pending.length} 条建议`);
+
+      // 发送 WebSocket 事件
+      if (req.wsManager) {
+        req.wsManager.emitAnalysisComplete({
+          suggestionsCount: pending.length,
+          duration,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // 发送桌面通知
+      if (req.notificationManager) {
+        req.notificationManager.notifyAnalysisComplete({
+          newSuggestions: pending.length,
+          duration,
+        });
+      }
+    } catch (error) {
+      console.error('[API] 分析失败:', error);
+
+      // 分析失败也要通知前端
+      if (req.wsManager) {
+        req.wsManager.broadcast('analysis_failed', {
+          error: error instanceof Error ? error.message : '分析失败',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // 发送桌面通知 - 分析失败
+      if (req.notificationManager) {
+        req.notificationManager.notifyAnalysisFailed(
+          error instanceof Error ? error.message : '未知错误'
+        );
+      }
+    } finally {
+      isAnalyzing = false;
     }
-
-    // 发送桌面通知
-    if (req.notificationManager) {
-      console.log('[DEBUG] Sending notification...');
-      req.notificationManager.notifyAnalysisComplete({
-        newSuggestions: pending.length,
-        duration,
-      });
-    } else {
-      console.log('[DEBUG] notificationManager not found in request');
-    }
-
-    res.json({
-      success: true,
-      data: {
-        message: 'Analysis triggered successfully',
-        newSuggestions: pending.length,
-        duration,
-      },
-    });
   } catch (error) {
     res.status(500).json({
       success: false,

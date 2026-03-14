@@ -3,6 +3,7 @@ import { apiClient, ApiError } from '../api/client';
 import type { SystemStatus } from '../api/client';
 import { wsClient } from '../api/websocket';
 import { toast } from '../components/Toast';
+import { ManualAnalysisTrigger } from '../components/ManualAnalysisTrigger';
 
 export default function Dashboard() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
@@ -280,7 +281,7 @@ export default function Dashboard() {
           <h2 className="text-lg font-black text-amber-500 mb-4 tracking-tight" style={{ fontFamily: '"Noto Sans SC", "Archivo Black", sans-serif' }}>
             快捷操作
           </h2>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <button
               onClick={() => window.location.href = '/review'}
               className="border-2 border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-mono font-bold py-4 px-6 transition-colors text-left group"
@@ -291,12 +292,15 @@ export default function Dashboard() {
             </button>
 
             <button
-              className="border-2 border-slate-600 hover:border-cyan-500 hover:bg-cyan-500/10 text-slate-300 hover:text-cyan-500 font-mono font-bold py-4 px-6 transition-colors text-left"
+              onClick={() => window.location.href = '/source-manager'}
+              className="border-2 border-cyan-500 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-500 font-mono font-bold py-4 px-6 transition-colors text-left group"
             >
-              <div className="text-2xl mb-1">↻</div>
-              <div className="text-sm">运行分析</div>
-              <div className="text-xs text-slate-400 mt-1">手动触发</div>
+              <div className="text-2xl mb-1">✏</div>
+              <div className="text-sm">配置编辑器</div>
+              <div className="text-xs text-slate-400 mt-1">编辑源文件</div>
             </button>
+
+            <ManualAnalysisTrigger />
 
             <button
               onClick={() => window.location.href = '/settings'}

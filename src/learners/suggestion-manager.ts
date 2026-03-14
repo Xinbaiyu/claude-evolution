@@ -419,7 +419,7 @@ export async function batchApproveSuggestions(
   const snapshot = await createSnapshot();
 
   const approved: string[] = [];
-  const failed: string[] = [];
+  const _failed: string[] = [];
   let failedId: string | null = null;
   let errorMessage: string | null = null;
 
@@ -495,7 +495,7 @@ export async function batchRejectSuggestions(
   const snapshot = await createSnapshot();
 
   const rejected: string[] = [];
-  const failed: string[] = [];
+  const _failed: string[] = [];
   let failedId: string | null = null;
   let errorMessage: string | null = null;
 

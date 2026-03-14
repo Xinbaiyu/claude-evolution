@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Dashboard from './pages/Dashboard';
 import Review from './pages/Review';
 import Settings from './pages/Settings';
+import SourceManager from './pages/SourceManager';
 import Toast from './components/Toast';
 
 function App() {
@@ -24,6 +25,8 @@ function App() {
         return <Review />;
       case '/settings':
         return <Settings />;
+      case '/source-manager':
+        return <SourceManager />;
       case '/':
       default:
         return <Dashboard />;

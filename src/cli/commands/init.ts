@@ -97,11 +97,14 @@ export async function initCommand(): Promise<void> {
     console.log(chalk.cyan('     export ANTHROPIC_API_KEY="sk-ant-xxx..."'));
   }
 
-  console.log(chalk.gray('  ' + (config.llm.baseURL ? '3' : '2') + '. 编辑配置模板:'));
-  console.log(chalk.cyan(`     ${path.join(evolutionDir, 'source/')}`));
-  console.log(chalk.gray('  ' + (config.llm.baseURL ? '4' : '3') + '. 运行首次分析:'));
+  console.log(chalk.gray('  ' + (config.llm.baseURL ? '3' : '2') + '. 启动守护进程:'));
+  console.log(chalk.cyan('     claude-evolution start --daemon'));
+  console.log(chalk.gray('  ' + (config.llm.baseURL ? '4' : '3') + '. 编辑配置模板 (可选 - 推荐使用 Web UI):'));
+  console.log(chalk.cyan(`     命令行: ${path.join(evolutionDir, 'source/')}`));
+  console.log(chalk.cyan(`     Web UI: http://localhost:10010/source-manager`));
+  console.log(chalk.gray('  ' + (config.llm.baseURL ? '5' : '4') + '. 运行首次分析:'));
   console.log(chalk.cyan('     claude-evolution analyze --now'));
-  console.log(chalk.gray('  ' + (config.llm.baseURL ? '5' : '4') + '. 或等待定时任务自动运行\n'));
+  console.log(chalk.gray('  ' + (config.llm.baseURL ? '6' : '5') + '. 或等待定时任务自动运行\n'));
 }
 
 /**
@@ -212,7 +215,7 @@ async function promptForApiMode(): Promise<{ baseURL?: string }> {
 
   const mode = modeAnswer.trim() || '1';
 
-  let apiConfig: { baseURL?: string } = {};
+  const apiConfig: { baseURL?: string } = {};
 
   if (mode === '2') {
     // 路由器模式

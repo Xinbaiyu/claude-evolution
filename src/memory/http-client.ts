@@ -10,8 +10,10 @@ import { logger } from '../utils/index.js';
 
 /**
  * HTTP API 响应类型
+ * @private (currently unused but kept for future API improvements)
  */
-interface ApiResponse<T> {
+ 
+interface _ApiResponse<T> {
   success: boolean;
   data: T;
   error?: string;

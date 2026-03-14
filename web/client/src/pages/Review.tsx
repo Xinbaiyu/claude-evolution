@@ -157,15 +157,47 @@ export default function Review() {
       {/* Header */}
       <header className="border-b-4 border-amber-500 bg-slate-900 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4">
-          <h1
-            className="text-3xl font-black text-amber-500 tracking-tight"
-            style={{ fontFamily: '"Noto Sans SC", "Archivo Black", sans-serif' }}
-          >
-            审核建议
-          </h1>
-          <p className="text-sm text-slate-400 font-mono mt-1">
-            批准或拒绝待审核的建议
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1
+                className="text-3xl font-black text-amber-500 tracking-tight"
+                style={{ fontFamily: '"Noto Sans SC", "Archivo Black", sans-serif' }}
+              >
+                审核建议
+              </h1>
+              <p className="text-sm text-slate-400 font-mono mt-1">
+                批准或拒绝待审核的建议
+              </p>
+            </div>
+
+            {/* Navigation */}
+            <nav className="flex gap-2">
+              <a
+                href="/"
+                className="px-4 py-2 text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 font-mono font-semibold rounded transition-colors border border-transparent hover:border-amber-500/30"
+              >
+                控制台
+              </a>
+              <a
+                href="/review"
+                className="px-4 py-2 text-amber-500 bg-amber-500/10 font-mono font-semibold rounded border border-amber-500/30"
+              >
+                审核建议
+              </a>
+              <a
+                href="/source-manager"
+                className="px-4 py-2 text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 font-mono font-semibold rounded transition-colors border border-transparent hover:border-amber-500/30"
+              >
+                配置编辑
+              </a>
+              <a
+                href="/settings"
+                className="px-4 py-2 text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 font-mono font-semibold rounded transition-colors border border-transparent hover:border-amber-500/30"
+              >
+                系统设置
+              </a>
+            </nav>
+          </div>
         </div>
       </header>
 

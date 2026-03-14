@@ -112,6 +112,12 @@ $ claude-evolution diff
 - 🔧 LLM 配置管理
 - 📁 目录结构预览
 
+**Source Manager** - 配置文件编辑器 ⭐ 新功能
+- ✏️ 在线编辑 source 目录的 MD 配置文件
+- 💾 保存后自动重新生成 CLAUDE.md
+- 👁️ 实时预览最终生成的配置文件
+- ⚠️ 未保存修改警告
+
 ---
 
 ## 🚀 快速开始
@@ -200,10 +206,16 @@ $ claude-evolution init
 
 系统会在 `~/.claude-evolution/` 创建配置目录，包含：
 - `config.json` - 系统配置
-- `source/` - 静态规则（手动维护）
+- `source/` - 静态规则（手动维护，可通过 Web UI 管理）
 - `learned/` - 学习内容（自动生成）
 - `suggestions/` - 建议存储
 - `logs/` - 日志文件
+
+**提示**: 初始化完成后，建议启动守护进程并通过 Web UI 管理配置文件：
+```bash
+claude-evolution start --daemon
+# 访问 http://localhost:10010/source-manager 编辑源文件
+```
 
 #### 2. 分析会话历史
 
@@ -323,6 +335,11 @@ npm run start:server
 3. **Settings** (`/settings`)
    - 配置管理
    - 系统信息
+
+4. **Source Manager** (`/source-manager`) ⭐ 新功能
+   - 在线编辑 source 配置文件
+   - 实时预览 CLAUDE.md
+   - 自动重新生成配置
 
 ---
 

@@ -82,6 +82,8 @@ async function displayDaemonStatus(): Promise<void> {
       console.log('');
       console.log(chalk.bold('  🌐 Web UI'));
       console.log(chalk.green(`     ✓ http://localhost:${pidInfo.port}`));
+      console.log(chalk.cyan(`     管理配置文件: http://localhost:${pidInfo.port}/source-manager`));
+      console.log(chalk.cyan(`     审核建议: http://localhost:${pidInfo.port}/review`));
     }
 
     // 调度器状态

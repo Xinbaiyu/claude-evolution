@@ -1,5 +1,4 @@
 import notifier from 'node-notifier';
-import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
@@ -69,7 +68,7 @@ export class NotificationManager {
     console.log(`[Notification] Preparing notification: ${options.title}`);
     console.log(`[Notification] Target URL: ${targetUrl}`);
 
-    // macOS 使用 AppleScript (更可靠)
+    // macOS 使用原生 osascript (更可靠，不需要额外依赖)
     if (process.platform === 'darwin') {
       this.sendMacOSNotification(options, targetUrl);
     } else {
@@ -79,67 +78,90 @@ export class NotificationManager {
   }
 
   /**
-   * macOS 使用 AppleScript 发送通知
+   * macOS 原生通知 - 使用对话框确保用户一定能看到
    */
   private sendMacOSNotification(options: NotificationOptions, targetUrl: string): void {
-    const escapedTitle = options.title.replace(/"/g, '\\"');
-    const escapedMessage = options.message.replace(/"/g, '\\"');
-    const escapedSubtitle = '点击通知打开详情'.replace(/"/g, '\\"');
+    const escapedTitle = options.title.replace(/"/g, '\\"').replace(/'/g, "\\'");
+    const escapedMessage = options.message.replace(/"/g, '\\"').replace(/'/g, "\\'");
+    const escapedUrl = targetUrl.replace(/"/g, '\\"');
 
-    // 创建 AppleScript 命令
-    const script = `
-      display notification "${escapedMessage}" with title "${escapedTitle}" subtitle "${escapedSubtitle}" sound name "default"
-    `;
+    // 方案1: 先尝试系统通知
+    const notificationScript = `display notification "${escapedMessage}" with title "${escapedTitle}" sound name "Glass"`;
 
-    exec(`osascript -e '${script}'`, (error, stdout, stderr) => {
+    console.log(`[Notification] 发送 macOS 系统通知...`);
+
+    exec(`osascript -e '${notificationScript}'`, (error) => {
       if (error) {
-        console.error('[Notification] AppleScript error:', error);
-        // 降级到 node-notifier
-        this.sendNodeNotification(options, targetUrl);
-        return;
+        console.error('[Notification] ❌ 系统通知失败:', error.message);
+        // 降级方案：使用对话框（一定会显示）
+        this.sendMacOSDialog(escapedTitle, escapedMessage, escapedUrl);
+      } else {
+        console.log(`[Notification] ✅ 系统通知已发送`);
+        console.log(`[Notification] 📋 用户可访问: ${targetUrl}`);
       }
-
-      console.log(`[Notification] Sent via AppleScript: ${options.title}`);
-
-      // AppleScript 通知不支持点击事件，所以直接打开浏览器
-      console.log(`[Notification] Auto-opening browser: ${targetUrl}`);
-      setTimeout(() => {
-        this.openBrowser(targetUrl);
-      }, 1000); // 1 秒后自动打开
     });
   }
 
   /**
-   * Windows/Linux 使用 node-notifier
+   * macOS 对话框 - 降级方案，确保用户一定能看到
+   */
+  private sendMacOSDialog(title: string, message: string, url: string): void {
+    // 使用非阻塞对话框
+    const dialogScript = `display dialog "${message}\\n\\n访问: ${url}" with title "${title}" buttons {"知道了"} default button 1 with icon note giving up after 30`;
+
+    console.log(`[Notification] 使用对话框显示通知（降级方案）`);
+
+    exec(`osascript -e '${dialogScript}'`, (error) => {
+      if (error) {
+        console.error('[Notification] ❌ 对话框也失败了:', error.message);
+      } else {
+        console.log(`[Notification] ✅ 对话框已显示`);
+      }
+    });
+  }
+
+  /**
+   * 使用 node-notifier 发送通知（跨平台，支持点击事件）
    */
   private sendNodeNotification(options: NotificationOptions, targetUrl: string): void {
     const notificationOptions: any = {
       title: options.title,
       message: options.message,
       sound: true,
-      wait: true,
+      wait: true, // 等待用户交互
       timeout: 30,
-      open: targetUrl,
+      // 不设置 open 参数，避免自动打开
+      // 只在用户点击时才打开
     };
+
+    console.log(`[Notification] === 开始发送通知 ===`);
+    console.log(`[Notification] Title: ${options.title}`);
+    console.log(`[Notification] Message: ${options.message}`);
+    console.log(`[Notification] Platform: ${process.platform}`);
+    console.log(`[Notification] Target URL: ${targetUrl}`);
+    console.log(`[Notification] Enabled: ${this.enabled}`);
 
     notifier.notify(notificationOptions, (err: Error | null, response: string, metadata: any) => {
       if (err) {
-        console.error('[Notification] Failed to send notification:', err);
+        console.error('[Notification] ❌ 通知发送失败:', err);
+        console.error('[Notification] Error details:', JSON.stringify(err, null, 2));
         return;
       }
 
-      console.log(`[Notification] Sent: ${options.title}`);
-      console.log(`[Notification] Response:`, response);
-
-      if (response !== 'timeout' && response !== 'closed') {
-        console.log(`[Notification] User interacted (${response}), opening: ${targetUrl}`);
-        this.openBrowser(targetUrl);
-      }
+      console.log(`[Notification] ✅ 通知已发送: ${options.title}`);
+      console.log(`[Notification] Response: ${response}`);
+      console.log(`[Notification] Metadata:`, metadata);
     });
 
+    // 监听点击事件
     notifier.once('click', () => {
-      console.log(`[Notification] Click event, opening: ${targetUrl}`);
+      console.log(`[Notification] 🖱️ 用户点击了通知，正在打开浏览器: ${targetUrl}`);
       this.openBrowser(targetUrl);
+    });
+
+    // 监听超时事件
+    notifier.once('timeout', () => {
+      console.log(`[Notification] ⏰ 通知超时 (用户未交互)`);
     });
   }
 

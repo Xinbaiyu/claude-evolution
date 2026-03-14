@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import suggestionsRouter from './routes/suggestions.js';
 import systemRouter from './routes/system.js';
+import sourceRouter from './routes/source.js';
 import { WebSocketManager } from './websocket.js';
 import { NotificationManager } from './notifications.js';
 
@@ -48,6 +49,7 @@ app.get('/api/health', (req: Request, res: Response) => {
 
 app.use('/api', suggestionsRouter);
 app.use('/api', systemRouter);
+app.use('/api/source', sourceRouter);
 
 // 静态文件服务（前端构建产物）
 // __dirname 在编译后是 dist/web/server/

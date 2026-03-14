@@ -6,7 +6,7 @@ import { loadConfig, saveConfig } from '../../src/config/loader.js';
 import { DEFAULT_CONFIG } from '../../src/config/schema.js';
 
 describe('Config Migration', () => {
-  const testConfigDir = path.join(homedir(), '.claude-evolution-test');
+  const testConfigDir = path.join(homedir(), `.claude-evolution-test-config-${Date.now()}`);
   const testConfigPath = path.join(testConfigDir, 'config.json');
 
   beforeEach(async () => {

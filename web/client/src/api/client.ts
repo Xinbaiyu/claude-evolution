@@ -81,12 +81,12 @@ export interface Config {
 }
 
 class ApiError extends Error {
-  status?: number;
+  statusCode?: number;
 
-  constructor(message: string, status?: number) {
+  constructor(message: string, statusCode?: number) {
     super(message);
     this.name = 'ApiError';
-    this.status = status;
+    this.statusCode = statusCode;
   }
 }
 
