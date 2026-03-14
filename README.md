@@ -160,6 +160,32 @@ export ANTHROPIC_API_KEY=your-api-key
 claude-evolution analyze --now
 ```
 
+### 守护进程模式 ⭐ 推荐
+
+守护进程模式是最便捷的使用方式,可以：
+- 🕐 **自动定时分析**: 每 6 小时自动运行,无需手动触发
+- 🌐 **Web UI 访问**: 随时通过浏览器查看和审批建议
+- 🔔 **系统通知**: 发现新建议时桌面通知提醒
+- 🚀 **开机自启**: 配置一次,永久运行
+
+```bash
+# 一次性配置:安装开机自启动
+claude-evolution install --enable
+
+# 日常使用
+claude-evolution start          # 启动守护进程
+claude-evolution status         # 查看运行状态
+# 浏览器访问 http://localhost:10010
+
+# 查看日志
+claude-evolution logs -f        # 实时跟踪日志
+
+# 维护命令
+claude-evolution restart        # 重启服务
+claude-evolution stop           # 停止服务
+claude-evolution uninstall      # 卸载自启动
+```
+
 ---
 
 ## 📖 使用指南
@@ -493,15 +519,76 @@ interface Workflow {
 | 命令 | 说明 | 示例 |
 |------|------|------|
 | `init` | 初始化配置目录和文件 | `claude-evolution init` |
+| **守护进程管理** |||
+| `start [-d\|--daemon]` | 启动守护进程 | `claude-evolution start --daemon` |
+| `stop [-f\|--force]` | 停止守护进程 | `claude-evolution stop` |
+| `restart` | 重启守护进程 | `claude-evolution restart` |
+| `logs [-f\|--follow]` | 查看日志 | `claude-evolution logs -f` |
+| `install [--enable]` | 安装开机自启动 | `claude-evolution install --enable` |
+| `uninstall` | 卸载开机自启动 | `claude-evolution uninstall` |
+| **建议管理** |||
 | `analyze [--now]` | 触发会话分析 | `claude-evolution analyze --now` |
 | `review [-v\|--verbose]` | 查看待审批建议 | `claude-evolution review -v` |
 | `approve <id\|all>` | 批准建议 | `claude-evolution approve all` |
 | `reject <id>` | 拒绝建议 | `claude-evolution reject abc123` |
+| **系统信息** |||
 | `status` | 显示系统状态 | `claude-evolution status` |
 | `history` | 查看历史记录 | `claude-evolution history --limit 20` |
 | `diff` | 查看配置差异 | `claude-evolution diff --no-color` |
+| **配置管理** |||
 | `config list` | 列出当前配置 | `claude-evolution config list` |
 | `config set` | 修改配置项 | `claude-evolution config set llm.model claude-haiku-4` |
+| `config upgrade` | 升级配置到最新版本 | `claude-evolution config upgrade` |
+
+### 守护进程命令详解
+
+#### start - 启动守护进程
+
+```bash
+# 前台运行（开发模式）
+claude-evolution start
+
+# 后台运行（生产模式）
+claude-evolution start --daemon
+
+# 自定义端口
+claude-evolution start --port 3000
+
+# 仅启动 Web UI（不启动调度器）
+claude-evolution start --no-scheduler
+
+# 仅启动调度器（不启动 Web UI）
+claude-evolution start --no-web
+```
+
+#### logs - 查看日志
+
+```bash
+# 显示最后 50 行
+claude-evolution logs
+
+# 实时跟踪
+claude-evolution logs --follow
+
+# 显示最后 100 行
+claude-evolution logs --lines 100
+
+# 仅显示错误日志
+claude-evolution logs --level ERROR
+```
+
+#### install - 配置开机自启动
+
+```bash
+# 仅安装（不启动）
+claude-evolution install
+
+# 安装并立即启动
+claude-evolution install --enable
+
+# 自定义端口
+claude-evolution install --port 3000
+```
 
 ### history 命令选项
 

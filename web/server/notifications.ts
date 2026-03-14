@@ -122,7 +122,7 @@ export class NotificationManager {
       open: targetUrl,
     };
 
-    notifier.notify(notificationOptions, (err, response, metadata) => {
+    notifier.notify(notificationOptions, (err: Error | null, response: string, metadata: any) => {
       if (err) {
         console.error('[Notification] Failed to send notification:', err);
         return;

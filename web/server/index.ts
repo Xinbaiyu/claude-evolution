@@ -50,7 +50,10 @@ app.use('/api', suggestionsRouter);
 app.use('/api', systemRouter);
 
 // 静态文件服务（前端构建产物）
-const clientDistPath = path.join(__dirname, '../client/dist');
+// __dirname 在编译后是 dist/web/server/
+// 需要回到项目根: ../../../ 然后到 web/client/dist
+const projectRoot = path.join(__dirname, '../../../');
+const clientDistPath = path.join(projectRoot, 'web/client/dist');
 app.use(express.static(clientDistPath));
 
 // SPA fallback - 所有未匹配的路由返回 index.html
@@ -71,22 +74,38 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-// 启动服务器
-if (process.env.NODE_ENV !== 'test') {
-  server.listen(PORT, () => {
-    console.log(`🚀 Web server running at http://localhost:${PORT}`);
-    console.log(`📡 WebSocket server ready`);
+// 导出启动函数（不自动启动）
+export function startServer(port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.listen(port, () => {
+      console.log(`🚀 Web server running at http://localhost:${port}`);
+      console.log(`📡 WebSocket server ready`);
+      resolve();
+    });
+
+    server.on('error', (error) => {
+      reject(error);
+    });
   });
 }
 
-// 优雅关闭
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, closing server...');
-  wsManager.close();
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
+// 仅在直接运行时启动（node web/server/index.js）
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  startServer(PORT as number).catch((error) => {
+    console.error('Failed to start server:', error);
+    process.exit(1);
   });
-});
+}
+
+// 优雅关闭处理
+export function closeServer(): Promise<void> {
+  return new Promise((resolve) => {
+    wsManager.close();
+    server.close(() => {
+      console.log('Server closed');
+      resolve();
+    });
+  });
+}
 
 export { app, server, wsManager, notificationManager };

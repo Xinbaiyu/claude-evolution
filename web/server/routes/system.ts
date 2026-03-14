@@ -4,6 +4,7 @@ import path from 'path';
 import os from 'os';
 import type { WebSocketManager } from '../websocket.js';
 import type { NotificationManager } from '../notifications.js';
+import { ProcessManager } from '../../../src/daemon/process-manager.js';
 
 interface RequestWithManagers extends Request {
   wsManager?: WebSocketManager;
@@ -15,6 +16,96 @@ const router = Router();
 const CONFIG_DIR = path.join(os.homedir(), '.claude-evolution');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 const SUGGESTIONS_DIR = path.join(CONFIG_DIR, 'suggestions');
+
+// GET /api/daemon/status - 获取守护进程状态 (新增)
+router.get('/daemon/status', async (req, res) => {
+  try {
+    const processManager = new ProcessManager();
+    const isRunning = await processManager.isDaemonRunning();
+
+    if (!isRunning) {
+      return res.json({
+        success: true,
+        data: {
+          running: false,
+          message: 'Daemon is not running',
+        },
+      });
+    }
+
+    const pidInfo = await processManager.readPidFile();
+
+    if (!pidInfo) {
+      return res.json({
+        success: true,
+        data: {
+          running: false,
+          message: 'PID file not found',
+        },
+      });
+    }
+
+    // 计算运行时长
+    const startTime = new Date(pidInfo.startTime);
+    const now = new Date();
+    const uptimeMs = now.getTime() - startTime.getTime();
+
+    // 读取配置获取调度器信息
+    const config = await fs.pathExists(CONFIG_FILE)
+      ? await fs.readJson(CONFIG_FILE)
+      : {};
+
+    // 读取上次分析时间
+    const statusPath = path.join(CONFIG_DIR, 'status.json');
+    let lastAnalysis = null;
+    let nextAnalysis = null;
+
+    if (await fs.pathExists(statusPath)) {
+      try {
+        const status = await fs.readJson(statusPath);
+        if (status.lastAnalysis) {
+          lastAnalysis = status.lastAnalysis;
+
+          // 简单估算下次执行时间
+          const intervalHours = parseInt(config.scheduler?.interval || '6') || 6;
+          const lastTime = new Date(lastAnalysis).getTime();
+          nextAnalysis = new Date(lastTime + intervalHours * 60 * 60 * 1000).toISOString();
+        }
+      } catch (error) {
+        // 忽略错误
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        running: true,
+        daemon: {
+          pid: pidInfo.pid,
+          startTime: pidInfo.startTime,
+          uptimeMs,
+          version: pidInfo.version,
+        },
+        webUI: {
+          enabled: true,
+          port: pidInfo.port,
+          url: `http://localhost:${pidInfo.port}`,
+        },
+        scheduler: {
+          enabled: config.scheduler?.enabled !== false,
+          interval: config.scheduler?.interval || '6h',
+          lastAnalysis,
+          nextAnalysis,
+        },
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
 
 // GET /api/status - 获取系统状态
 router.get('/status', async (req: RequestWithManagers, res) => {

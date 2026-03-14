@@ -4,7 +4,7 @@ import path from 'path';
 import os from 'os';
 import type { WebSocketManager } from '../websocket.js';
 import type { NotificationManager } from '../notifications.js';
-import { approveSuggestion, rejectSuggestion, batchApproveSuggestions, batchRejectSuggestions } from '../../../dist/learners/index.js';
+import { approveSuggestion, rejectSuggestion, batchApproveSuggestions, batchRejectSuggestions } from '../../../src/learners/index.js';
 
 // 扩展 Express Request 类型以包含 wsManager 和 notificationManager
 interface RequestWithWS extends Request {
@@ -35,7 +35,7 @@ router.get('/suggestions', async (req, res) => {
 
     let filtered = suggestions;
     if (status) {
-      filtered = suggestions.filter((s) => s.status === status);
+      filtered = suggestions.filter((s: any) => s.status === status);
     }
 
     res.json({
@@ -58,7 +58,7 @@ router.get('/suggestions/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const suggestions = await loadPendingSuggestions();
-    const suggestion = suggestions.find((s) => s.id === id || s.id.startsWith(id));
+    const suggestion = suggestions.find((s: any) => s.id === id || s.id.startsWith(id));
 
     if (!suggestion) {
       return res.status(404).json({

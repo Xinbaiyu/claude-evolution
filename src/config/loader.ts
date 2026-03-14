@@ -30,12 +30,51 @@ export async function loadConfig(): Promise<Config> {
 
   try {
     const rawConfig = await fs.readJSON(configPath);
+
+    // 执行配置迁移
+    const migratedConfig = migrateConfig(rawConfig);
+
     // 使用 Zod 验证和填充默认值
-    return ConfigSchema.parse(rawConfig);
+    return ConfigSchema.parse(migratedConfig);
   } catch (error) {
     console.error('配置文件解析失败,使用默认配置:', error);
     return DEFAULT_CONFIG;
   }
+}
+
+/**
+ * 配置迁移 - 处理旧版本配置向新版本的兼容
+ */
+function migrateConfig(oldConfig: any): any {
+  const migrated = { ...oldConfig };
+
+  // 迁移 1: scheduler.interval 从 enum 改为 string
+  if (migrated.scheduler && typeof migrated.scheduler.interval === 'string') {
+    // 如果是旧的 enum 值，保持不变
+    // 新值会直接兼容
+  }
+
+  // 迁移 2: 添加 daemon 配置（如果不存在）
+  if (!migrated.daemon) {
+    migrated.daemon = DEFAULT_CONFIG.daemon;
+  }
+
+  // 迁移 3: 添加 webUI 配置（如果不存在）
+  if (!migrated.webUI) {
+    migrated.webUI = DEFAULT_CONFIG.webUI;
+  }
+
+  // 迁移 4: 确保 daemon.logRotation 存在
+  if (migrated.daemon && !migrated.daemon.logRotation) {
+    migrated.daemon.logRotation = DEFAULT_CONFIG.daemon!.logRotation;
+  }
+
+  // 迁移 5: 确保 webUI.corsOrigins 存在
+  if (migrated.webUI && !migrated.webUI.corsOrigins) {
+    migrated.webUI.corsOrigins = DEFAULT_CONFIG.webUI!.corsOrigins;
+  }
+
+  return migrated;
 }
 
 /**

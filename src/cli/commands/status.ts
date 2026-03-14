@@ -5,10 +5,11 @@ import { getEvolutionDir } from '../../config/loader.js';
 import { loadConfig } from '../../config/index.js';
 import { loadPendingSuggestions } from '../../learners/suggestion-manager.js';
 import { logger } from '../../utils/index.js';
+import { ProcessManager } from '../../daemon/process-manager.js';
 
 /**
  * CLI status 命令
- * 显示系统状态：配置、建议、健康检查
+ * 显示系统状态：守护进程、配置、建议、健康检查
  */
 
 export async function statusCommand(): Promise<void> {
@@ -18,16 +19,19 @@ export async function statusCommand(): Promise<void> {
     console.log(chalk.bold('\n📊 Claude Evolution 状态\n'));
     console.log(chalk.gray('━'.repeat(60)));
 
-    // 1. 配置状态
+    // 1. 守护进程状态 (新增)
+    await displayDaemonStatus();
+
+    // 2. 配置状态
     await displayConfigStatus(evolutionDir);
 
-    // 2. 建议统计
+    // 3. 建议统计
     await displaySuggestionsStatus(evolutionDir);
 
-    // 3. 分析状态
+    // 4. 分析状态
     await displayAnalysisStatus(evolutionDir);
 
-    // 4. 系统健康检查
+    // 5. 系统健康检查
     await displayHealthStatus(evolutionDir);
 
     console.log(chalk.gray('━'.repeat(60)));
@@ -36,6 +40,126 @@ export async function statusCommand(): Promise<void> {
   } catch (error) {
     logger.error('获取状态失败:', error);
     throw error;
+  }
+}
+
+/**
+ * 显示守护进程状态 (新增)
+ */
+async function displayDaemonStatus(): Promise<void> {
+  console.log(chalk.bold('\n🔧 守护进程'));
+
+  const processManager = new ProcessManager();
+  const isRunning = await processManager.isDaemonRunning();
+
+  if (!isRunning) {
+    console.log(chalk.gray('  ⏹  未运行'));
+    console.log(chalk.cyan('  提示: 运行 `claude-evolution start --daemon` 启动守护进程'));
+    return;
+  }
+
+  try {
+    const pidInfo = await processManager.readPidFile();
+
+    if (!pidInfo) {
+      console.log(chalk.red('  ❌ PID 文件读取失败'));
+      return;
+    }
+
+    // 计算运行时长
+    const startTime = new Date(pidInfo.startTime);
+    const now = new Date();
+    const uptimeMs = now.getTime() - startTime.getTime();
+    const uptimeStr = formatUptime(uptimeMs);
+
+    console.log(chalk.green('  ✓ 运行中'));
+    console.log(chalk.gray(`  PID: ${pidInfo.pid}`));
+    console.log(chalk.gray(`  运行时长: ${uptimeStr}`));
+    console.log(chalk.gray(`  启动时间: ${startTime.toLocaleString('zh-CN')}`));
+
+    // Web UI 状态
+    if (pidInfo.port) {
+      console.log('');
+      console.log(chalk.bold('  🌐 Web UI'));
+      console.log(chalk.green(`     ✓ http://localhost:${pidInfo.port}`));
+    }
+
+    // 调度器状态
+    const config = await loadConfig();
+    if (config.scheduler?.enabled !== false) {
+      console.log('');
+      console.log(chalk.bold('  📅 调度器'));
+      console.log(chalk.green(`     ✓ 已启动 (每 ${config.scheduler?.interval || '6h'})`));
+
+      // 读取上次执行时间
+      const evolutionDir = getEvolutionDir();
+      const statusPath = path.join(evolutionDir, 'status.json');
+      if (await fs.pathExists(statusPath)) {
+        try {
+          const status = await fs.readJSON(statusPath);
+          if (status.lastAnalysis) {
+            const lastTime = new Date(status.lastAnalysis);
+            const timeAgo = formatTimeAgo(now.getTime() - lastTime.getTime());
+            console.log(chalk.gray(`     上次执行: ${timeAgo}`));
+
+            // 计算下次执行时间（简单估算）
+            const intervalHours = parseInt(config.scheduler?.interval || '6') || 6;
+            const nextTime = new Date(lastTime.getTime() + intervalHours * 60 * 60 * 1000);
+            const timeUntilNext = formatTimeAgo(nextTime.getTime() - now.getTime());
+            console.log(chalk.gray(`     下次执行: ${timeUntilNext}`));
+          }
+        } catch (error) {
+          // 忽略 status.json 读取错误
+        }
+      }
+    }
+
+  } catch (error) {
+    console.log(chalk.red('  ❌ 状态读取失败'));
+    console.log(chalk.gray(`  错误: ${error instanceof Error ? error.message : 'Unknown error'}`));
+  }
+}
+
+/**
+ * 格式化运行时长
+ */
+function formatUptime(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) {
+    return `${days} 天 ${hours % 24} 小时`;
+  } else if (hours > 0) {
+    return `${hours} 小时 ${minutes % 60} 分钟`;
+  } else if (minutes > 0) {
+    return `${minutes} 分钟`;
+  } else {
+    return `${seconds} 秒`;
+  }
+}
+
+/**
+ * 格式化时间差
+ */
+function formatTimeAgo(ms: number): string {
+  const seconds = Math.floor(Math.abs(ms) / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  const isFuture = ms > 0;
+  const suffix = isFuture ? '后' : '前';
+
+  if (days > 0) {
+    return `${days} 天${suffix}`;
+  } else if (hours > 0) {
+    return `${hours} 小时${suffix}`;
+  } else if (minutes > 0) {
+    return `${minutes} 分钟${suffix}`;
+  } else {
+    return isFuture ? `${seconds} 秒后` : '刚刚';
   }
 }
 

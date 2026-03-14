@@ -6,6 +6,7 @@ import { analyzeCommand } from './commands/analyze.js';
 import { reviewCommand } from './commands/review.js';
 import { approveCommand, rejectCommand } from './commands/approve.js';
 import { configListCommand, configSetCommand } from './commands/config.js';
+import { configUpgradeCommand } from './commands/config-upgrade.js';
 import { statusCommand } from './commands/status.js';
 import { historyCommand } from './commands/history.js';
 import { diffCommand } from './commands/diff.js';
@@ -13,6 +14,8 @@ import { startCommand } from './commands/start.js';
 import { stopCommand } from './commands/stop.js';
 import { restartCommand } from './commands/restart.js';
 import { logsCommand } from './commands/logs.js';
+import { installCommand } from './commands/install.js';
+import { uninstallCommand } from './commands/uninstall.js';
 
 const program = new Command();
 
@@ -113,6 +116,18 @@ configCmd
       await configSetCommand(field, value);
     } catch (error) {
       console.error('设置配置失败:', error);
+      process.exit(1);
+    }
+  });
+
+configCmd
+  .command('upgrade')
+  .description('Upgrade configuration to latest version')
+  .action(async () => {
+    try {
+      await configUpgradeCommand();
+    } catch (error) {
+      console.error('升级配置失败:', error);
       process.exit(1);
     }
   });
@@ -284,6 +299,43 @@ program
       });
     } catch (error) {
       console.error('查看日志失败:', error);
+      process.exit(1);
+    }
+  });
+
+// install 命令
+program
+  .command('install')
+  .description('Install auto-start service')
+  .option('--enable', '安装后立即启用')
+  .option('-p, --port <port>', 'Web UI 端口', '10010')
+  .action(async (options) => {
+    try {
+      const port = parseInt(options.port, 10);
+      if (isNaN(port) || port <= 0 || port > 65535) {
+        console.error('错误: 端口必须是 1-65535 之间的数字');
+        process.exit(1);
+      }
+
+      await installCommand({
+        enable: options.enable,
+        port,
+      });
+    } catch (error) {
+      console.error('安装失败:', error);
+      process.exit(1);
+    }
+  });
+
+// uninstall 命令
+program
+  .command('uninstall')
+  .description('Uninstall auto-start service')
+  .action(async () => {
+    try {
+      await uninstallCommand();
+    } catch (error) {
+      console.error('卸载失败:', error);
       process.exit(1);
     }
   });

@@ -5,7 +5,7 @@
     "lib": ["ES2022"],
     "moduleResolution": "bundler",
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -16,6 +16,6 @@
     "sourceMap": true,
     "allowImportingTsExtensions": false
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+  "include": ["src/**/*", "web/server/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "web/client"]
 }

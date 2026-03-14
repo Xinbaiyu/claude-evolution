@@ -540,6 +540,193 @@ sudo systemctl restart nginx
 
 ---
 
+## 4.6 守护进程模式部署 ⭐ 推荐
+
+**适用场景**: 生产环境、长期运行、自动化
+
+守护进程模式是最便捷的部署方式，集成了调度器和 Web UI：
+
+#### 特性
+
+- 🕐 **自动定时分析**: 每 6 小时自动运行（可配置）
+- 🌐 **Web UI 访问**: 随时通过浏览器管理
+- 🔔 **系统通知**: 发现新建议时桌面提醒
+- 📝 **日志管理**: 自动轮转、级别过滤
+- 🚀 **开机自启**: 配置一次，永久运行
+- 🛡️ **优雅关闭**: 安全停止所有组件
+
+#### 快速开始
+
+```bash
+# 1. 编译项目
+npm run build
+
+# 2. 全局安装
+npm link
+
+# 3. 初始化配置
+claude-evolution init
+
+# 4. 配置开机自启（可选）
+claude-evolution install --enable
+
+# 5. 启动守护进程
+claude-evolution start          # 前台运行
+# 或
+claude-evolution start --daemon # 后台运行
+```
+
+#### 访问
+
+- **Web UI**: http://localhost:10010
+- **API**: http://localhost:10010/api
+- **日志**: `claude-evolution logs -f`
+- **状态**: `claude-evolution status`
+
+#### 守护进程管理
+
+```bash
+# 查看状态
+claude-evolution status
+
+# 查看日志
+claude-evolution logs           # 最后 50 行
+claude-evolution logs -f        # 实时跟踪
+claude-evolution logs --level ERROR  # 仅错误
+
+# 重启服务
+claude-evolution restart
+
+# 停止服务
+claude-evolution stop
+
+# 强制停止
+claude-evolution stop --force
+```
+
+#### 开机自启动
+
+**macOS**:
+
+```bash
+# 安装 LaunchAgent
+claude-evolution install
+
+# 安装并立即启动
+claude-evolution install --enable
+
+# 验证
+launchctl list | grep claude-evolution
+
+# 卸载
+claude-evolution uninstall
+```
+
+**Linux (systemd)**:
+
+```bash
+# 安装 systemd 服务
+claude-evolution install
+
+# 启用并启动
+systemctl --user enable claude-evolution
+systemctl --user start claude-evolution
+
+# 查看状态
+systemctl --user status claude-evolution
+
+# 查看日志
+journalctl --user -u claude-evolution -f
+
+# 卸载
+claude-evolution uninstall
+```
+
+#### 配置选项
+
+**自定义端口**:
+
+```bash
+claude-evolution start --port 3000
+```
+
+**禁用调度器**（仅 Web UI）:
+
+```bash
+claude-evolution start --no-scheduler
+```
+
+**禁用 Web UI**（仅调度器）:
+
+```bash
+claude-evolution start --no-web
+```
+
+#### 日志位置
+
+| 日志类型 | 路径 |
+|---------|------|
+| **守护进程日志** | `~/.claude-evolution/logs/daemon.log` |
+| **日志轮转** | 自动（10MB / 7 个文件） |
+
+#### 故障排查
+
+**问题 1: 守护进程启动失败**
+
+```bash
+# 检查是否已运行
+claude-evolution status
+
+# 查看日志
+claude-evolution logs --level ERROR
+
+# 检查端口占用
+lsof -i :10010
+
+# 停止现有进程
+claude-evolution stop --force
+```
+
+**问题 2: Web UI 无法访问**
+
+```bash
+# 确认守护进程运行
+claude-evolution status
+
+# 检查防火墙
+sudo ufw status
+
+# 测试健康检查
+curl http://localhost:10010/api/health
+```
+
+**问题 3: 自启动不工作**
+
+```bash
+# macOS: 检查 LaunchAgent
+launchctl list | grep claude
+ls ~/Library/LaunchAgents/com.claude-evolution.plist
+
+# Linux: 检查 systemd 服务
+systemctl --user status claude-evolution
+journalctl --user -u claude-evolution --since today
+```
+
+#### 与 PM2 对比
+
+| 特性 | 守护进程模式 | PM2 |
+|------|------------|-----|
+| 安装复杂度 | ⭐ 简单 (1 条命令) | ⭐⭐ 中等 (需要配置文件) |
+| 集成调度器 | ✅ 内置 | ❌ 需手动配置 cron |
+| 开机自启 | ✅ 一条命令 | ⭐⭐ 需要 pm2 startup |
+| 日志轮转 | ✅ 自动 | ⭐⭐ 需要配置 |
+| 系统通知 | ✅ 内置 | ❌ 不支持 |
+| 多实例 | ❌ 单实例 | ✅ 支持集群 |
+
+**推荐使用守护进程模式** 对于个人使用和小团队。如需高可用性和负载均衡，考虑使用 PM2。
+
+---
+
 ## 5. 配置管理
 
 ### 5.1 配置文件位置

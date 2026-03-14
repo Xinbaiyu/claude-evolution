@@ -28,3 +28,9 @@ Thumbs.db
 
 # Testing
 test-init.js
+
+# 避免提交 web/server 源码目录的编译产物
+web/server/**/*.js
+web/server/**/*.d.ts
+web/server/**/*.map
+!web/server/dist/**

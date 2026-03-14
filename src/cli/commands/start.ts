@@ -109,27 +109,24 @@ async function startForegroundMode(
 
       // 动态导入 web server
       const webModule = await import('../../../web/server/index.js');
-      webServer = webModule.server;
 
-      await new Promise<void>((resolve, reject) => {
-        webServer.listen(port, () => {
-          logger.info(`Web 服务器已启动: http://localhost:${port}`);
-          console.log(chalk.green(`   ✓ Web UI 运行在 http://localhost:${port}`));
-          resolve();
-        });
+      try {
+        await webModule.startServer(port);
+        logger.info(`Web 服务器已启动: http://localhost:${port}`);
+        console.log(chalk.green(`   ✓ Web UI 运行在 http://localhost:${port}`));
 
-        webServer.on('error', (error: any) => {
-          if (error.code === 'EADDRINUSE') {
-            logger.error(`端口 ${port} 已被占用`);
-            console.error(chalk.red(`❌ 端口 ${port} 已被占用`));
-            console.log(chalk.cyan(`💡 尝试其他端口: claude-evolution start --port 3001`));
-            reject(error);
-          } else {
-            logger.error('Web 服务器启动失败', error);
-            reject(error);
-          }
-        });
-      });
+        // 保存 server 引用用于关闭
+        webServer = webModule.server;
+      } catch (error: any) {
+        if (error.code === 'EADDRINUSE') {
+          logger.error(`端口 ${port} 已被占用`);
+          console.error(chalk.red(`❌ 端口 ${port} 已被占用`));
+          console.log(chalk.cyan(`💡 尝试其他端口: claude-evolution start --port 3001`));
+        } else {
+          logger.error('Web 服务器启动失败', error);
+        }
+        throw error;
+      }
     }
 
     console.log('');

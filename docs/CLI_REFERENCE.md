@@ -11,14 +11,21 @@
 - [2. 全局选项](#2-全局选项)
 - [3. 命令详解](#3-命令详解)
   - [3.1 init - 初始化配置](#31-init---初始化配置)
-  - [3.2 analyze - 触发分析](#32-analyze---触发分析)
-  - [3.3 review - 查看建议](#33-review---查看建议)
-  - [3.4 approve - 批准建议](#34-approve---批准建议)
-  - [3.5 reject - 拒绝建议](#35-reject---拒绝建议)
-  - [3.6 status - 查看状态](#36-status---查看状态)
-  - [3.7 history - 查看历史](#37-history---查看历史)
-  - [3.8 diff - 对比差异](#38-diff---对比差异)
-  - [3.9 config - 配置管理](#39-config---配置管理)
+  - [3.2 守护进程管理](#32-守护进程管理)
+    - [3.2.1 start - 启动守护进程](#321-start---启动守护进程)
+    - [3.2.2 stop - 停止守护进程](#322-stop---停止守护进程)
+    - [3.2.3 restart - 重启守护进程](#323-restart---重启守护进程)
+    - [3.2.4 logs - 查看日志](#324-logs---查看日志)
+    - [3.2.5 install - 安装自启动](#325-install---安装自启动)
+    - [3.2.6 uninstall - 卸载自启动](#326-uninstall---卸载自启动)
+  - [3.3 analyze - 触发分析](#33-analyze---触发分析)
+  - [3.4 review - 查看建议](#34-review---查看建议)
+  - [3.5 approve - 批准建议](#35-approve---批准建议)
+  - [3.6 reject - 拒绝建议](#36-reject---拒绝建议)
+  - [3.7 status - 查看状态](#37-status---查看状态)
+  - [3.8 history - 查看历史](#38-history---查看历史)
+  - [3.9 diff - 对比差异](#39-diff---对比差异)
+  - [3.10 config - 配置管理](#310-config---配置管理)
 - [4. 使用场景](#4-使用场景)
 - [5. 脚本集成](#5-脚本集成)
 - [6. 常见问题](#6-常见问题)
@@ -59,6 +66,7 @@ claude-evolution config set scheduler.enabled true
 | 分类 | 命令 | 用途 |
 |------|------|------|
 | **初始化** | `init` | 初始化配置目录 |
+| **守护进程** | `start`, `stop`, `restart`, `logs`, `install`, `uninstall` | 守护进程生命周期管理 |
 | **分析** | `analyze` | 触发会话分析 |
 | **审批** | `review`, `approve`, `reject` | 管理建议 |
 | **查看** | `status`, `history`, `diff` | 查看系统状态 |
@@ -198,7 +206,341 @@ claude-evolution init
 
 ---
 
-### 3.2 analyze - 触发分析
+### 3.2 守护进程管理
+
+守护进程模式允许 claude-evolution 在后台持续运行,自动执行定时分析并提供 Web UI 访问。
+
+#### 3.2.1 start - 启动守护进程
+
+**用途**: 启动守护进程(包含调度器和 Web Server)
+
+**语法**:
+
+```bash
+claude-evolution start [options]
+```
+
+**选项**:
+
+| 选项 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `-d, --daemon` | boolean | false | 后台运行模式 |
+| `-p, --port <port>` | number | 10010 | Web UI 端口 |
+| `--no-scheduler` | boolean | false | 禁用调度器 (仅启动 Web UI) |
+| `--no-web` | boolean | false | 禁用 Web UI (仅启动调度器) |
+
+**示例**:
+
+```bash
+# 前台运行 (开发模式,可看到日志输出)
+claude-evolution start
+
+# 后台运行 (生产模式,推荐)
+claude-evolution start --daemon
+
+# 自定义端口
+claude-evolution start --port 3000
+
+# 仅启动 Web UI
+claude-evolution start --no-scheduler
+
+# 仅启动调度器
+claude-evolution start --no-web
+```
+
+**输出**:
+
+```
+🚀 启动守护进程(前台模式)
+
+📅 启动调度器...
+   ✓ 调度器已启动
+🌐 启动 Web 服务器...
+   ✓ Web UI 运行在 http://localhost:10010
+
+✓ 守护进程已启动
+   调度器: 每 6h 自动分析
+   Web UI: http://localhost:10010
+
+按 Ctrl+C 停止服务
+```
+
+**注意事项**:
+
+- 启动前会检查是否已有实例运行,避免重复启动
+- 后台模式下,日志输出到 `~/.claude-evolution/logs/daemon.log`
+- PID 文件保存在 `~/.claude-evolution/daemon.pid`
+- 默认每 6 小时自动执行一次分析 (可在 config.json 中配置)
+
+---
+
+#### 3.2.2 stop - 停止守护进程
+
+**用途**: 停止运行中的守护进程
+
+**语法**:
+
+```bash
+claude-evolution stop [options]
+```
+
+**选项**:
+
+| 选项 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `-f, --force` | boolean | false | 强制终止 (使用 SIGKILL) |
+| `-t, --timeout <seconds>` | number | 30 | 优雅关闭超时时间(秒) |
+
+**示例**:
+
+```bash
+# 优雅停止
+claude-evolution stop
+
+# 强制停止 (不等待任务完成)
+claude-evolution stop --force
+
+# 自定义超时时间
+claude-evolution stop --timeout 60
+```
+
+**输出**:
+
+```
+🛑 停止守护进程
+
+   PID: 12345
+   端口: 10010
+   启动时间: 2026/3/14 12:00:00
+
+发送停止信号...
+✓ 守护进程已停止
+```
+
+**停止流程**:
+
+1. 读取 PID 文件
+2. 发送 SIGTERM 信号 (优雅关闭)
+3. 等待进程退出 (最多 30 秒)
+4. 超时后使用 SIGKILL 强制终止
+5. 清理 PID 文件
+
+---
+
+#### 3.2.3 restart - 重启守护进程
+
+**用途**: 重启守护进程 (先停止再启动)
+
+**语法**:
+
+```bash
+claude-evolution restart [options]
+```
+
+**选项**:
+
+继承 start 命令的所有选项:
+- `-d, --daemon`: 后台运行
+- `-p, --port <port>`: Web UI 端口
+- `--no-scheduler`: 禁用调度器
+- `--no-web`: 禁用 Web UI
+
+**示例**:
+
+```bash
+# 重启 (保持原配置)
+claude-evolution restart
+
+# 重启并切换到后台模式
+claude-evolution restart --daemon
+
+# 重启并更换端口
+claude-evolution restart --port 3001
+```
+
+**输出**:
+
+```
+🔄 重启守护进程
+
+正在停止当前实例...
+✓ 守护进程已停止
+
+正在启动新实例...
+✓ 守护进程已启动
+   Web UI: http://localhost:10010
+```
+
+**注意事项**:
+
+- 如果守护进程未运行,会直接启动新实例
+- 重启后使用新的命令参数,不会继承之前的配置
+
+---
+
+#### 3.2.4 logs - 查看日志
+
+**用途**: 查看守护进程日志
+
+**语法**:
+
+```bash
+claude-evolution logs [options]
+```
+
+**选项**:
+
+| 选项 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `-f, --follow` | boolean | false | 实时跟踪日志 |
+| `-n, --lines <number>` | number | 50 | 显示最后 N 行 |
+| `-l, --level <level>` | string | - | 过滤日志级别 (INFO/WARN/ERROR) |
+
+**示例**:
+
+```bash
+# 显示最后 50 行
+claude-evolution logs
+
+# 实时跟踪
+claude-evolution logs --follow
+
+# 显示最后 100 行
+claude-evolution logs --lines 100
+
+# 仅显示错误日志
+claude-evolution logs --level ERROR
+
+# 组合使用
+claude-evolution logs -f --level WARN
+```
+
+**输出**:
+
+```
+[2026-03-14T12:00:00.000Z] [INFO] 守护进程已启动
+[2026-03-14T12:00:00.123Z] [INFO] 调度器已启动
+[2026-03-14T12:00:00.456Z] [INFO] Web 服务器已启动: http://localhost:10010
+[2026-03-14T18:00:00.789Z] [INFO] 定时分析任务开始
+[2026-03-14T18:05:30.123Z] [INFO] 定时分析任务完成
+```
+
+**日志级别**:
+
+- **INFO**: 常规信息 (启动、定时任务等)
+- **WARN**: 警告信息 (非致命错误)
+- **ERROR**: 错误信息 (任务失败、异常)
+
+**日志轮转**:
+
+- 单个日志文件最大 10MB
+- 保留最近 7 个历史文件
+- 自动轮转,无需手动清理
+
+---
+
+#### 3.2.5 install - 安装自启动
+
+**用途**: 配置系统开机自启动 (macOS/Linux)
+
+**语法**:
+
+```bash
+claude-evolution install [options]
+```
+
+**选项**:
+
+| 选项 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `--enable` | boolean | false | 安装后立即启动 |
+| `-p, --port <port>` | number | 10010 | Web UI 端口 |
+
+**示例**:
+
+```bash
+# 仅安装 (不启动)
+claude-evolution install
+
+# 安装并启动
+claude-evolution install --enable
+
+# 自定义端口
+claude-evolution install --port 3000
+```
+
+**输出** (macOS):
+
+```
+📦 安装开机自启动
+
+   平台: macOS
+   配置文件: ~/Library/LaunchAgents/com.claude-evolution.plist
+
+正在生成配置文件...
+✓ 配置文件已创建
+
+正在注册服务...
+✓ LaunchAgent 已注册
+
+✅ 自启动已配置
+
+下一步:
+  • 重启电脑后自动启动
+  • 手动启动: claude-evolution start
+  • 查看状态: launchctl list | grep claude-evolution
+```
+
+**平台支持**:
+
+- ✅ macOS (LaunchAgent)
+- ✅ Linux (systemd)
+- ❌ Windows (计划中)
+
+**卸载方法**:
+
+```bash
+claude-evolution uninstall
+```
+
+---
+
+#### 3.2.6 uninstall - 卸载自启动
+
+**用途**: 移除开机自启动配置
+
+**语法**:
+
+```bash
+claude-evolution uninstall
+```
+
+**输出**:
+
+```
+🗑️  卸载开机自启动
+
+正在停止服务...
+✓ 服务已停止
+
+正在注销 LaunchAgent...
+✓ LaunchAgent 已注销
+
+正在删除配置文件...
+✓ 配置文件已删除
+
+✅ 卸载完成
+```
+
+**注意事项**:
+
+- 会先停止运行中的守护进程
+- 删除系统配置文件
+- 不会删除 `~/.claude-evolution/` 目录中的数据
+
+---
+
+### 3.3 analyze - 触发分析
 
 **用途**: 手动触发会话分析流程
 
@@ -298,7 +640,7 @@ claude-evolution analyze --now
 
 ---
 
-### 3.3 review - 查看建议
+### 3.4 review - 查看建议
 
 **用途**: 查看待审批建议列表
 
@@ -426,7 +768,7 @@ ID: sugg-ghi789-jkl012-mno345
 
 ---
 
-### 3.4 approve - 批准建议
+### 3.5 approve - 批准建议
 
 **用途**: 批准单个或所有待审批建议
 
@@ -521,7 +863,7 @@ claude-evolution approve all
 
 ---
 
-### 3.5 reject - 拒绝建议
+### 3.6 reject - 拒绝建议
 
 **用途**: 拒绝单个待审批建议
 
@@ -577,7 +919,7 @@ claude-evolution reject sugg-abc
 
 ---
 
-### 3.6 status - 查看状态
+### 3.7 status - 查看状态
 
 **用途**: 显示系统完整状态
 
@@ -653,7 +995,7 @@ claude-evolution status
 
 ---
 
-### 3.7 history - 查看历史
+### 3.8 history - 查看历史
 
 **用途**: 显示审批历史记录
 
@@ -740,7 +1082,7 @@ claude-evolution history -l 5 -t approved
 
 ---
 
-### 3.8 diff - 对比差异
+### 3.9 diff - 对比差异
 
 **用途**: 显示原始配置与进化配置的差异
 
@@ -846,11 +1188,11 @@ claude-evolution diff --no-color > changes.txt
 
 ---
 
-### 3.9 config - 配置管理
+### 3.10 config - 配置管理
 
 **用途**: 读取和设置系统配置
 
-#### 3.9.1 config list - 列出配置
+#### 3.10.1 config list - 列出配置
 
 **语法**:
 
@@ -886,7 +1228,7 @@ LLM (llm):
 
 ---
 
-#### 3.9.2 config set - 设置配置
+#### 3.10.2 config set - 设置配置
 
 **语法**:
 

@@ -32,9 +32,35 @@ const LearningPhasesSchema = z.object({
  */
 const SchedulerSchema = z.object({
   enabled: z.boolean().default(true),
-  interval: z.enum(['6h', '12h', '24h', 'custom']).default('24h'),
+  interval: z.string().default('6h'), // 改为 string 类型以支持更多格式
   customCron: z.string().optional(),
   runOnStartup: z.boolean().default(false),
+});
+
+/**
+ * 守护进程配置 (新增)
+ */
+const DaemonConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  pidFile: z.string().default('~/.claude-evolution/daemon.pid'),
+  logFile: z.string().default('~/.claude-evolution/logs/daemon.log'),
+  logLevel: z.enum(['info', 'warn', 'error', 'debug']).default('info'),
+  logRotation: z.object({
+    maxSize: z.string().default('10MB'),
+    maxFiles: z.number().default(7),
+  }),
+  gracefulShutdownTimeout: z.number().default(30000), // 30秒
+});
+
+/**
+ * Web UI 配置 (新增)
+ */
+const WebUIConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  port: z.number().min(1).max(65535).default(10010),
+  host: z.string().default('127.0.0.1'),
+  autoOpenBrowser: z.boolean().default(false),
+  corsOrigins: z.array(z.string()).default(['http://localhost:10010']),
 });
 
 /**
@@ -91,6 +117,8 @@ const MDGeneratorSchema = z.object({
 export const ConfigSchema = z.object({
   learningPhases: LearningPhasesSchema,
   scheduler: SchedulerSchema,
+  daemon: DaemonConfigSchema.optional(), // 可选，用于向后兼容
+  webUI: WebUIConfigSchema.optional(), // 可选，用于向后兼容
   llm: LLMSchema,
   httpApi: HttpApiSchema,
   filters: FiltersSchema,
@@ -122,8 +150,26 @@ export const DEFAULT_CONFIG: Config = {
   },
   scheduler: {
     enabled: true,
-    interval: '24h',
+    interval: '6h',
     runOnStartup: false,
+  },
+  daemon: {
+    enabled: true,
+    pidFile: '~/.claude-evolution/daemon.pid',
+    logFile: '~/.claude-evolution/logs/daemon.log',
+    logLevel: 'info',
+    logRotation: {
+      maxSize: '10MB',
+      maxFiles: 7,
+    },
+    gracefulShutdownTimeout: 30000,
+  },
+  webUI: {
+    enabled: true,
+    port: 10010,
+    host: '127.0.0.1',
+    autoOpenBrowser: false,
+    corsOrigins: ['http://localhost:10010'],
   },
   llm: {
     model: 'claude-3-5-haiku-20241022',
