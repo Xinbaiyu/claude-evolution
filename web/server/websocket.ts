@@ -117,7 +117,10 @@ export class WebSocketManager {
     this.broadcast('analysis_complete', stats);
   }
 
-  // 发送新建议事件
+  // Legacy suggestion events (DEPRECATED - will be removed in v0.5.0)
+  /**
+   * @deprecated Use observation events instead
+   */
   public emitNewSuggestions(suggestions: any[]) {
     this.broadcast('new_suggestions', {
       count: suggestions.length,
@@ -125,14 +128,17 @@ export class WebSocketManager {
     });
   }
 
-  // 发送建议批准事件
-  public emitSuggestionApproved(suggestion: any) {
-    this.broadcast('suggestion_approved', suggestion);
+  // Observation events
+  public emitObservationPromoted(observation: any) {
+    this.broadcast('observation_promoted', observation);
   }
 
-  // 发送建议拒绝事件
-  public emitSuggestionRejected(suggestion: any) {
-    this.broadcast('suggestion_rejected', suggestion);
+  public emitObservationDemoted(observation: any) {
+    this.broadcast('observation_demoted', observation);
+  }
+
+  public emitObservationArchived(observation: any) {
+    this.broadcast('observation_archived', observation);
   }
 
   // 清理资源

@@ -11,47 +11,15 @@ export interface ApiResponse<T = any> {
   error?: string;
 }
 
-export interface Suggestion {
-  id: string;
-  type: 'preference' | 'pattern' | 'workflow';
-  item: Preference | Pattern | Workflow;
-  createdAt: string;
-}
-
-export interface Preference {
-  type: string;
-  description: string;
-  confidence: number;
-  frequency: number;
-  evidence?: string[];
-}
-
-export interface Pattern {
-  problem: string;
-  solution: string;
-  confidence: number;
-  occurrences: number;
-  evidence?: string[];
-}
-
-export interface Workflow {
-  name: string;
-  steps: string[];
-  confidence: number;
-  frequency: number;
-  evidence?: string[];
-}
-
 export interface SystemStatus {
   scheduler: {
     enabled: boolean;
     interval: string;
     lastRun: string | null;
   };
-  suggestions: {
-    pending: number;
-    approved: number;
-    rejected: number;
+  observations: {
+    active: number;
+    context: number;
     total: number;
   };
   metrics: {
@@ -61,6 +29,90 @@ export interface SystemStatus {
     uptime: number;
     version: string;
   };
+}
+
+export interface LearningStats {
+  pools: {
+    active: {
+      total: number;
+      tiers: {
+        gold: number;
+        silver: number;
+        bronze: number;
+      };
+      types: Record<string, number>;
+      manualOverrides: {
+        promoted: number;
+        demoted: number;
+        ignored: number;
+      };
+    };
+    context: {
+      total: number;
+      tiers: {
+        gold: number;
+        silver: number;
+        bronze: number;
+      };
+      types: Record<string, number>;
+      manualOverrides: {
+        promoted: number;
+        demoted: number;
+        ignored: number;
+      };
+    };
+    archived: {
+      total: number;
+      types: Record<string, number>;
+    };
+  };
+  summary: {
+    totalObservations: number;
+    activeObservations: number;
+    contextObservations: number;
+    archivedObservations: number;
+  };
+}
+
+export interface ObservationWithMetadata {
+  id: string;
+  sessionId: string;
+  timestamp: string;
+  type: 'preference' | 'pattern' | 'workflow';
+  confidence: number;
+  evidence: string[];
+  item: {
+    type?: string;
+    description?: string;
+    problem?: string;
+    solution?: string;
+    name?: string;
+    steps?: string[];
+    confidence?: number;
+    frequency?: number;
+    occurrences?: number;
+  };
+  mentions: number;
+  lastSeen: string;
+  firstSeen: string;
+  originalConfidence: number;
+  inContext: boolean;
+  manualOverride?: {
+    action: 'promote' | 'demote' | 'ignore';
+    timestamp: string;
+    reason?: string;
+  };
+  mergedFrom?: string[];
+  promotedAt?: string;
+  promotionReason?: 'auto' | 'manual';
+  archiveTimestamp?: string;
+  archiveReason?: 'capacity_control' | 'expired' | 'user_deleted';
+}
+
+export interface LearningObservations {
+  active?: ObservationWithMetadata[];
+  context?: ObservationWithMetadata[];
+  archived?: ObservationWithMetadata[];
 }
 
 export interface Config {
@@ -77,6 +129,36 @@ export interface Config {
     model: string;
     maxTokens: number;
     temperature: number;
+    enablePromptCaching?: boolean;
+    baseURL?: string;
+  };
+  learning?: {
+    enabled: boolean;
+    capacity: {
+      targetSize: number;
+      maxSize: number;
+      minSize: number;
+    };
+    decay: {
+      enabled: boolean;
+      halfLifeDays: number;
+    };
+    promotion: {
+      autoConfidence: number;
+      autoMentions: number;
+      highConfidence: number;
+      highMentions: number;
+      candidateConfidence: number;
+      candidateMentions: number;
+    };
+    deletion: {
+      immediateThreshold: number;
+      delayedThreshold: number;
+      delayedDays: number;
+    };
+    retention: {
+      archivedDays: number;
+    };
   };
 }
 
@@ -132,78 +214,6 @@ async function request<T>(
  */
 export const apiClient = {
   /**
-   * 获取建议列表
-   */
-  async getSuggestions(): Promise<Suggestion[]> {
-    const response = await request<Suggestion[]>('/suggestions');
-    if (!response.success || !response.data) {
-      throw new ApiError(response.error || '获取建议列表失败');
-    }
-    return response.data;
-  },
-
-  /**
-   * 获取建议详情
-   */
-  async getSuggestion(id: string): Promise<Suggestion> {
-    const response = await request<Suggestion>(`/suggestions/${id}`);
-    if (!response.success || !response.data) {
-      throw new ApiError(response.error || '获取建议详情失败');
-    }
-    return response.data;
-  },
-
-  /**
-   * 批准建议
-   */
-  async approveSuggestion(id: string): Promise<void> {
-    const response = await request(`/suggestions/${id}/approve`, {
-      method: 'POST',
-    });
-    if (!response.success) {
-      throw new ApiError(response.error || '批准建议失败');
-    }
-  },
-
-  /**
-   * 拒绝建议
-   */
-  async rejectSuggestion(id: string): Promise<void> {
-    const response = await request(`/suggestions/${id}/reject`, {
-      method: 'POST',
-    });
-    if (!response.success) {
-      throw new ApiError(response.error || '拒绝建议失败');
-    }
-  },
-
-  /**
-   * 批量批准建议
-   */
-  async batchApproveSuggestions(ids: string[]): Promise<void> {
-    const response = await request('/suggestions/batch/approve', {
-      method: 'POST',
-      body: JSON.stringify({ ids }),
-    });
-    if (!response.success) {
-      throw new ApiError(response.error || '批量批准失败');
-    }
-  },
-
-  /**
-   * 批量拒绝建议 (BATCH-REJECT-4)
-   */
-  async batchRejectSuggestions(ids: string[]): Promise<void> {
-    const response = await request('/suggestions/batch/reject', {
-      method: 'POST',
-      body: JSON.stringify({ ids }),
-    });
-    if (!response.success) {
-      throw new ApiError(response.error || '批量拒绝失败');
-    }
-  },
-
-  /**
    * 获取系统状态
    */
   async getStatus(): Promise<SystemStatus> {
@@ -247,6 +257,109 @@ export const apiClient = {
     });
     if (!response.success) {
       throw new ApiError(response.error || '触发分析失败');
+    }
+  },
+
+  // ========== Learning System API ==========
+
+  /**
+   * 获取学习系统观察列表
+   */
+  async getLearningObservations(pool?: 'active' | 'context' | 'archived'): Promise<LearningObservations> {
+    const params = pool ? `?pool=${pool}` : '';
+    const response = await request<LearningObservations>(`/learning/observations${params}`);
+    if (!response.success || !response.data) {
+      throw new ApiError(response.error || '获取观察列表失败');
+    }
+    return response.data;
+  },
+
+  /**
+   * 手动提升观察到上下文
+   */
+  async promoteObservation(id: string): Promise<void> {
+    const response = await request('/learning/promote', {
+      method: 'POST',
+      body: JSON.stringify({ id }),
+    });
+    if (!response.success) {
+      throw new ApiError(response.error || '提升观察失败');
+    }
+  },
+
+  /**
+   * 手动降级观察
+   */
+  async demoteObservation(id: string): Promise<void> {
+    const response = await request('/learning/demote', {
+      method: 'POST',
+      body: JSON.stringify({ id }),
+    });
+    if (!response.success) {
+      throw new ApiError(response.error || '降级观察失败');
+    }
+  },
+
+  /**
+   * 标记观察为忽略
+   */
+  async ignoreObservation(id: string, reason?: string): Promise<void> {
+    const response = await request('/learning/ignore', {
+      method: 'POST',
+      body: JSON.stringify({ id, reason }),
+    });
+    if (!response.success) {
+      throw new ApiError(response.error || '忽略观察失败');
+    }
+  },
+
+  /**
+   * 删除观察
+   */
+  async deleteObservation(id: string): Promise<void> {
+    const response = await request('/learning/delete', {
+      method: 'POST',
+      body: JSON.stringify({ id }),
+    });
+    if (!response.success) {
+      throw new ApiError(response.error || '删除观察失败');
+    }
+  },
+
+  /**
+   * 从归档恢复观察
+   */
+  async restoreObservation(id: string): Promise<void> {
+    const response = await request('/learning/restore', {
+      method: 'POST',
+      body: JSON.stringify({ id }),
+    });
+    if (!response.success) {
+      throw new ApiError(response.error || '恢复观察失败');
+    }
+  },
+
+  /**
+   * 获取学习系统统计数据
+   */
+  async getLearningStats(): Promise<LearningStats> {
+    const response = await request<LearningStats>('/learning/stats');
+    if (!response.success || !response.data) {
+      throw new ApiError(response.error || '获取学习统计失败');
+    }
+    return response.data;
+  },
+
+  /**
+   * 更新学习系统配置
+   */
+  async updateLearningConfig(config: Partial<Config['learning']>): Promise<void> {
+    const response = await request('/learning/config', {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    });
+    if (!response.success) {
+      throw new ApiError(response.error || '更新学习配置失败');
     }
   },
 };

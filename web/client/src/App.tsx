@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import Dashboard from './pages/Dashboard';
-import Review from './pages/Review';
 import Settings from './pages/Settings';
 import SourceManager from './pages/SourceManager';
+import LearningReview from './pages/LearningReview';
 import Toast from './components/Toast';
 
 function App() {
@@ -21,8 +21,8 @@ function App() {
   // Route to component mapping
   const renderPage = () => {
     switch (currentPath) {
-      case '/review':
-        return <Review />;
+      case '/learning-review':
+        return <LearningReview />;
       case '/settings':
         return <Settings />;
       case '/source-manager':

@@ -6,6 +6,7 @@ import type { WebSocketManager } from '../websocket.js';
 import type { NotificationManager } from '../notifications.js';
 import { ProcessManager } from '../../../src/daemon/process-manager.js';
 import { analyzeCommand } from '../../../src/cli/commands/analyze.js';
+import { getEvolutionDir } from '../../../src/config/loader.js';
 
 interface RequestWithManagers extends Request {
   wsManager?: WebSocketManager;
@@ -16,7 +17,6 @@ const router = Router();
 
 const CONFIG_DIR = path.join(os.homedir(), '.claude-evolution');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
-const SUGGESTIONS_DIR = path.join(CONFIG_DIR, 'suggestions');
 
 // 并发控制：防止多个分析同时运行
 let isAnalyzing = false;
@@ -119,34 +119,32 @@ router.get('/status', async (req: RequestWithManagers, res) => {
       ? await fs.readJson(CONFIG_FILE)
       : {};
 
-    // 读取建议统计
-    const pendingPath = path.join(SUGGESTIONS_DIR, 'pending.json');
-    const approvedPath = path.join(SUGGESTIONS_DIR, 'approved.json');
-    const rejectedPath = path.join(SUGGESTIONS_DIR, 'rejected.json');
+    // 读取观察池统计（新系统）
+    const MEMORY_DIR = path.join(getEvolutionDir(), 'memory', 'observations');
+    const activePath = path.join(MEMORY_DIR, 'active.json');
+    const contextPath = path.join(MEMORY_DIR, 'context.json');
 
-    const pending = await fs.pathExists(pendingPath)
-      ? await fs.readJson(pendingPath)
+    const activeObs = await fs.pathExists(activePath)
+      ? await fs.readJson(activePath)
       : [];
-    const approved = await fs.pathExists(approvedPath)
-      ? await fs.readJson(approvedPath)
-      : [];
-    const rejected = await fs.pathExists(rejectedPath)
-      ? await fs.readJson(rejectedPath)
+    const contextObs = await fs.pathExists(contextPath)
+      ? await fs.readJson(contextPath)
       : [];
 
     // 计算平均置信度
-    const allSuggestions = [...pending, ...approved];
+    const allItems = [...activeObs, ...contextObs];
+
     const avgConfidence =
-      allSuggestions.length > 0
-        ? allSuggestions.reduce((sum, s) => sum + (s.item?.confidence || 0), 0) /
-          allSuggestions.length
+      allItems.length > 0
+        ? allItems.reduce((sum, item) => sum + (item.confidence || item.item?.confidence || 0), 0) /
+          allItems.length
         : 0;
 
-    // 获取最后分析时间（从 pending 建议的创建时间推断）
+    // 获取最后分析时间
     const lastAnalysis =
-      pending.length > 0
-        ? pending
-            .map((s: any) => new Date(s.createdAt).getTime())
+      activeObs.length > 0
+        ? activeObs
+            .map((obs: any) => new Date(obs.timestamp || obs.createdAt).getTime())
             .sort((a: number, b: number) => b - a)[0]
         : null;
 
@@ -158,11 +156,10 @@ router.get('/status', async (req: RequestWithManagers, res) => {
           interval: config.scheduler?.interval || '1h',
           lastRun: lastAnalysis ? new Date(lastAnalysis).toISOString() : null,
         },
-        suggestions: {
-          pending: pending.length,
-          approved: approved.length,
-          rejected: rejected.length,
-          total: pending.length + approved.length + rejected.length,
+        observations: {
+          active: activeObs.length,
+          context: contextObs.length,
+          total: activeObs.length + contextObs.length,
         },
         metrics: {
           avgConfidence: Math.round(avgConfidence * 100) / 100,
@@ -282,18 +279,20 @@ router.post('/analyze', async (req: RequestWithManagers, res) => {
       const duration = Math.round((Date.now() - startTime) / 1000);
       console.log(`[API] 分析完成，用时 ${duration}s`);
 
-      // 读取新生成的建议
-      const pendingPath = path.join(SUGGESTIONS_DIR, 'pending.json');
-      const pending = await fs.pathExists(pendingPath)
-        ? await fs.readJson(pendingPath)
+      // 读取新生成的观察（优先使用新系统）
+      const MEMORY_DIR = path.join(getEvolutionDir(), 'memory', 'observations');
+      const activePath = path.join(MEMORY_DIR, 'active.json');
+      const active = await fs.pathExists(activePath)
+        ? await fs.readJson(activePath)
         : [];
 
-      console.log(`[API] 发现 ${pending.length} 条建议`);
+      const newCount = active.length;
+      console.log(`[API] 发现 ${newCount} 条新观察`);
 
       // 发送 WebSocket 事件
       if (req.wsManager) {
         req.wsManager.emitAnalysisComplete({
-          suggestionsCount: pending.length,
+          observationsCount: active.length,
           duration,
           timestamp: new Date().toISOString(),
         });
@@ -302,7 +301,7 @@ router.post('/analyze', async (req: RequestWithManagers, res) => {
       // 发送桌面通知
       if (req.notificationManager) {
         req.notificationManager.notifyAnalysisComplete({
-          newSuggestions: pending.length,
+          newSuggestions: newCount,
           duration,
         });
       }

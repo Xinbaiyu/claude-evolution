@@ -5,6 +5,96 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-03-15
+
+### 🚨 Breaking Changes
+
+#### Complete Removal of Legacy Suggestion System
+The v0.2.x suggestion system has been **completely removed** from the codebase. All suggestion-related code, files, and APIs have been deleted.
+
+**Deleted Files**:
+- `~/.claude-evolution/suggestions/` directory (including pending.json, approved.json, rejected.json)
+- `web/client/src/pages/Review.tsx` (legacy review page)
+- All deprecated TypeScript types: `Suggestion`, `Preference`, `Pattern`, `Workflow`
+- Deprecated WebSocket methods: `emitSuggestionApproved()`, `emitSuggestionRejected()`
+
+**Removed API Fields**:
+- `SystemStatus.suggestions` field removed from `/api/status` response
+- All backward-compatibility code for reading legacy suggestion files
+
+**Migration Completed**: If you haven't migrated yet, the migration script still exists at `src/scripts/migrate-suggestions.ts`, but the legacy suggestion files are no longer read by the system. All data must now use the observation pool format.
+
+---
+
+#### Legacy Suggestion System Removed
+The v0.2.x suggestion system (pending/approved/rejected workflow) has been completely removed in favor of the observation-based learning system introduced in v0.3.0.
+
+**Removed CLI Commands**:
+- `claude-evolution approve <id>` - Use WebUI Learning Review instead
+- `claude-evolution reject <id>` - Use WebUI Learning Review instead
+- `claude-evolution review` - Now redirects to WebUI Learning Review
+- `claude-evolution history` - Use WebUI Learning Review for observation history
+
+**Removed API Endpoints**:
+- `GET /api/suggestions`
+- `GET /api/suggestions/:id`
+- `POST /api/suggestions/:id/approve`
+- `POST /api/suggestions/:id/reject`
+- `POST /api/suggestions/batch/approve`
+- `POST /api/suggestions/batch/reject`
+
+**Migration Required**: Run `claude-evolution migrate-suggestions` to convert old suggestion data to the new observation format. See [MIGRATION_V03_TO_V04.md](./docs/MIGRATION_V03_TO_V04.md) for details.
+
+### ✨ New Features
+
+#### Migration Tool
+- **One-time Migration**: `claude-evolution migrate-suggestions` command
+- Converts `pending.json` suggestions to `active.json` observations
+- Automatic backup creation (`pending.json.backup-YYYYMMDD`)
+- Prevents duplicate migrations with `.migrated` marker file
+- Comprehensive migration summary with statistics
+
+### 🔧 Improvements
+
+#### WebUI
+- **Dashboard**: Made suggestion stats optional (graceful fallback to 0)
+- **Review Page**: Now redirects to Learning Review page
+- **ManualAnalysisTrigger**: Updated to support both legacy and new observation count formats
+
+#### Type System
+- Created `src/types/legacy.ts` with deprecation warnings
+- All legacy types (`Suggestion`, `Preference`, `Pattern`, `Workflow`) marked as `@deprecated`
+- Improved type safety with optional chaining for legacy fields
+
+#### WebSocket Events
+- Added new observation events: `observation_promoted`, `observation_demoted`, `observation_archived`
+- Marked legacy events as deprecated: `new_suggestions`, `suggestion_approved`, `suggestion_rejected`
+- Backward compatible with existing event listeners
+
+### 🐛 Bug Fixes
+- Fixed TypeScript compilation errors in Dashboard and Review pages
+- Fixed missing optional chaining for `status.suggestions` field
+- Fixed Review page API method calls after suggestion API removal
+
+### 📚 Documentation
+- Added comprehensive migration guide: `docs/MIGRATION_V03_TO_V04.md`
+- Updated `docs/CLI_REFERENCE.md` to document `migrate-suggestions` command
+- Added deprecation notices to all legacy types and APIs
+
+### 🧹 Code Cleanup
+- Removed `src/learners/suggestion-manager.ts` and tests
+- Removed `web/server/routes/suggestions.ts` and type definitions
+- Cleaned up test files to remove legacy suggestion references
+- Updated integration tests to remove approve/reject workflow tests
+
+### ⚠️ Deprecation Notices
+Legacy types will be completely removed in v0.5.0:
+- `Suggestion`, `Preference`, `Pattern`, `Workflow` (use `ObservationWithMetadata` instead)
+- `LearningResult.toSuggest` field (observations are now automatically managed)
+- WebSocket events: `new_suggestions`, `suggestion_approved`, `suggestion_rejected`
+
+---
+
 ## [0.2.0] - 2026-03-14
 
 ### ✨ Major Features
