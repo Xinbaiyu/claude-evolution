@@ -137,10 +137,8 @@ router.post('/promote', async (req: RequestWithWS, res: Response) => {
       promotionReason: 'manual',
     };
 
-    // 更新活跃池
-    const updatedActive = active.map((obs) =>
-      obs.id === id ? updatedObs : obs
-    );
+    // 从活跃池中移除（提升后不应该留在 active pool）
+    const updatedActive = active.filter((obs) => obs.id !== id);
     await saveActiveObservations(updatedActive);
 
     // 添加到上下文池
@@ -740,29 +738,26 @@ router.post('/batch/promote', async (req: RequestWithWS, res: Response) => {
       results.push({ id, success: true });
     }
 
-    // 更新活跃池
-    const updatedActive = active.map((obs) => {
-      if (promotedIds.includes(obs.id)) {
-        return {
-          ...obs,
-          inContext: true,
-          manualOverride: {
-            action: 'promote' as ManualOverrideAction,
-            timestamp: new Date().toISOString(),
-          },
-          promotedAt: new Date().toISOString(),
-          promotionReason: 'manual' as const,
-        };
-      }
-      return obs;
-    });
+    // 从活跃池中移除已提升的观察
+    const updatedActive = active.filter((obs) => !promotedIds.includes(obs.id));
     await saveActiveObservations(updatedActive);
 
+    // 准备要添加到上下文池的观察（带有提升标记）
+    const promotedObservations = active
+      .filter((obs) => promotedIds.includes(obs.id))
+      .map((obs) => ({
+        ...obs,
+        inContext: true,
+        manualOverride: {
+          action: 'promote' as ManualOverrideAction,
+          timestamp: new Date().toISOString(),
+        },
+        promotedAt: new Date().toISOString(),
+        promotionReason: 'manual' as const,
+      }));
+
     // 添加到上下文池
-    const newContext = [
-      ...context,
-      ...updatedActive.filter((obs) => promotedIds.includes(obs.id)),
-    ];
+    const newContext = [...context, ...promotedObservations];
     await saveContextObservations(newContext);
 
     // 重新生成 CLAUDE.md (批量提升后)
@@ -772,15 +767,12 @@ router.post('/batch/promote', async (req: RequestWithWS, res: Response) => {
 
     // WebSocket 事件
     if (req.wsManager) {
-      promotedIds.forEach((id) => {
-        const obs = updatedActive.find((o) => o.id === id);
-        if (obs) {
-          req.wsManager!.emitObservationPromoted({
-            id: obs.id,
-            type: obs.type,
-            confidence: obs.confidence,
-          });
-        }
+      promotedObservations.forEach((obs) => {
+        req.wsManager!.emitObservationPromoted({
+          id: obs.id,
+          type: obs.type,
+          confidence: obs.confidence,
+        });
       });
     }
 
@@ -877,6 +869,9 @@ router.post('/batch/ignore', async (req: RequestWithWS, res: Response) => {
 
     // 检查是否修改了 context pool
     const contextModified = results.some((r) => r.success && r.pool === 'context');
+    console.log('[Learning] batch/ignore results:', JSON.stringify(results, null, 2));
+    console.log('[Learning] contextModified:', contextModified);
+
     if (contextModified) {
       // 重新生成 CLAUDE.md (如果修改了 context pool)
       regenerateClaudeMd(updatedContext).catch(err => {
