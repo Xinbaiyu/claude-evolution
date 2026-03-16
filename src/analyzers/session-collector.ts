@@ -30,7 +30,8 @@ export async function collectRecentSessions(
   logger.debug('查询观察记录...');
 
   // 只查询关注的类型
-  const targetTypes = ['feature', 'bugfix', 'refactor', 'decision'];
+  // 🧪 实验：添加 discovery 类型，验证能否提取沟通偏好
+  const targetTypes = ['feature', 'bugfix', 'refactor', 'decision', 'discovery'];
 
   const observations = await httpClient.getObservationsWithRetry(
     {
