@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import { toast } from '../components/Toast';
+import Navigation from '../components/Navigation';
+import LearningTab from './Settings/LearningTab';
+
+type TabType = 'scheduler' | 'llm' | 'learning';
 
 export default function Settings() {
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('scheduler');
 
   useEffect(() => {
     loadConfig();
@@ -25,7 +30,12 @@ export default function Settings() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await apiClient.updateConfig(config);
+      // 根据当前 Tab 保存不同的配置
+      if (activeTab === 'learning' && config.learning) {
+        await apiClient.updateLearningConfig(config.learning);
+      } else {
+        await apiClient.updateConfig(config);
+      }
       toast.success('配置已保存');
     } catch (error: any) {
       toast.error(error.message || '保存失败');
@@ -59,42 +69,54 @@ export default function Settings() {
             </div>
 
             {/* Navigation */}
-            <nav className="flex gap-2">
-              <a
-                href="/"
-                className="px-4 py-2 text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 font-mono font-semibold rounded transition-colors border border-transparent hover:border-amber-500/30"
-              >
-                控制台
-              </a>
-              <a
-                href="/review"
-                className="px-4 py-2 text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 font-mono font-semibold rounded transition-colors border border-transparent hover:border-amber-500/30"
-              >
-                审核建议
-              </a>
-              <a
-                href="/source-manager"
-                className="px-4 py-2 text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 font-mono font-semibold rounded transition-colors border border-transparent hover:border-amber-500/30"
-              >
-                配置编辑
-              </a>
-              <a
-                href="/settings"
-                className="px-4 py-2 text-amber-500 bg-amber-500/10 font-mono font-semibold rounded border border-amber-500/30"
-              >
-                系统设置
-              </a>
-            </nav>
+            <Navigation currentPage="settings" />
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* Tab Navigation */}
+        <div className="mb-6 border-b-2 border-slate-700">
+          <nav className="flex gap-2">
+            <button
+              onClick={() => setActiveTab('scheduler')}
+              className={`px-6 py-3 font-mono font-bold transition-colors border-b-4 ${
+                activeTab === 'scheduler'
+                  ? 'border-amber-500 text-amber-500'
+                  : 'border-transparent text-slate-400 hover:text-slate-300'
+              }`}
+            >
+              调度器
+            </button>
+            <button
+              onClick={() => setActiveTab('llm')}
+              className={`px-6 py-3 font-mono font-bold transition-colors border-b-4 ${
+                activeTab === 'llm'
+                  ? 'border-amber-500 text-amber-500'
+                  : 'border-transparent text-slate-400 hover:text-slate-300'
+              }`}
+            >
+              Claude 模型
+            </button>
+            <button
+              onClick={() => setActiveTab('learning')}
+              className={`px-6 py-3 font-mono font-bold transition-colors border-b-4 ${
+                activeTab === 'learning'
+                  ? 'border-amber-500 text-amber-500'
+                  : 'border-transparent text-slate-400 hover:text-slate-300'
+              }`}
+            >
+              增量学习 {config.learning ? '' : '(未启用)'}
+            </button>
+          </nav>
+        </div>
+
         <div className="space-y-6">
           {/* 调度器配置 */}
-          <div className="border-4 border-slate-700 bg-slate-900 p-6">
-            <h2 className="text-xl font-black text-amber-500 mb-4 font-mono">调度器</h2>
-            <div className="space-y-4">
+          {activeTab === 'scheduler' && (
+            <div className="border-4 border-slate-700 bg-slate-900 p-6">
+              <h2 className="text-xl font-black text-amber-500 mb-4 font-mono">调度器</h2>
+              <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-bold text-slate-300">启用调度器</div>
@@ -139,8 +161,10 @@ export default function Settings() {
               </div>
             </div>
           </div>
+          )}
 
           {/* LLM 配置 */}
+          {activeTab === 'llm' && (
           <div className="border-4 border-slate-700 bg-slate-900 p-6">
             <h2 className="text-xl font-black text-amber-500 mb-4 font-mono">Claude 模型</h2>
 
@@ -278,6 +302,12 @@ export default function Settings() {
               </div>
             </div>
           </div>
+          )}
+
+          {/* 增量学习配置 */}
+          {activeTab === 'learning' && (
+            <LearningTab config={config} onConfigChange={setConfig} />
+          )}
 
           {/* 按钮 */}
           <div className="flex gap-4 justify-end">

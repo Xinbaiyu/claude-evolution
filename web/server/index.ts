@@ -3,9 +3,9 @@ import cors from 'cors';
 import { createServer } from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import suggestionsRouter from './routes/suggestions.js';
 import systemRouter from './routes/system.js';
 import sourceRouter from './routes/source.js';
+import learningRouter from './routes/learning.js';
 import { WebSocketManager } from './websocket.js';
 import { NotificationManager } from './notifications.js';
 
@@ -47,15 +47,14 @@ app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.use('/api', suggestionsRouter);
 app.use('/api', systemRouter);
 app.use('/api/source', sourceRouter);
+app.use('/api/learning', learningRouter);
 
 // 静态文件服务（前端构建产物）
-// __dirname 在编译后是 dist/web/server/
-// 需要回到项目根: ../../../ 然后到 web/client/dist
-const projectRoot = path.join(__dirname, '../../../');
-const clientDistPath = path.join(projectRoot, 'web/client/dist');
+// 使用 process.cwd() 获取命令执行目录（项目根）
+// 无论开发还是生产，只要在项目根执行命令，路径就是一致的
+const clientDistPath = path.join(process.cwd(), 'web/client/dist');
 app.use(express.static(clientDistPath));
 
 // SPA fallback - 所有未匹配的路由返回 index.html

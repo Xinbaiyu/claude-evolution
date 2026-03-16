@@ -27,8 +27,9 @@ export function ManualAnalysisTrigger() {
       setStartTime(null);
       setElapsedTime(0);
 
-      const count = data?.suggestionsCount || 0;
-      toast.success(`✅ 分析完成，发现 ${count} 条新建议`);
+      // Support both legacy (suggestionsCount) and new (observationsCount) format
+      const count = data?.observationsCount ?? data?.suggestionsCount ?? 0;
+      toast.success(`✅ 分析完成，发现 ${count} 条新观察`);
     });
 
     // 分析失败

@@ -278,23 +278,25 @@ router.post('/ignore', async (req: RequestWithWS, res: Response) => {
       });
     }
 
-    // 设置忽略标记
-    const updatedObs: ObservationWithMetadata = {
+    // 创建归档观察
+    const archivedObs: ObservationWithMetadata = {
       ...observation,
       manualOverride: {
         action: 'ignore',
         timestamp: new Date().toISOString(),
         reason,
       },
+      archiveReason: 'user_ignored',
+      archiveTimestamp: new Date().toISOString(),
     };
 
-    // 更新对应的池
+    // 从源池移除
     if (pool === 'active') {
-      const updated = active.map((obs) => (obs.id === id ? updatedObs : obs));
+      const updated = active.filter((obs) => obs.id !== id);
       await saveActiveObservations(updated);
     } else {
       const context = await loadContextObservations();
-      const updated = context.map((obs) => (obs.id === id ? updatedObs : obs));
+      const updated = context.filter((obs) => obs.id !== id);
       await saveContextObservations(updated);
 
       // 重新生成 CLAUDE.md (因为修改了 context pool)
@@ -303,12 +305,16 @@ router.post('/ignore', async (req: RequestWithWS, res: Response) => {
       });
     }
 
-    // 发送 WebSocket 事件（archived 表示被忽略）
+    // 添加到归档池
+    const archived = await loadArchivedObservations();
+    await saveArchivedObservations([...archived, archivedObs]);
+
+    // 发送 WebSocket 事件
     if (req.wsManager) {
       req.wsManager.emitObservationArchived({
-        id: updatedObs.id,
-        type: updatedObs.type,
-        reason: 'ignored',
+        id: archivedObs.id,
+        type: archivedObs.type,
+        reason: 'user_ignored',
       });
     }
 
@@ -317,7 +323,7 @@ router.post('/ignore', async (req: RequestWithWS, res: Response) => {
       data: {
         id,
         pool,
-        message: 'Observation marked as ignored',
+        message: 'Observation marked as ignored and moved to archive',
       },
     });
   } catch (error) {
@@ -373,7 +379,7 @@ router.post('/delete', async (req: RequestWithWS, res: Response) => {
     // 添加归档元数据
     const archivedObs: ObservationWithMetadata = {
       ...observation,
-      archiveReason: reason ? `user_deleted: ${reason}` : 'user_deleted',
+      archiveReason: 'user_deleted',
       archiveTimestamp: new Date().toISOString(),
       suppressSimilar: true,
     };
@@ -1028,6 +1034,609 @@ router.post('/batch/delete', async (req: RequestWithWS, res: Response) => {
       success: false,
       error:
         error instanceof Error ? error.message : 'Failed to batch delete observations',
+    });
+  }
+});
+
+/**
+ * POST /api/learning/unignore
+ * 从 Archive Pool 恢复单个观察到 Active 或 Context Pool
+ */
+router.post('/unignore', async (req: RequestWithWS, res: Response) => {
+  try {
+    const { id, targetPool } = req.body as { id: string; targetPool: 'active' | 'context' };
+
+    // 验证参数
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Observation ID is required',
+      });
+    }
+
+    if (!targetPool || !['active', 'context'].includes(targetPool)) {
+      return res.status(400).json({
+        success: false,
+        error: 'targetPool must be either "active" or "context"',
+      });
+    }
+
+    // 从 Archive Pool 加载
+    const archived = await loadArchivedObservations();
+    const observation = archived.find((obs) => obs.id === id);
+
+    if (!observation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Observation not found in archive',
+      });
+    }
+
+    // 清理归档元数据
+    const restoredObs: ObservationWithMetadata = {
+      ...observation,
+      archiveTimestamp: undefined,
+      archiveReason: undefined,
+      manualOverride: undefined,
+      inContext: targetPool === 'context', // 设置 inContext 标记
+    };
+
+    // 添加到目标池
+    if (targetPool === 'context') {
+      const context = await loadContextObservations();
+      context.push(restoredObs);
+      await saveContextObservations(context);
+
+      // 触发 CLAUDE.md 重新生成
+      regenerateClaudeMd(context).catch((err) => {
+        console.error('Failed to regenerate CLAUDE.md:', err);
+      });
+    } else {
+      const active = await loadActiveObservations();
+      active.push(restoredObs);
+      await saveActiveObservations(active);
+    }
+
+    // 从归档池移除
+    const updatedArchive = archived.filter((obs) => obs.id !== id);
+    await saveArchivedObservations(updatedArchive);
+
+    // 发送 WebSocket 事件
+    if (req.wsManager) {
+      req.wsManager.broadcast('observation:restored', { id, targetPool });
+    }
+
+    res.json({
+      success: true,
+      data: { observation: restoredObs, targetPool },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to restore observation',
+    });
+  }
+});
+
+/**
+ * POST /api/learning/batch/unignore
+ * 批量从 Archive Pool 恢复观察
+ */
+router.post('/batch/unignore', async (req: RequestWithWS, res: Response) => {
+  try {
+    const { ids, targetPool } = req.body as { ids: string[]; targetPool: 'active' | 'context' };
+
+    // 验证参数
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'ids array is required and must not be empty',
+      });
+    }
+
+    if (!targetPool || !['active', 'context'].includes(targetPool)) {
+      return res.status(400).json({
+        success: false,
+        error: 'targetPool must be either "active" or "context"',
+      });
+    }
+
+    const archived = await loadArchivedObservations();
+    const restoredObservations: ObservationWithMetadata[] = [];
+    const notFound: string[] = [];
+
+    // 查找并准备恢复的观察
+    for (const id of ids) {
+      const observation = archived.find((obs) => obs.id === id);
+      if (observation) {
+        const restoredObs: ObservationWithMetadata = {
+          ...observation,
+          archiveTimestamp: undefined,
+          archiveReason: undefined,
+          manualOverride: undefined,
+          inContext: targetPool === 'context', // 设置 inContext 标记
+        };
+        restoredObservations.push(restoredObs);
+      } else {
+        notFound.push(id);
+      }
+    }
+
+    if (restoredObservations.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'None of the provided IDs were found in archive',
+        data: { notFound },
+      });
+    }
+
+    // 批量添加到目标池
+    if (targetPool === 'context') {
+      const context = await loadContextObservations();
+      context.push(...restoredObservations);
+      await saveContextObservations(context);
+
+      // 触发 CLAUDE.md 重新生成（只生成一次）
+      regenerateClaudeMd(context).catch((err) => {
+        console.error('Failed to regenerate CLAUDE.md:', err);
+      });
+    } else {
+      const active = await loadActiveObservations();
+      active.push(...restoredObservations);
+      await saveActiveObservations(active);
+    }
+
+    // 从归档池移除
+    const restoredIds = new Set(restoredObservations.map((obs) => obs.id));
+    const updatedArchive = archived.filter((obs) => !restoredIds.has(obs.id));
+    await saveArchivedObservations(updatedArchive);
+
+    // 发送 WebSocket 事件
+    if (req.wsManager) {
+      req.wsManager.broadcast('observation:batch_restored', { ids: Array.from(restoredIds), targetPool });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        restored: restoredObservations.length,
+        targetPool,
+        notFound: notFound.length > 0 ? notFound : undefined,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to batch restore observations',
+    });
+  }
+});
+
+/**
+ * POST /api/learning/pin
+ * 钉选 Context Pool 中的观察
+ */
+router.post('/pin', async (req: RequestWithWS, res: Response) => {
+  try {
+    const { id } = req.body as { id: string };
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Observation ID is required',
+      });
+    }
+
+    const context = await loadContextObservations();
+    const observation = context.find((obs) => obs.id === id);
+
+    if (!observation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Observation not found in Context Pool',
+      });
+    }
+
+    // 幂等性：如果已经钉选，直接返回成功
+    if (observation.pinned === true) {
+      return res.json({
+        success: true,
+        data: { observation, alreadyPinned: true },
+      });
+    }
+
+    // 钉选观察
+    observation.pinned = true;
+    observation.pinnedBy = 'user';
+    observation.pinnedAt = new Date().toISOString();
+
+    await saveContextObservations(context);
+
+    // 发送 WebSocket 事件
+    if (req.wsManager) {
+      req.wsManager.broadcast('observation:pinned', { id });
+    }
+
+    res.json({
+      success: true,
+      data: { observation },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to pin observation',
+    });
+  }
+});
+
+/**
+ * POST /api/learning/unpin
+ * 取消钉选 Context Pool 中的观察
+ */
+router.post('/unpin', async (req: RequestWithWS, res: Response) => {
+  try {
+    const { id } = req.body as { id: string };
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Observation ID is required',
+      });
+    }
+
+    const context = await loadContextObservations();
+    const observation = context.find((obs) => obs.id === id);
+
+    if (!observation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Observation not found in Context Pool',
+      });
+    }
+
+    // 幂等性：如果未钉选，直接返回成功
+    if (!observation.pinned) {
+      return res.json({
+        success: true,
+        data: { observation, alreadyUnpinned: true },
+      });
+    }
+
+    // 取消钉选
+    observation.pinned = undefined;
+    observation.pinnedBy = undefined;
+    observation.pinnedAt = undefined;
+
+    await saveContextObservations(context);
+
+    // 发送 WebSocket 事件
+    if (req.wsManager) {
+      req.wsManager.broadcast('observation:unpinned', { id });
+    }
+
+    res.json({
+      success: true,
+      data: { observation },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to unpin observation',
+    });
+  }
+});
+
+/**
+ * POST /api/learning/batch/pin
+ * 批量钉选观察
+ */
+router.post('/batch/pin', async (req: RequestWithWS, res: Response) => {
+  try {
+    const { ids } = req.body as { ids: string[] };
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'ids array is required and must not be empty',
+      });
+    }
+
+    const context = await loadContextObservations();
+    const pinned: string[] = [];
+    const alreadyPinned: string[] = [];
+    const notFound: string[] = [];
+
+    for (const id of ids) {
+      const observation = context.find((obs) => obs.id === id);
+      if (!observation) {
+        notFound.push(id);
+        continue;
+      }
+
+      if (observation.pinned === true) {
+        alreadyPinned.push(id);
+        continue;
+      }
+
+      observation.pinned = true;
+      observation.pinnedBy = 'user';
+      observation.pinnedAt = new Date().toISOString();
+      pinned.push(id);
+    }
+
+    if (pinned.length > 0) {
+      await saveContextObservations(context);
+
+      // 发送 WebSocket 事件
+      if (req.wsManager) {
+        req.wsManager.broadcast('observation:batch_pinned', { ids: pinned });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        pinned: pinned.length,
+        alreadyPinned: alreadyPinned.length,
+        notFound: notFound.length,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to batch pin observations',
+    });
+  }
+});
+
+/**
+ * POST /api/learning/batch/unpin
+ * 批量取消钉选观察
+ */
+router.post('/batch/unpin', async (req: RequestWithWS, res: Response) => {
+  try {
+    const { ids } = req.body as { ids: string[] };
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'ids array is required and must not be empty',
+      });
+    }
+
+    const context = await loadContextObservations();
+    const unpinned: string[] = [];
+    const alreadyUnpinned: string[] = [];
+    const notFound: string[] = [];
+
+    for (const id of ids) {
+      const observation = context.find((obs) => obs.id === id);
+      if (!observation) {
+        notFound.push(id);
+        continue;
+      }
+
+      if (!observation.pinned) {
+        alreadyUnpinned.push(id);
+        continue;
+      }
+
+      observation.pinned = undefined;
+      observation.pinnedBy = undefined;
+      observation.pinnedAt = undefined;
+      unpinned.push(id);
+    }
+
+    if (unpinned.length > 0) {
+      await saveContextObservations(context);
+
+      // 发送 WebSocket 事件
+      if (req.wsManager) {
+        req.wsManager.broadcast('observation:batch_unpinned', { ids: unpinned });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        unpinned: unpinned.length,
+        alreadyUnpinned: alreadyUnpinned.length,
+        notFound: notFound.length,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to batch unpin observations',
+    });
+  }
+});
+
+/**
+ * GET /api/learning/capacity/config
+ * 获取当前容量配置
+ */
+router.get('/capacity/config', async (req: Request, res: Response) => {
+  try {
+    const config = await loadConfig();
+
+    if (!config.learning?.capacity) {
+      return res.status(404).json({
+        success: false,
+        error: 'Capacity configuration not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        active: config.learning.capacity.active,
+        context: config.learning.capacity.context,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to load capacity config',
+    });
+  }
+});
+
+/**
+ * POST /api/learning/capacity/config
+ * 更新容量配置
+ *
+ * Body:
+ *   active?: { targetSize, maxSize, minSize }
+ *   context?: { enabled, targetSize, maxSize, halfLifeDays }
+ */
+router.post('/capacity/config', async (req: RequestWithWS, res: Response) => {
+  try {
+    const { active, context } = req.body;
+
+    if (!active && !context) {
+      return res.status(400).json({
+        success: false,
+        error: 'At least one of "active" or "context" must be provided',
+      });
+    }
+
+    const config = await loadConfig();
+
+    if (!config.learning?.capacity) {
+      return res.status(500).json({
+        success: false,
+        error: 'Learning capacity config missing',
+      });
+    }
+
+    // 验证并更新 Active Pool 配置
+    if (active) {
+      const { targetSize, maxSize, minSize } = active;
+
+      if (targetSize !== undefined) {
+        if (targetSize < 10 || targetSize > 200) {
+          return res.status(400).json({
+            success: false,
+            error: 'Active Pool targetSize must be between 10 and 200',
+          });
+        }
+      }
+
+      if (maxSize !== undefined) {
+        if (maxSize < 10 || maxSize > 250) {
+          return res.status(400).json({
+            success: false,
+            error: 'Active Pool maxSize must be between 10 and 250',
+          });
+        }
+      }
+
+      if (minSize !== undefined) {
+        if (minSize < 5 || minSize > 100) {
+          return res.status(400).json({
+            success: false,
+            error: 'Active Pool minSize must be between 5 and 100',
+          });
+        }
+      }
+
+      const newTargetSize = targetSize ?? config.learning.capacity.active.targetSize;
+      const newMaxSize = maxSize ?? config.learning.capacity.active.maxSize;
+      const newMinSize = minSize ?? config.learning.capacity.active.minSize;
+
+      if (newMinSize > newTargetSize || newTargetSize > newMaxSize) {
+        return res.status(400).json({
+          success: false,
+          error: 'Active Pool sizes must satisfy: minSize ≤ targetSize ≤ maxSize',
+        });
+      }
+
+      config.learning.capacity.active = {
+        targetSize: newTargetSize,
+        maxSize: newMaxSize,
+        minSize: newMinSize,
+      };
+    }
+
+    // 验证并更新 Context Pool 配置
+    if (context) {
+      const { enabled, targetSize, maxSize, halfLifeDays } = context;
+
+      if (enabled !== undefined && typeof enabled !== 'boolean') {
+        return res.status(400).json({
+          success: false,
+          error: 'Context Pool enabled must be a boolean',
+        });
+      }
+
+      if (targetSize !== undefined) {
+        if (targetSize < 10 || targetSize > 200) {
+          return res.status(400).json({
+            success: false,
+            error: 'Context Pool targetSize must be between 10 and 200',
+          });
+        }
+      }
+
+      if (maxSize !== undefined) {
+        if (maxSize < 10 || maxSize > 250) {
+          return res.status(400).json({
+            success: false,
+            error: 'Context Pool maxSize must be between 10 and 250',
+          });
+        }
+      }
+
+      if (halfLifeDays !== undefined) {
+        if (halfLifeDays < 30 || halfLifeDays > 180) {
+          return res.status(400).json({
+            success: false,
+            error: 'Context Pool halfLifeDays must be between 30 and 180',
+          });
+        }
+      }
+
+      const newTargetSize = targetSize ?? config.learning.capacity.context.targetSize;
+      const newMaxSize = maxSize ?? config.learning.capacity.context.maxSize;
+
+      if (newTargetSize > newMaxSize) {
+        return res.status(400).json({
+          success: false,
+          error: 'Context Pool sizes must satisfy: targetSize ≤ maxSize',
+        });
+      }
+
+      config.learning.capacity.context = {
+        enabled: enabled ?? config.learning.capacity.context.enabled,
+        targetSize: newTargetSize,
+        maxSize: newMaxSize,
+        halfLifeDays: halfLifeDays ?? config.learning.capacity.context.halfLifeDays,
+      };
+    }
+
+    // 保存更新后的配置
+    await saveConfig(config);
+
+    // 发送 WebSocket 事件通知配置更新
+    if (req.wsManager) {
+      req.wsManager.broadcast('config:capacity_updated', {
+          active: config.learning.capacity.active,
+          context: config.learning.capacity.context,
+        });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        active: config.learning.capacity.active,
+        context: config.learning.capacity.context,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update capacity config',
     });
   }
 });

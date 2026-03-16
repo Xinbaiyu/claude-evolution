@@ -22,16 +22,16 @@ export default function Dashboard() {
       fetchStatus();
     });
 
-    const unsubscribeApprove = wsClient.on('suggestion_approved', () => {
+    // New observation events
+    const unsubscribePromoted = wsClient.on('observation_promoted', () => {
       fetchStatus();
     });
 
-    const unsubscribeReject = wsClient.on('suggestion_rejected', () => {
+    const unsubscribeDemoted = wsClient.on('observation_demoted', () => {
       fetchStatus();
     });
 
-    const unsubscribeNewSuggestions = wsClient.on('new_suggestions', () => {
-      toast.info('有新建议待审核');
+    const unsubscribeArchived = wsClient.on('observation_archived', () => {
       fetchStatus();
     });
 
@@ -39,9 +39,9 @@ export default function Dashboard() {
     return () => {
       unsubscribeConnection();
       unsubscribeAnalysis();
-      unsubscribeApprove();
-      unsubscribeReject();
-      unsubscribeNewSuggestions();
+      unsubscribePromoted();
+      unsubscribeDemoted();
+      unsubscribeArchived();
     };
   }, []);
 
@@ -170,36 +170,36 @@ export default function Dashboard() {
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Metrics Grid */}
         <div className="grid grid-cols-4 gap-4 mb-8">
-          {/* Pending Suggestions - Largest */}
+          {/* Active Observations - Largest */}
           <div
             className="col-span-2 border-4 border-amber-500 bg-slate-900 p-6 relative overflow-hidden group hover:border-amber-400 transition-colors"
             style={{ animation: 'slideInLeft 0.6s ease-out' }}
           >
             <div className="absolute top-0 right-0 text-[120px] font-black text-amber-500/5 leading-none">
-              {status.suggestions.pending}
+              {status.observations.active}
             </div>
             <div className="relative z-10">
-              <div className="text-xs text-amber-500 font-mono font-bold tracking-widest">待审批</div>
+              <div className="text-xs text-amber-500 font-mono font-bold tracking-widest">候选池</div>
               <div className="text-6xl font-black mt-2 text-amber-500" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                {status.suggestions.pending}
+                {status.observations.active}
               </div>
               <div className="text-sm text-slate-400 font-mono mt-2">
-                等待审批的建议
+                等待审核的观察
               </div>
             </div>
           </div>
 
-          {/* Approved Count */}
+          {/* Context Observations */}
           <div
             className="border-4 border-slate-700 bg-slate-900 p-6 hover:border-cyan-500 transition-colors"
             style={{ animation: 'slideInRight 0.6s ease-out 0.1s backwards' }}
           >
-            <div className="text-xs text-slate-500 font-mono font-bold tracking-widest">已批准</div>
+            <div className="text-xs text-slate-500 font-mono font-bold tracking-widest">上下文池</div>
             <div className="text-5xl font-black mt-2 text-cyan-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-              {status.suggestions.approved}
+              {status.observations.context}
             </div>
             <div className="text-xs text-slate-500 font-mono mt-2">
-              累计 {status.suggestions.approved} 条
+              已应用 {status.observations.context} 条
             </div>
           </div>
 
@@ -218,30 +218,30 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Rejected Count */}
+          {/* Total Observations */}
           <div
-            className="border-4 border-slate-700 bg-slate-900 p-6 hover:border-red-500 transition-colors"
+            className="border-4 border-slate-700 bg-slate-900 p-6 hover:border-purple-500 transition-colors"
             style={{ animation: 'slideInLeft 0.6s ease-out 0.15s backwards' }}
           >
-            <div className="text-xs text-slate-500 font-mono font-bold tracking-widest">已拒绝</div>
-            <div className="text-5xl font-black mt-2 text-red-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-              {status.suggestions.rejected}
+            <div className="text-xs text-slate-500 font-mono font-bold tracking-widest">总观察数</div>
+            <div className="text-5xl font-black mt-2 text-purple-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+              {status.observations.total}
             </div>
             <div className="text-xs text-slate-500 font-mono mt-2">
-              已忽略
+              全部观察
             </div>
           </div>
 
-          {/* Total Processed */}
+          {/* Pool Distribution */}
           <div
             className="col-span-3 border-4 border-slate-700 bg-slate-900 p-6 hover:border-slate-500 transition-colors"
             style={{ animation: 'slideInLeft 0.6s ease-out 0.25s backwards' }}
           >
             <div className="flex items-end justify-between">
               <div>
-                <div className="text-xs text-slate-500 font-mono font-bold tracking-widest">总处理数</div>
+                <div className="text-xs text-slate-500 font-mono font-bold tracking-widest">观察池分布</div>
                 <div className="text-4xl font-black mt-2" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                  {status.suggestions.total}
+                  {status.observations.total}
                 </div>
               </div>
 
@@ -251,22 +251,22 @@ export default function Dashboard() {
                   <div
                     className="absolute h-full bg-amber-500"
                     style={{
-                      width: `${(status.suggestions.approved / status.suggestions.total) * 100}%`,
+                      width: `${(status.observations.active / (status.observations.total || 1)) * 100}%`,
                       transition: 'width 1s ease-out'
                     }}
                   ></div>
                   <div
-                    className="absolute h-full bg-red-500"
+                    className="absolute h-full bg-cyan-500"
                     style={{
-                      left: `${(status.suggestions.approved / status.suggestions.total) * 100}%`,
-                      width: `${(status.suggestions.rejected / status.suggestions.total) * 100}%`,
+                      left: `${(status.observations.active / (status.observations.total || 1)) * 100}%`,
+                      width: `${(status.observations.context / (status.observations.total || 1)) * 100}%`,
                       transition: 'width 1s ease-out, left 1s ease-out'
                     }}
                   ></div>
                 </div>
                 <div className="flex justify-between text-xs font-mono text-slate-500 mt-2">
-                  <span>{Math.round((status.suggestions.approved / status.suggestions.total) * 100)}% 已批准</span>
-                  <span>{Math.round((status.suggestions.rejected / status.suggestions.total) * 100)}% 已拒绝</span>
+                  <span>{Math.round((status.observations.active / (status.observations.total || 1)) * 100)}% 候选池</span>
+                  <span>{Math.round((status.observations.context / (status.observations.total || 1)) * 100)}% 上下文池</span>
                 </div>
               </div>
             </div>
@@ -283,12 +283,12 @@ export default function Dashboard() {
           </h2>
           <div className="grid grid-cols-4 gap-4">
             <button
-              onClick={() => window.location.href = '/review'}
+              onClick={() => window.location.href = '/learning-review'}
               className="border-2 border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-mono font-bold py-4 px-6 transition-colors text-left group"
             >
               <div className="text-2xl mb-1">→</div>
-              <div className="text-sm">审核建议</div>
-              <div className="text-xs text-slate-400 mt-1">{status.suggestions.pending} 条待审核</div>
+              <div className="text-sm">审核观察</div>
+              <div className="text-xs text-slate-400 mt-1">{status.observations.active} 条待审核</div>
             </button>
 
             <button

@@ -3,7 +3,7 @@ import path from 'path';
 import chalk from 'chalk';
 import { getEvolutionDir } from '../../config/loader.js';
 import { loadConfig } from '../../config/index.js';
-import { loadPendingSuggestions } from '../../learners/suggestion-manager.js';
+import { loadActiveObservations, loadContextObservations } from '../../memory/observation-manager.js';
 import { logger } from '../../utils/index.js';
 import { ProcessManager } from '../../daemon/process-manager.js';
 
@@ -191,49 +191,32 @@ async function displayConfigStatus(evolutionDir: string): Promise<void> {
 }
 
 /**
- * 显示建议统计
+ * 显示学习状态
  */
 async function displaySuggestionsStatus(evolutionDir: string): Promise<void> {
-  console.log(chalk.bold('\n💡 建议统计'));
+  console.log(chalk.bold('\n💡 学习状态'));
 
-  const suggestionsDir = path.join(evolutionDir, 'suggestions');
+  try {
+    const activeObs = await loadActiveObservations();
+    const contextObs = await loadContextObservations();
 
-  if (!(await fs.pathExists(suggestionsDir))) {
-    console.log(chalk.gray('  暂无建议'));
-    return;
-  }
+    const totalCount = activeObs.length + contextObs.length;
 
-  // 统计待审批建议
-  const pending = await loadPendingSuggestions();
-  const pendingCount = pending.length;
+    console.log(chalk.gray(`  总计: ${totalCount} 条观察`));
 
-  // 统计已批准建议
-  const approvedPath = path.join(suggestionsDir, 'approved.json');
-  const approvedCount = (await fs.pathExists(approvedPath))
-    ? (await fs.readJSON(approvedPath)).length
-    : 0;
+    if (activeObs.length > 0) {
+      console.log(chalk.yellow(`  🔄 候选池: ${activeObs.length} 条`));
+    } else {
+      console.log(chalk.gray(`  🔄 候选池: ${activeObs.length} 条`));
+    }
 
-  // 统计已拒绝建议
-  const rejectedPath = path.join(suggestionsDir, 'rejected.json');
-  const rejectedCount = (await fs.pathExists(rejectedPath))
-    ? (await fs.readJSON(rejectedPath)).length
-    : 0;
+    console.log(chalk.gray(`  ✓ 上下文池: ${contextObs.length} 条`));
 
-  const totalCount = pendingCount + approvedCount + rejectedCount;
-
-  console.log(chalk.gray(`  总计: ${totalCount} 条建议`));
-
-  if (pendingCount > 0) {
-    console.log(chalk.yellow(`  ⏳ 待审批: ${pendingCount} 条`));
-  } else {
-    console.log(chalk.gray(`  ⏳ 待审批: ${pendingCount} 条`));
-  }
-
-  console.log(chalk.gray(`  ✓ 已批准: ${approvedCount} 条`));
-  console.log(chalk.gray(`  ✗ 已拒绝: ${rejectedCount} 条`));
-
-  if (pendingCount > 0) {
-    console.log(chalk.cyan(`\n  提示: 运行 \`claude-evolution review\` 查看待审批建议`));
+    if (activeObs.length > 0) {
+      console.log(chalk.cyan(`\n  提示: 访问 http://localhost:10010/learning-review 查看和管理观察`));
+    }
+  } catch (error) {
+    console.log(chalk.gray('  暂无观察数据'));
   }
 }
 

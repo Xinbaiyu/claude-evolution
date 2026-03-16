@@ -10,9 +10,21 @@ const HEARTBEAT_INTERVAL = 30000; // 30 秒心跳
 export type WebSocketEventType =
   | 'analysis_complete'
   | 'analysis_failed'
+  // Legacy suggestion events (DEPRECATED - will be removed in v0.5.0)
   | 'new_suggestions'
   | 'suggestion_approved'
   | 'suggestion_rejected'
+  // New observation events
+  | 'observation_promoted'
+  | 'observation_demoted'
+  | 'observation_archived'
+  | 'observation_restored'
+  // Pin/Unpin events
+  | 'observation:pinned'
+  | 'observation:unpinned'
+  | 'observation:batch_pinned'
+  | 'observation:batch_unpinned'
+  // Config and system events
   | 'config_changed'
   | 'system_error';
 

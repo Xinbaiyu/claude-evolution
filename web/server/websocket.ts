@@ -141,6 +141,10 @@ export class WebSocketManager {
     this.broadcast('observation_archived', observation);
   }
 
+  public emitObservationRestored(observation: any) {
+    this.broadcast('observation_restored', observation);
+  }
+
   // 清理资源
   public close() {
     if (this.heartbeatInterval) {

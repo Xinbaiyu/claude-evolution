@@ -29,70 +29,19 @@ export interface TimelineResult {
   after: Observation[];
 }
 
-// ==================== 经验提取类型 ====================
-export interface Preference {
-  type: 'style' | 'tool' | 'workflow' | 'communication';
-  description: string;
-  confidence: number;
-  frequency: number;
-  evidence: string[];
-}
-
-export interface Pattern {
-  problem: string;
-  solution: string;
-  confidence: number;
-  occurrences: number;
-  evidence: string[];
-}
-
-export interface Workflow {
-  name: string;
-  steps: string[];
-  frequency: number;
-  confidence: number;
-  evidence: string[];
-}
-
-export interface ExtractionResult {
-  preferences: Preference[];
-  patterns: Pattern[];
-  workflows: Workflow[];
-}
-
-// ==================== 学习结果类型 ====================
-export interface LearningResult {
-  toApply: (Preference | Pattern | Workflow)[];
-  toSuggest: (Preference | Pattern | Workflow)[];
-  conflicts: ConflictItem[];
-}
-
-export interface ConflictItem {
-  item: Preference | Pattern | Workflow;
-  existing: string;
-  reason: string;
-}
-
-// ==================== 建议类型 ====================
-export interface Suggestion {
-  id: string;
-  type: 'preference' | 'pattern' | 'workflow';
-  item: Preference | Pattern | Workflow;
-  status: 'pending' | 'approved' | 'rejected';
-  createdAt: string;
-  reviewedAt?: string;
-}
-
-// ==================== 进化历史类型 ====================
-export interface EvolutionHistoryEntry {
-  id: string;
-  timestamp: string;
-  type: 'preference' | 'pattern' | 'workflow';
-  action: 'added' | 'updated' | 'removed';
-  content: string;
-  confidence: number;
-  phase: 'observation' | 'suggestion' | 'automatic';
-}
+// ==================== Legacy Types (Re-exported for Migration) ====================
+// DEPRECATED: These are re-exported from legacy.ts for backward compatibility
+// DO NOT use these in new code - use ObservationWithMetadata instead
+export type {
+  Preference,
+  Pattern,
+  Workflow,
+  ExtractionResult,
+  LearningResult,
+  ConflictItem,
+  Suggestion,
+  EvolutionHistoryEntry,
+} from './legacy.js';
 
 // ==================== 学习阶段类型 ====================
 export type LearningPhase = 'observation' | 'suggestion' | 'automatic';

@@ -1188,7 +1188,133 @@ claude-evolution diff --no-color > changes.txt
 
 ---
 
-### 3.10 config - 配置管理
+### 3.10 migrate-suggestions - 迁移旧数据
+
+**用途**: 一次性迁移 v0.2.x 旧格式建议数据到 v0.3.0 观察格式
+
+**语法**:
+
+```bash
+claude-evolution migrate-suggestions
+```
+
+**功能说明**:
+
+该命令用于从 v0.2.x 升级到 v0.3.0/v0.4.0 时，将旧的 `learned/pending.json` 建议数据迁移到新的 `memory/observations/active.json` 观察格式。
+
+**迁移流程**:
+
+1. **检查是否已迁移**: 查找 `learned/.migrated` 标记文件
+2. **备份原始数据**: 创建 `pending.json.backup-YYYYMMDD`
+3. **转换格式**: 将旧建议转换为 `ObservationWithMetadata` 格式
+4. **合并数据**: 追加到现有 `active.json` 而不覆盖
+5. **创建标记**: 防止重复迁移
+
+**输出示例**:
+
+```
+🔄 开始迁移建议数据...
+
+✅ 迁移成功！
+
+📊 迁移统计:
+   - 已迁移建议: 15 个
+   - 备份文件: ~/.claude-evolution/learned/pending.json.backup-20260315
+   - 标记文件: ~/.claude-evolution/learned/.migrated
+
+📝 下一步:
+   1. 访问 http://localhost:10010/learning-review 查看迁移结果
+   2. 使用 WebUI 管理观察（代替旧的 CLI 命令）
+   3. 确认无误后可删除 ~/.claude-evolution/learned/ 目录
+
+💡 回滚方法:
+   如需回滚，删除 learned/.migrated 并恢复备份文件
+```
+
+**转换规则**:
+
+| 旧字段 | 新字段 | 说明 |
+|--------|--------|------|
+| `id` | `id` | 保持不变 |
+| `type` | `type` | 保持不变 (preference/pattern/workflow) |
+| `item` | `item` | 保持结构 |
+| `confidence` | `confidence`, `originalConfidence` | 两者相同 |
+| `item.frequency` | `mentions` | 偏好/工作流频率 |
+| `item.occurrences` | `mentions` | 模式出现次数 |
+| `createdAt` | `firstSeen`, `lastSeen` | 时间戳 |
+| `evidence` | `evidence` | 证据引用保持不变 |
+| - | `inContext` | 新增字段，设为 `false` |
+
+**注意事项**:
+
+⚠️ **仅迁移 pending.json**: 不迁移 `approved.json` 和 `rejected.json`
+⚠️ **一次性操作**: 标记文件创建后无法再次迁移
+⚠️ **不可逆操作**: 执行前请确保已备份数据
+
+**常见场景**:
+
+**场景 1: 首次升级到 v0.3.0**
+
+```bash
+# 1. 备份整个配置目录（可选但推荐）
+cp -r ~/.claude-evolution ~/backups/claude-evolution-$(date +%Y%m%d)
+
+# 2. 执行迁移
+claude-evolution migrate-suggestions
+
+# 3. 验证结果
+claude-evolution status
+open http://localhost:10010/learning-review
+```
+
+**场景 2: 无旧数据**
+
+```bash
+$ claude-evolution migrate-suggestions
+🔄 开始迁移建议数据...
+
+ℹ️  No legacy data found. learned/pending.json is empty or missing.
+```
+
+**场景 3: 已经迁移过**
+
+```bash
+$ claude-evolution migrate-suggestions
+🔄 开始迁移建议数据...
+
+ℹ️  Already migrated. Marker file exists at learned/.migrated
+```
+
+**场景 4: 回滚迁移**
+
+```bash
+# 1. 删除标记文件
+rm ~/.claude-evolution/learned/.migrated
+
+# 2. 删除迁移的观察（可选，如果需要完全回滚）
+# 手动编辑 memory/observations/active.json 移除迁移项
+
+# 3. 恢复备份
+cp ~/.claude-evolution/learned/pending.json.backup-20260315 \
+   ~/.claude-evolution/learned/pending.json
+
+# 4. 重新迁移
+claude-evolution migrate-suggestions
+```
+
+**相关命令**:
+
+- `status` - 查看系统状态和观察数量
+- `analyze --now` - 触发新一轮学习周期
+
+**相关文档**:
+
+- [MIGRATION_V03_TO_V04.md](./MIGRATION_V03_TO_V04.md) - 完整升级指南
+- [LEARNING.md](./LEARNING.md) - 增量学习系统文档
+
+---
+
+### 3.11 config - 配置管理
 
 **用途**: 读取和设置系统配置
 

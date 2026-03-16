@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Navigation from '../components/Navigation';
 import FileList from '../components/FileList';
 import MarkdownEditor from '../components/MarkdownEditor';
 import ClaudeMdPreview from '../components/ClaudeMdPreview';
@@ -123,20 +124,7 @@ export default function SourceManager() {
               <p className="text-sm text-slate-400 font-mono mt-1">编辑 CLAUDE.md 源文件</p>
             </div>
 
-            <nav className="flex gap-2">
-              <a href="/" className="px-4 py-2 text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 font-mono font-semibold rounded transition-colors border border-transparent hover:border-amber-500/30">
-                控制台
-              </a>
-              <a href="/review" className="px-4 py-2 text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 font-mono font-semibold rounded transition-colors border border-transparent hover:border-amber-500/30">
-                审核建议
-              </a>
-              <a href="/source-manager" className="px-4 py-2 text-amber-500 bg-amber-500/10 font-mono font-semibold rounded border border-amber-500/30">
-                配置编辑
-              </a>
-              <a href="/settings" className="px-4 py-2 text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 font-mono font-semibold rounded transition-colors border border-transparent hover:border-amber-500/30">
-                系统设置
-              </a>
-            </nav>
+            <Navigation currentPage="source-manager" />
           </div>
         </div>
       </header>

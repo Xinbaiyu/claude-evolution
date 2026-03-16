@@ -112,6 +112,75 @@ const MDGeneratorSchema = z.object({
 });
 
 /**
+ * 增量学习配置 (新增)
+ */
+const LearningConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  capacity: z.object({
+    active: z.object({
+      targetSize: z.number().min(10).max(200).default(50),
+      maxSize: z.number().min(10).max(250).default(60),
+      minSize: z.number().min(5).max(100).default(40),
+    }).refine(
+      (data) => data.minSize <= data.targetSize && data.targetSize <= data.maxSize,
+      {
+        message: 'Active capacity sizes must satisfy: minSize <= targetSize <= maxSize',
+      }
+    ),
+    context: z.object({
+      enabled: z.boolean().default(true),
+      targetSize: z.number().min(10).max(200).default(50),
+      maxSize: z.number().min(10).max(250).default(80),
+      halfLifeDays: z.number().min(30).max(180).default(90),
+    }).refine(
+      (data) => data.targetSize <= data.maxSize,
+      {
+        message: 'Context capacity sizes must satisfy: targetSize <= maxSize',
+      }
+    ),
+  }),
+  decay: z.object({
+    enabled: z.boolean().default(true),
+    halfLifeDays: z.number().min(7).max(90).default(30),
+  }),
+  promotion: z.object({
+    autoConfidence: z.number().min(0).max(1).default(0.90),
+    autoMentions: z.number().min(1).default(10),
+    highConfidence: z.number().min(0).max(1).default(0.75),
+    highMentions: z.number().min(1).default(5),
+    candidateConfidence: z.number().min(0).max(1).default(0.60),
+    candidateMentions: z.number().min(1).default(3),
+  }).refine(
+    (data) =>
+      data.candidateConfidence < data.highConfidence &&
+      data.highConfidence < data.autoConfidence,
+    {
+      message: 'Promotion confidence levels must satisfy: candidate < high < auto',
+    }
+  ).refine(
+    (data) =>
+      data.candidateMentions <= data.highMentions &&
+      data.highMentions <= data.autoMentions,
+    {
+      message: 'Promotion mention thresholds must satisfy: candidate <= high <= auto',
+    }
+  ),
+  deletion: z.object({
+    immediateThreshold: z.number().min(0).max(1).default(0.25),
+    delayedThreshold: z.number().min(0).max(1).default(0.35),
+    delayedDays: z.number().min(1).max(90).default(14),
+  }).refine(
+    (data) => data.immediateThreshold < data.delayedThreshold,
+    {
+      message: 'Deletion thresholds must satisfy: immediate < delayed',
+    }
+  ),
+  retention: z.object({
+    archivedDays: z.number().min(7).max(365).default(30),
+  }),
+});
+
+/**
  * 完整配置 Schema
  */
 export const ConfigSchema = z.object({
@@ -119,6 +188,7 @@ export const ConfigSchema = z.object({
   scheduler: SchedulerSchema,
   daemon: DaemonConfigSchema.optional(), // 可选，用于向后兼容
   webUI: WebUIConfigSchema.optional(), // 可选，用于向后兼容
+  learning: LearningConfigSchema.optional(), // 可选，增量学习配置
   llm: LLMSchema,
   httpApi: HttpApiSchema,
   filters: FiltersSchema,
@@ -170,6 +240,42 @@ export const DEFAULT_CONFIG: Config = {
     host: '127.0.0.1',
     autoOpenBrowser: false,
     corsOrigins: ['http://localhost:10010'],
+  },
+  learning: {
+    enabled: true,
+    capacity: {
+      active: {
+        targetSize: 50,
+        maxSize: 60,
+        minSize: 40,
+      },
+      context: {
+        enabled: true,
+        targetSize: 50,
+        maxSize: 80,
+        halfLifeDays: 90,
+      },
+    },
+    decay: {
+      enabled: true,
+      halfLifeDays: 30,
+    },
+    promotion: {
+      autoConfidence: 0.90,
+      autoMentions: 10,
+      highConfidence: 0.75,
+      highMentions: 5,
+      candidateConfidence: 0.60,
+      candidateMentions: 3,
+    },
+    deletion: {
+      immediateThreshold: 0.25,
+      delayedThreshold: 0.35,
+      delayedDays: 14,
+    },
+    retention: {
+      archivedDays: 30,
+    },
   },
   llm: {
     model: 'claude-3-5-haiku-20241022',

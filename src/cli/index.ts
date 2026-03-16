@@ -3,12 +3,9 @@
 import { Command } from 'commander';
 import { initCommand } from './commands/init.js';
 import { analyzeCommand } from './commands/analyze.js';
-import { reviewCommand } from './commands/review.js';
-import { approveCommand, rejectCommand } from './commands/approve.js';
 import { configListCommand, configSetCommand } from './commands/config.js';
 import { configUpgradeCommand } from './commands/config-upgrade.js';
 import { statusCommand } from './commands/status.js';
-import { historyCommand } from './commands/history.js';
 import { diffCommand } from './commands/diff.js';
 import { startCommand } from './commands/start.js';
 import { stopCommand } from './commands/stop.js';
@@ -16,6 +13,7 @@ import { restartCommand } from './commands/restart.js';
 import { logsCommand } from './commands/logs.js';
 import { installCommand } from './commands/install.js';
 import { uninstallCommand } from './commands/uninstall.js';
+import { migrateSuggestions } from '../scripts/migrate-suggestions.js';
 
 const program = new Command();
 
@@ -47,46 +45,6 @@ program
       await analyzeCommand(options);
     } catch (error) {
       console.error('分析失败:', error);
-      process.exit(1);
-    }
-  });
-
-// review 命令
-program
-  .command('review')
-  .description('Review pending suggestions')
-  .option('-v, --verbose', '显示详细信息（包括证据引用）')
-  .action(async (options) => {
-    try {
-      await reviewCommand(options);
-    } catch (error) {
-      console.error('查看建议失败:', error);
-      process.exit(1);
-    }
-  });
-
-// approve 命令
-program
-  .command('approve <id>')
-  .description('Approve a suggestion (use "all" to approve all)')
-  .action(async (id: string) => {
-    try {
-      await approveCommand(id);
-    } catch (error) {
-      console.error('批准失败:', error);
-      process.exit(1);
-    }
-  });
-
-// reject 命令
-program
-  .command('reject <id>')
-  .description('Reject a suggestion')
-  .action(async (id: string) => {
-    try {
-      await rejectCommand(id);
-    } catch (error) {
-      console.error('拒绝失败:', error);
       process.exit(1);
     }
   });
@@ -141,34 +99,6 @@ program
       await statusCommand();
     } catch (error) {
       console.error('获取状态失败:', error);
-      process.exit(1);
-    }
-  });
-
-// history 命令
-program
-  .command('history')
-  .description('Show approval/rejection history')
-  .option('-l, --limit <number>', '显示数量', '10')
-  .option('-t, --type <type>', '过滤类型 (approved/rejected/all)', 'all')
-  .action(async (options) => {
-    try {
-      const limit = parseInt(options.limit, 10);
-      const type = options.type;
-
-      if (isNaN(limit) || limit <= 0) {
-        console.error('错误: --limit 必须是正整数');
-        process.exit(1);
-      }
-
-      if (!['approved', 'rejected', 'all'].includes(type)) {
-        console.error('错误: --type 必须是 approved, rejected 或 all');
-        process.exit(1);
-      }
-
-      await historyCommand({ limit, type });
-    } catch (error) {
-      console.error('查看历史失败:', error);
       process.exit(1);
     }
   });
@@ -336,6 +266,43 @@ program
       await uninstallCommand();
     } catch (error) {
       console.error('卸载失败:', error);
+      process.exit(1);
+    }
+  });
+
+// migrate-suggestions 命令
+program
+  .command('migrate-suggestions')
+  .description('Migrate v0.2.x pending.json to v0.3.0 active.json (one-time)')
+  .action(async () => {
+    try {
+      console.log('🔄 开始迁移建议数据...\n');
+
+      const result = await migrateSuggestions();
+
+      if (!result.success) {
+        console.error(`\n❌ 迁移失败: ${result.error}`);
+        process.exit(1);
+      }
+
+      if (result.migratedCount === 0) {
+        console.log(`ℹ️  ${result.error || '无数据需要迁移'}`);
+        process.exit(0);
+      }
+
+      console.log(`\n✅ 迁移成功！`);
+      console.log(`\n📊 迁移统计:`);
+      console.log(`   - 已迁移建议: ${result.migratedCount} 个`);
+      console.log(`   - 备份文件: ${result.backupPath}`);
+      console.log(`   - 标记文件: ~/.claude-evolution/learned/.migrated`);
+      console.log(`\n📝 下一步:`);
+      console.log(`   1. 访问 http://localhost:10010/learning-review 查看迁移结果`);
+      console.log(`   2. 使用 WebUI 管理观察（代替旧的 CLI 命令）`);
+      console.log(`   3. 确认无误后可删除 ~/.claude-evolution/learned/ 目录`);
+      console.log(`\n💡 回滚方法:`);
+      console.log(`   如需回滚，删除 learned/.migrated 并恢复备份文件`);
+    } catch (error) {
+      console.error('迁移失败:', error);
       process.exit(1);
     }
   });

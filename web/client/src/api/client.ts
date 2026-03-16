@@ -74,6 +74,12 @@ export interface LearningStats {
   };
 }
 
+export interface SimilarityWarning {
+  deletedId: string;
+  deletedAt: string;
+  similarity: number;
+}
+
 export interface ObservationWithMetadata {
   id: string;
   sessionId: string;
@@ -101,12 +107,26 @@ export interface ObservationWithMetadata {
     action: 'promote' | 'demote' | 'ignore';
     timestamp: string;
     reason?: string;
+    inheritedFrom?: string;
   };
   mergedFrom?: string[];
   promotedAt?: string;
   promotionReason?: 'auto' | 'manual';
   archiveTimestamp?: string;
-  archiveReason?: 'capacity_control' | 'expired' | 'user_deleted';
+  archiveReason?: 'active_capacity' | 'context_capacity' | 'user_ignored' | 'user_deleted' | 'expired';
+  suppressSimilar?: boolean;
+  suppressionCount?: number;
+  lastBlockedAt?: string;
+  similarToDeleted?: SimilarityWarning;
+  // Pinning fields
+  pinned?: boolean;
+  pinnedBy?: string;
+  pinnedAt?: string;
+  // Merge info
+  mergeInfo?: {
+    mergedFromIgnored?: boolean;
+    originalIgnoredId?: string;
+  };
 }
 
 export interface LearningObservations {
@@ -135,9 +155,17 @@ export interface Config {
   learning?: {
     enabled: boolean;
     capacity: {
-      targetSize: number;
-      maxSize: number;
-      minSize: number;
+      active: {
+        targetSize: number;
+        maxSize: number;
+        minSize: number;
+      };
+      context: {
+        enabled: boolean;
+        targetSize: number;
+        maxSize: number;
+        halfLifeDays: number;
+      };
     };
     decay: {
       enabled: boolean;
@@ -361,6 +389,193 @@ export const apiClient = {
     if (!response.success) {
       throw new ApiError(response.error || '更新学习配置失败');
     }
+  },
+
+  // ========== Batch Operations ==========
+
+  /**
+   * 批量提升观察到上下文
+   */
+  async batchPromoteObservations(ids: string[]): Promise<{
+    total: number;
+    succeeded: number;
+    failed: number;
+    results: Array<{ id: string; success: boolean; error?: string }>;
+  }> {
+    const response = await request<{
+      total: number;
+      succeeded: number;
+      failed: number;
+      results: Array<{ id: string; success: boolean; error?: string }>;
+    }>('/learning/batch/promote', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.success || !response.data) {
+      throw new ApiError(response.error || '批量提升观察失败');
+    }
+    return response.data;
+  },
+
+  /**
+   * 批量忽略观察
+   */
+  async batchIgnoreObservations(
+    ids: string[],
+    reason?: string
+  ): Promise<{
+    total: number;
+    succeeded: number;
+    failed: number;
+    results: Array<{ id: string; success: boolean; pool?: string; error?: string }>;
+  }> {
+    const response = await request<{
+      total: number;
+      succeeded: number;
+      failed: number;
+      results: Array<{ id: string; success: boolean; pool?: string; error?: string }>;
+    }>('/learning/batch/ignore', {
+      method: 'POST',
+      body: JSON.stringify({ ids, reason }),
+    });
+    if (!response.success || !response.data) {
+      throw new ApiError(response.error || '批量忽略观察失败');
+    }
+    return response.data;
+  },
+
+  /**
+   * 批量删除观察（移动到归档池）
+   */
+  async batchDeleteObservations(ids: string[]): Promise<{
+    total: number;
+    succeeded: number;
+    failed: number;
+    results: Array<{ id: string; success: boolean; pool?: string; error?: string }>;
+  }> {
+    const response = await request<{
+      total: number;
+      succeeded: number;
+      failed: number;
+      results: Array<{ id: string; success: boolean; pool?: string; error?: string }>;
+    }>('/learning/batch/delete', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.success || !response.data) {
+      throw new ApiError(response.error || '批量删除观察失败');
+    }
+    return response.data;
+  },
+
+  // ========== Pin/Unpin Operations ==========
+
+  /**
+   * Pin observation in Context Pool
+   */
+  async pinObservation(id: string): Promise<void> {
+    const response = await request('/learning/pin', {
+      method: 'POST',
+      body: JSON.stringify({ id }),
+    });
+    if (!response.success) {
+      throw new ApiError(response.error || 'Pin observation failed');
+    }
+  },
+
+  /**
+   * Unpin observation in Context Pool
+   */
+  async unpinObservation(id: string): Promise<void> {
+    const response = await request('/learning/unpin', {
+      method: 'POST',
+      body: JSON.stringify({ id }),
+    });
+    if (!response.success) {
+      throw new ApiError(response.error || 'Unpin observation failed');
+    }
+  },
+
+  /**
+   * Batch pin observations
+   */
+  async batchPinObservations(ids: string[]): Promise<{
+    pinned: number;
+    alreadyPinned: number;
+    notFound: number;
+  }> {
+    const response = await request<{
+      pinned: number;
+      alreadyPinned: number;
+      notFound: number;
+    }>('/learning/batch/pin', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.success || !response.data) {
+      throw new ApiError(response.error || 'Batch pin observations failed');
+    }
+    return response.data;
+  },
+
+  /**
+   * Batch unpin observations
+   */
+  async batchUnpinObservations(ids: string[]): Promise<{
+    unpinned: number;
+    alreadyUnpinned: number;
+    notFound: number;
+  }> {
+    const response = await request<{
+      unpinned: number;
+      alreadyUnpinned: number;
+      notFound: number;
+    }>('/learning/batch/unpin', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.success || !response.data) {
+      throw new ApiError(response.error || 'Batch unpin observations failed');
+    }
+    return response.data;
+  },
+
+  /**
+   * Restore observation from archive
+   */
+  async unignoreObservation(id: string, targetPool: 'active' | 'context'): Promise<void> {
+    const response = await request('/learning/unignore', {
+      method: 'POST',
+      body: JSON.stringify({ id, targetPool }),
+    });
+    if (!response.success) {
+      throw new ApiError(response.error || 'Restore observation failed');
+    }
+  },
+
+  /**
+   * Batch restore observations from archive
+   */
+  async batchUnignoreObservations(
+    ids: string[],
+    targetPool: 'active' | 'context'
+  ): Promise<{
+    restored: number;
+    alreadyRestored: number;
+    notFound: number;
+  }> {
+    const response = await request<{
+      restored: number;
+      alreadyRestored: number;
+      notFound: number;
+    }>('/learning/batch/unignore', {
+      method: 'POST',
+      body: JSON.stringify({ ids, targetPool }),
+    });
+    if (!response.success || !response.data) {
+      throw new ApiError(response.error || 'Batch restore observations failed');
+    }
+    return response.data;
   },
 };
 

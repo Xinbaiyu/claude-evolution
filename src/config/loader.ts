@@ -7,7 +7,8 @@ import { Config, ConfigSchema, DEFAULT_CONFIG } from './schema.js';
  * 获取 claude-evolution 根目录
  */
 export function getEvolutionDir(): string {
-  return path.join(os.homedir(), '.claude-evolution');
+  // Support environment variable override for testing
+  return process.env.CLAUDE_EVOLUTION_DIR || path.join(os.homedir(), '.claude-evolution');
 }
 
 /**
@@ -72,6 +73,71 @@ function migrateConfig(oldConfig: any): any {
   // 迁移 5: 确保 webUI.corsOrigins 存在
   if (migrated.webUI && !migrated.webUI.corsOrigins) {
     migrated.webUI.corsOrigins = DEFAULT_CONFIG.webUI!.corsOrigins;
+  }
+
+  // 迁移 6: 添加 learning 配置（如果不存在）
+  if (!migrated.learning) {
+    migrated.learning = DEFAULT_CONFIG.learning;
+  }
+
+  // 迁移 7: 确保 learning 子字段存在
+  if (migrated.learning) {
+    if (!migrated.learning.capacity) {
+      migrated.learning.capacity = DEFAULT_CONFIG.learning!.capacity;
+    }
+    if (!migrated.learning.decay) {
+      migrated.learning.decay = DEFAULT_CONFIG.learning!.decay;
+    }
+    if (!migrated.learning.promotion) {
+      migrated.learning.promotion = DEFAULT_CONFIG.learning!.promotion;
+    }
+    if (!migrated.learning.deletion) {
+      migrated.learning.deletion = DEFAULT_CONFIG.learning!.deletion;
+    }
+    if (!migrated.learning.retention) {
+      migrated.learning.retention = DEFAULT_CONFIG.learning!.retention;
+    }
+
+    // 迁移 8: 确保 learning.capacity 结构正确(active/context 分离)
+    if (migrated.learning.capacity) {
+      // 如果 capacity 还是旧的扁平结构,转换为嵌套结构
+      if (!migrated.learning.capacity.active && migrated.learning.capacity.targetSize !== undefined) {
+        const oldCapacity = migrated.learning.capacity;
+        migrated.learning.capacity = {
+          active: {
+            targetSize: oldCapacity.targetSize ?? DEFAULT_CONFIG.learning!.capacity.active.targetSize,
+            maxSize: oldCapacity.maxSize ?? DEFAULT_CONFIG.learning!.capacity.active.maxSize,
+            minSize: oldCapacity.minSize ?? DEFAULT_CONFIG.learning!.capacity.active.minSize,
+          },
+          context: DEFAULT_CONFIG.learning!.capacity.context,
+        };
+      }
+
+      // 确保 active 和 context 子对象存在
+      if (!migrated.learning.capacity.active) {
+        migrated.learning.capacity.active = DEFAULT_CONFIG.learning!.capacity.active;
+      }
+      if (!migrated.learning.capacity.context) {
+        migrated.learning.capacity.context = DEFAULT_CONFIG.learning!.capacity.context;
+      }
+
+      // 迁移 9: 验证并修正 capacity 配置(targetSize ≤ maxSize)
+      const activeConfig = migrated.learning.capacity.active;
+      if (activeConfig.targetSize > activeConfig.maxSize) {
+        console.warn(
+          `[Config Migration] Active Pool targetSize (${activeConfig.targetSize}) > maxSize (${activeConfig.maxSize}), setting both to maxSize`
+        );
+        activeConfig.targetSize = activeConfig.maxSize;
+      }
+
+      const contextConfig = migrated.learning.capacity.context;
+      if (contextConfig.targetSize > contextConfig.maxSize) {
+        console.warn(
+          `[Config Migration] Context Pool targetSize (${contextConfig.targetSize}) > maxSize (${contextConfig.maxSize}), setting both to maxSize`
+        );
+        contextConfig.targetSize = contextConfig.maxSize;
+      }
+    }
   }
 
   return migrated;

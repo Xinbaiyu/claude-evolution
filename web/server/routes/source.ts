@@ -3,8 +3,8 @@ import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
 import { getEvolutionDir } from '../../../src/config/loader.js';
-import { generateCLAUDEmd } from '../../../src/generators/md-generator.js';
-import { loadConfig } from '../../../src/config/index.js';
+import { regenerateClaudeMd } from '../../../src/memory/claudemd-generator.js';
+import { loadContextObservations } from '../../../src/memory/observation-manager.js';
 
 const router = Router();
 
@@ -132,10 +132,15 @@ router.put('/files/:filename', async (req, res) => {
     await fs.writeFile(filePath, content, 'utf-8');
     console.log(`[API] 文件已保存: ${filename}`);
 
-    // 触发 CLAUDE.md 重新生成
+    // 触发 CLAUDE.md 重新生成（使用新的生成器）
     console.log('[API] 开始重新生成 CLAUDE.md...');
-    const config = await loadConfig();
-    await generateCLAUDEmd(config);
+
+    // 加载 context pool 观察
+    const contextObservations = await loadContextObservations();
+    console.log(`[API] 加载了 ${contextObservations.length} 个上下文观察`);
+
+    // 调用生成器（传入观察数组）
+    await regenerateClaudeMd(contextObservations);
     console.log('[API] CLAUDE.md 重新生成完成');
 
     res.json({

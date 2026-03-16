@@ -1,0 +1,70 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - heading "CLAUDE 进化系统" [level=1] [ref=e8]
+        - paragraph [ref=e9]: AI 学习系统监控平台
+      - generic [ref=e10]:
+        - generic [ref=e11]:
+          - generic [ref=e12]: 实时连接
+          - generic [ref=e15]: 已连接
+        - generic [ref=e17]:
+          - generic [ref=e18]: 调度器
+          - generic [ref=e21]: 运行中
+        - generic [ref=e23]:
+          - generic [ref=e24]: 上次运行
+          - generic [ref=e25]: 9 小时前
+        - generic [ref=e27]:
+          - generic [ref=e28]: 运行时长
+          - generic [ref=e29]: 0h 6m
+  - main [ref=e30]:
+    - generic [ref=e31]:
+      - generic [ref=e32]:
+        - generic [ref=e33]: "41"
+        - generic [ref=e34]:
+          - generic [ref=e35]: 候选池
+          - generic [ref=e36]: "41"
+          - generic [ref=e37]: 等待审核的观察
+      - generic [ref=e38]:
+        - generic [ref=e39]: 上下文池
+        - generic [ref=e40]: "4"
+        - generic [ref=e41]: 已应用 4 条
+      - generic [ref=e42]:
+        - generic [ref=e43]: 置信度
+        - generic [ref=e44]: 71%
+        - generic [ref=e45]: 平均分数
+      - generic [ref=e46]:
+        - generic [ref=e47]: 总观察数
+        - generic [ref=e48]: "45"
+        - generic [ref=e49]: 全部观察
+      - generic [ref=e51]:
+        - generic [ref=e52]:
+          - generic [ref=e53]: 观察池分布
+          - generic [ref=e54]: "45"
+        - generic [ref=e59]:
+          - generic [ref=e60]: 91% 候选池
+          - generic [ref=e61]: 9% 上下文池
+    - generic [ref=e62]:
+      - heading "快捷操作" [level=2] [ref=e63]
+      - generic [ref=e64]:
+        - button "→ 审核观察 41 条待审核" [ref=e65] [cursor=pointer]:
+          - generic [ref=e66]: →
+          - generic [ref=e67]: 审核观察
+          - generic [ref=e68]: 41 条待审核
+        - button "✏ 配置编辑器 编辑源文件" [ref=e69] [cursor=pointer]:
+          - generic [ref=e70]: ✏
+          - generic [ref=e71]: 配置编辑器
+          - generic [ref=e72]: 编辑源文件
+        - button "↻ 运行分析 手动触发" [ref=e74] [cursor=pointer]:
+          - generic [ref=e75]: ↻
+          - generic [ref=e76]: 运行分析
+          - generic [ref=e77]: 手动触发
+        - button "⚙ 系统设置 配置参数" [ref=e78] [cursor=pointer]:
+          - generic [ref=e79]: ⚙
+          - generic [ref=e80]: 系统设置
+          - generic [ref=e81]: 配置参数
+    - generic [ref=e83]: CLAUDE-EVOLUTION v0.2.0 | 系统正常运行 | 0h 6m 运行时长
+```

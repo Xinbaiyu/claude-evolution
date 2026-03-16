@@ -5,7 +5,6 @@ import { useTempDir } from '../helpers/temp-dir.js';
 import { initCommand } from '../../src/cli/commands/init.js';
 import { analyzeCommand } from '../../src/cli/commands/analyze.js';
 import { reviewCommand } from '../../src/cli/commands/review.js';
-import { approveCommand } from '../../src/cli/commands/approve.js';
 import type { Config } from '../../src/types/index.js';
 
 // Mock getEvolutionDir to use temp directory
@@ -262,118 +261,6 @@ describe('CLI 工作流集成测试', () => {
 
       // Command should complete without errors
       expect(await fs.pathExists(join(testDir, 'suggestions/pending.json'))).toBe(true);
-    });
-  });
-
-  describe('approve 命令', () => {
-    beforeEach(async () => {
-      await fs.ensureDir(join(testDir, 'suggestions'));
-      await fs.ensureDir(join(testDir, 'source'));
-      await fs.ensureDir(join(testDir, 'learned'));
-    });
-
-    it('应该批准单个建议', async () => {
-      const suggestionId = 'test-approve-1';
-      const suggestions = [
-        {
-          id: suggestionId,
-          type: 'preference',
-          item: {
-            type: 'workflow',
-            description: '使用测试驱动开发',
-            confidence: 0.9,
-            frequency: 3,
-            evidence: ['session-001'],
-          },
-          status: 'pending',
-          createdAt: new Date().toISOString(),
-        },
-      ];
-
-      await fs.writeJSON(join(testDir, 'suggestions/pending.json'), suggestions);
-
-      // Mock generators to avoid actual CLAUDE.md generation
-      vi.doMock('../../src/generators/index.js', () => ({
-        writeLearnedContent: vi.fn(),
-        generateCLAUDEmd: vi.fn(),
-      }));
-
-      try {
-        await approveCommand(suggestionId);
-      } catch (error) {
-        // May fail due to missing dependencies, but flow is tested
-      }
-    });
-
-    it('应该在建议不存在时抛出错误', async () => {
-      await fs.writeJSON(join(testDir, 'suggestions/pending.json'), []);
-
-      await expect(approveCommand('non-existent-id')).rejects.toThrow();
-    });
-  });
-
-  describe('完整工作流: init → analyze → review → approve', () => {
-    it('应该成功执行完整流程', async () => {
-      // 1. Initialize (manually create structure)
-      await fs.ensureDir(join(testDir, 'source'));
-      await fs.ensureDir(join(testDir, 'learned'));
-      await fs.ensureDir(join(testDir, 'suggestions'));
-      await fs.ensureDir(join(testDir, 'logs'));
-
-      const config: Partial<Config> = {
-        learningPhases: {
-          observation: { durationDays: 3 },
-          suggestion: { durationDays: 4 },
-          automatic: { confidenceThreshold: 0.8 },
-        },
-        llm: {
-          model: 'claude-haiku-4',
-          maxTokens: 4096,
-          temperature: 0.3,
-          enablePromptCaching: false,
-        },
-      };
-
-      await fs.writeJSON(join(testDir, 'config.json'), config);
-
-      // Verify init succeeded
-      expect(await fs.pathExists(join(testDir, 'config.json'))).toBe(true);
-
-      // 2. Create a mock suggestion (simulating analyze)
-      const suggestions = [
-        {
-          id: 'workflow-test-1',
-          type: 'preference',
-          item: {
-            type: 'workflow',
-            description: '完整流程测试',
-            confidence: 0.9,
-            frequency: 1,
-            evidence: ['session-test'],
-          },
-          status: 'pending',
-          createdAt: new Date().toISOString(),
-        },
-      ];
-
-      await fs.writeJSON(join(testDir, 'suggestions/pending.json'), suggestions);
-
-      // 3. Review
-      await reviewCommand({});
-      const pending = await fs.readJSON(join(testDir, 'suggestions/pending.json'));
-      expect(pending).toHaveLength(1);
-
-      // 4. Approve
-      vi.doMock('../../src/generators/index.js', () => ({
-        writeLearnedContent: vi.fn(),
-        generateCLAUDEmd: vi.fn(),
-      }));
-
-      try {
-        await approveCommand(suggestions[0].id);
-      } catch (error) {
-        // Expected - generators are mocked
-      }
     });
   });
 
