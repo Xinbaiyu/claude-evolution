@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Observation, ExtractionResult } from '../types/index.js';
 import { Config } from '../config/index.js';
-import { logger } from '../utils/index.js';
+import { logger, withLLMRetry } from '../utils/index.js';
 import { buildAnalysisPrompt, SYSTEM_MESSAGE } from './prompts.js';
 import { formatObservationsAsText } from './session-collector.js';
 
@@ -134,14 +134,20 @@ async function extractFromBatch(
       ]
     : SYSTEM_MESSAGE;
 
-  // 调用 API
-  const response = await anthropic.messages.create({
-    model: config.llm.model, // 直接使用配置的模型名
-    max_tokens: config.llm.maxTokens,
-    temperature: config.llm.temperature,
-    system,
-    messages,
-  });
+  // 调用 API (使用重试机制)
+  const response = await withLLMRetry(
+    () => anthropic.messages.create({
+      model: config.llm.model, // 直接使用配置的模型名
+      max_tokens: config.llm.maxTokens,
+      temperature: config.llm.temperature,
+      system,
+      messages,
+    }),
+    {
+      context: 'Experience Extraction',
+      baseURL: config.llm.baseURL,
+    }
+  );
 
   // 解析响应
   const content = response.content[0];

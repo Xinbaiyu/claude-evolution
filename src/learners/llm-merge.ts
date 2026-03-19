@@ -5,7 +5,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { logger } from '../utils/index.js';
+import { logger, withLLMRetry } from '../utils/index.js';
 import type { ObservationWithMetadata, MergeResult, SimilarityWarning } from '../types/learning.js';
 import { loadArchivedObservations, saveArchivedObservations } from '../memory/observation-manager.js';
 
@@ -318,7 +318,8 @@ async function mergeLLMStage1(
   anthropic: Anthropic,
   oldObservations: ObservationWithMetadata[],
   newObservations: ObservationWithMetadata[],
-  model: string = 'claude-3-5-haiku-20241022'
+  model: string = 'claude-3-5-haiku-20241022',
+  baseURL?: string
 ): Promise<MergeResult[]> {
   const prompt = createMergeDeduplicatePrompt(oldObservations, newObservations);
 
@@ -329,17 +330,24 @@ async function mergeLLMStage1(
 
   const startTime = Date.now();
 
-  const response = await anthropic.messages.create({
-    model,
-    max_tokens: 32000, // Increased from 16000 to handle larger merges
-    temperature: 0.2,
-    messages: [
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-  });
+  // 使用重试机制调用 LLM
+  const response = await withLLMRetry(
+    () => anthropic.messages.create({
+      model,
+      max_tokens: 32000, // Increased from 16000 to handle larger merges
+      temperature: 0.2,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+    }),
+    {
+      context: 'LLM Merge Stage 1',
+      baseURL,
+    }
+  );
 
   const duration = Date.now() - startTime;
 
@@ -394,7 +402,8 @@ async function mergeLLMStage1(
 async function mergeLLMStage2(
   anthropic: Anthropic,
   mergedObservations: ObservationWithMetadata[],
-  model: string = 'claude-3-5-haiku-20241022'
+  model: string = 'claude-3-5-haiku-20241022',
+  baseURL?: string
 ): Promise<ObservationWithMetadata[]> {
   const prompt = createConfidenceAdjustmentPrompt(mergedObservations);
 
@@ -404,17 +413,24 @@ async function mergeLLMStage2(
 
   const startTime = Date.now();
 
-  const response = await anthropic.messages.create({
-    model,
-    max_tokens: 40000, // Further increased from 24000 to handle large batches
-    temperature: 0.2,
-    messages: [
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-  });
+  // 使用重试机制调用 LLM
+  const response = await withLLMRetry(
+    () => anthropic.messages.create({
+      model,
+      max_tokens: 40000, // Further increased from 24000 to handle large batches
+      temperature: 0.2,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+    }),
+    {
+      context: 'LLM Merge Stage 2',
+      baseURL,
+    }
+  );
 
   const duration = Date.now() - startTime;
 
@@ -565,7 +581,7 @@ export async function mergeLLM(
 
   try {
     // Stage 1: Merge and Deduplicate
-    const mergeResults = await mergeLLMStage1(anthropic, limitedOld, limitedNew, model);
+    const mergeResults = await mergeLLMStage1(anthropic, limitedOld, limitedNew, model, baseURL);
 
     // Extract observations from merge results
     const mergedObservations = mergeResults.map(r => r.observation);
@@ -578,7 +594,7 @@ export async function mergeLLM(
     }
 
     // Stage 2: Adjust Confidence
-    const adjustedObservations = await mergeLLMStage2(anthropic, mergedObservations, model);
+    const adjustedObservations = await mergeLLMStage2(anthropic, mergedObservations, model, baseURL);
 
     // Stage 2.5: Check similarity to ignored observations and inherit ignore state
     const observationsAfterIgnoreCheck: ObservationWithMetadata[] = [];

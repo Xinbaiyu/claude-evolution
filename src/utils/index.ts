@@ -2,3 +2,4 @@
 export * from './logger.js';
 export * from './file-utils.js';
 export * from './notifier.js';
+export * from './llm-retry.js';
