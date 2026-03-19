@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import { runAnalysisPipeline } from '../../analyzers/index.js';
 import { logger } from '../../utils/index.js';
+import { loadConfig } from '../../config/index.js';
 
 /**
  * analyze 命令
@@ -15,9 +16,12 @@ export async function analyzeCommand(options: { now?: boolean }): Promise<void> 
   }
 
   try {
-    // 检查环境变量
-    if (!process.env.ANTHROPIC_API_KEY) {
-      throw new Error('缺少 ANTHROPIC_API_KEY 环境变量。请设置: export ANTHROPIC_API_KEY=your-api-key');
+    // 加载配置检查LLM设置
+    const config = await loadConfig();
+
+    // 如果未配置自定义baseURL,则需要ANTHROPIC_API_KEY
+    if (!config.llm.baseURL && !process.env.ANTHROPIC_API_KEY) {
+      throw new Error('缺少 ANTHROPIC_API_KEY 环境变量。请设置: export ANTHROPIC_API_KEY=your-api-key\n或在配置文件中设置 llm.baseURL 使用本地代理');
     }
 
     // 运行分析流程

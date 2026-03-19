@@ -33,6 +33,28 @@ interface ObservationsQuery {
 }
 
 /**
+ * User Prompts 查询参数
+ */
+interface PromptsQuery {
+  offset?: number;
+  limit?: number;
+  project?: string;
+}
+
+/**
+ * User Prompt 数据结构
+ */
+export interface UserPrompt {
+  id: number;
+  content_session_id: string;
+  project: string;
+  prompt_number: number;
+  prompt_text: string;
+  created_at: string;
+  created_at_epoch: number;
+}
+
+/**
  * Claude Mem HTTP 客户端
  */
 export class ClaudeMemHTTPClient {
@@ -343,6 +365,83 @@ export class ClaudeMemHTTPClient {
       logger.error('搜索失败:', error);
       throw error;
     }
+  }
+
+  /**
+   * 获取用户 prompts (支持分页)
+   */
+  async getPrompts(query: PromptsQuery = {}): Promise<{
+    items: UserPrompt[];
+    hasMore: boolean;
+    offset: number;
+    limit: number;
+  }> {
+    this.ensureConnected();
+
+    try {
+      // 构建查询参数
+      const params = new URLSearchParams();
+      if (query.offset !== undefined) params.set('offset', query.offset.toString());
+      if (query.limit !== undefined) params.set('limit', query.limit.toString());
+      if (query.project) params.set('project', query.project);
+
+      const url = `${this.baseUrl}/api/prompts?${params.toString()}`;
+      logger.debug(`GET ${url}`);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(30000),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data: any = await response.json();
+      logger.debug(`✓ 获取到 ${data.items?.length || 0} 条用户 prompts`);
+
+      return data;
+    } catch (error) {
+      logger.error('获取用户 prompts 失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 根据时间范围获取用户 prompts (客户端过滤)
+   */
+  async getPromptsByTimeRange(
+    startDate: Date | null,
+    endDate: Date = new Date(),
+    options: Partial<PromptsQuery> = {}
+  ): Promise<UserPrompt[]> {
+    logger.debug('获取用户 prompts (时间范围过滤)...');
+
+    // 1. 获取足够多的 prompts (默认200条,应该覆盖6小时)
+    const limit = options.limit || 200;
+    const response = await this.getPrompts({
+      ...options,
+      offset: 0,
+      limit,
+    });
+
+    // 2. 客户端时间过滤
+    // 注意: created_at_epoch 是毫秒级时间戳,不是秒
+    const startEpoch = startDate ? startDate.getTime() : 0;
+    const endEpoch = endDate.getTime();
+
+    const filtered = response.items.filter((prompt) => {
+      return prompt.created_at_epoch >= startEpoch && prompt.created_at_epoch <= endEpoch;
+    });
+
+    logger.debug(
+      `时间过滤: ${filtered.length}/${response.items.length} 条 prompts 在范围内 (${startDate?.toISOString() || '最早'} ~ ${endDate.toISOString()})`
+    );
+
+    return filtered;
   }
 }
 

@@ -147,18 +147,41 @@ function parseLLMResponse<T>(response: string): T {
   try {
     // Try direct JSON parse first
     return JSON.parse(response);
-  } catch {
+  } catch (directError) {
     // Try extracting from markdown code block
     const jsonMatch = response.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[1]);
+      try {
+        return JSON.parse(jsonMatch[1]);
+      } catch (blockError) {
+        logger.error('Failed to parse JSON from markdown block', {
+          blockContent: jsonMatch[1].substring(0, 500),
+          error: blockError instanceof Error ? blockError.message : String(blockError),
+        });
+      }
     }
 
     // Try finding JSON array pattern
     const arrayMatch = response.match(/\[\s*\{[\s\S]*\}\s*\]/);
     if (arrayMatch) {
-      return JSON.parse(arrayMatch[0]);
+      try {
+        return JSON.parse(arrayMatch[0]);
+      } catch (arrayError) {
+        logger.error('Failed to parse matched JSON array', {
+          arrayContent: arrayMatch[0].substring(0, 500),
+          error: arrayError instanceof Error ? arrayError.message : String(arrayError),
+        });
+      }
     }
+
+    // Log the full response for debugging
+    logger.error('No valid JSON found in LLM response', {
+      responsePreview: response.substring(0, 1000),
+      responseLength: response.length,
+      directParseError: directError instanceof Error ? directError.message : String(directError),
+      hasMarkdownBlock: !!jsonMatch,
+      hasArrayPattern: !!arrayMatch,
+    });
 
     throw new Error('No valid JSON found in LLM response');
   }
@@ -308,7 +331,7 @@ async function mergeLLMStage1(
 
   const response = await anthropic.messages.create({
     model,
-    max_tokens: 16000,
+    max_tokens: 32000, // Increased from 16000 to handle larger merges
     temperature: 0.2,
     messages: [
       {
@@ -323,7 +346,31 @@ async function mergeLLMStage1(
   // Extract text content
   const textContent = response.content.find(c => c.type === 'text');
   if (!textContent || textContent.type !== 'text') {
+    logger.error('No text content in LLM response', {
+      contentTypes: response.content.map(c => c.type),
+      stopReason: response.stop_reason,
+    });
     throw new Error('No text content in LLM response');
+  }
+
+  logger.debug('LLM response received', {
+    model: response.model,
+    stopReason: response.stop_reason,
+    textLength: textContent.text.length,
+    textPreview: textContent.text.substring(0, 500),
+  });
+
+  // Check if response was truncated
+  if (response.stop_reason === 'max_tokens') {
+    logger.warn('LLM response truncated - max_tokens reached!', {
+      model,
+      maxTokens: 32000,
+      textLength: textContent.text.length,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      recommendation: 'Consider reducing batch size or increasing max_tokens',
+    });
+    throw new Error('LLM response truncated by max_tokens - reduce observation count or increase token limit');
   }
 
   // Parse JSON response
@@ -359,7 +406,7 @@ async function mergeLLMStage2(
 
   const response = await anthropic.messages.create({
     model,
-    max_tokens: 16000,
+    max_tokens: 40000, // Further increased from 24000 to handle large batches
     temperature: 0.2,
     messages: [
       {
@@ -374,7 +421,29 @@ async function mergeLLMStage2(
   // Extract text content
   const textContent = response.content.find(c => c.type === 'text');
   if (!textContent || textContent.type !== 'text') {
+    logger.error('No text content in Stage 2 LLM response', {
+      contentTypes: response.content.map(c => c.type),
+      stopReason: response.stop_reason,
+    });
     throw new Error('No text content in LLM response');
+  }
+
+  logger.debug('Stage 2 LLM response received', {
+    model: response.model,
+    stopReason: response.stop_reason,
+    textLength: textContent.text.length,
+    textPreview: textContent.text.substring(0, 500),
+  });
+
+  // Check if response was truncated
+  if (response.stop_reason === 'max_tokens') {
+    logger.warn('Stage 2 LLM response truncated - max_tokens reached!', {
+      model,
+      maxTokens: 40000,
+      textLength: textContent.text.length,
+      recommendation: 'Reduce observation count or increase token limit further',
+    });
+    throw new Error('Stage 2 LLM response truncated by max_tokens - consider reducing observation batch size');
   }
 
   // Parse JSON response
@@ -458,13 +527,15 @@ export async function mergeLLM(
     checkDeletedSimilarity = true,
   } = options;
 
-  if (!apiKey) {
+  // When using a custom baseURL (e.g., local proxy), allow empty API key
+  if (!apiKey && !baseURL) {
     throw new Error('ANTHROPIC_API_KEY not configured');
   }
 
   // Initialize Anthropic client
+  // Use a dummy key for local proxies
   const anthropic = new Anthropic({
-    apiKey,
+    apiKey: apiKey || 'dummy-key-for-local-proxy',
     ...(baseURL && { baseURL }),
   });
 

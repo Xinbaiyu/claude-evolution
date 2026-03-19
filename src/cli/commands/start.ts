@@ -7,6 +7,7 @@ import { ProcessManager, PidFileData } from '../../daemon/process-manager.js';
 import { DaemonLogger } from '../../daemon/logger.js';
 import { CronScheduler } from '../../scheduler/cron-scheduler.js';
 import { analyzeCommand } from './analyze.js';
+import { notifySuccess, notifyError } from '../../utils/notifier.js';
 import chalk from 'chalk';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -92,12 +93,33 @@ async function startForegroundMode(
       console.log(chalk.gray('📅 启动调度器...'));
       scheduler = new CronScheduler();
       scheduler.start(config, async () => {
+        const startTime = new Date();
         logger.info('定时分析任务开始');
+
         try {
           await analyzeCommand({ now: true });
+
+          const duration = Math.round((Date.now() - startTime.getTime()) / 1000);
           logger.info('定时分析任务完成');
+
+          // 发送成功通知（如果启用）
+          if (config.scheduler?.notifications?.enabled && config.scheduler?.notifications?.onSuccess) {
+            await notifySuccess(
+              '定时分析完成',
+              `分析任务已成功完成\n耗时: ${duration}秒\n时间: ${startTime.toLocaleTimeString('zh-CN')}`
+            );
+          }
         } catch (error) {
           logger.error('定时分析任务失败', error as Error);
+
+          // 发送失败通知（如果启用）
+          if (config.scheduler?.notifications?.enabled && config.scheduler?.notifications?.onFailure) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            await notifyError(
+              '定时分析失败',
+              `任务执行失败\n错误: ${errorMessage.slice(0, 100)}\n时间: ${startTime.toLocaleTimeString('zh-CN')}`
+            );
+          }
         }
       });
       console.log(chalk.green('   ✓ 调度器已启动'));

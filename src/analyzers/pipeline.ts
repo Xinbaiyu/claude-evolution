@@ -12,8 +12,10 @@ import {
 } from '../scheduler/index.js';
 import {
   collectRecentSessions,
+  collectRecentPrompts,
   extractExperience,
   getObservationStats,
+  formatPromptsAsText,
 } from '../analyzers/index.js';
 import {
   learnPreferences,
@@ -135,9 +137,25 @@ export async function runAnalysisPipeline(): Promise<void> {
         logger.info(`    ${type}: ${count} 条`);
       }
 
+      // 3.5. 采集用户 prompts (用于沟通偏好提取)
+      logger.info('\n[3.5/8] 采集用户 prompts');
+      const prompts = await collectRecentPrompts(
+        httpClient,
+        lastAnalysisTime,
+        config
+      );
+
+      logger.info(`  采集到 ${prompts.length} 条用户 prompts`);
+
       // 4. 提取经验
       logger.info('\n[4/8] 提取经验和模式');
-      const extracted = await extractExperience(observations, config);
+
+      // 将 prompts 格式化为文本,作为额外上下文传给 LLM
+      const promptsContext = prompts.length > 0
+        ? formatPromptsAsText(prompts)
+        : null;
+
+      const extracted = await extractExperience(observations, config, promptsContext);
 
       logger.info(
         `  偏好: ${extracted.preferences.length} 项, ` +

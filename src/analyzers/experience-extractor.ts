@@ -12,10 +12,15 @@ import { formatObservationsAsText } from './session-collector.js';
 
 /**
  * 提取经验和模式
+ *
+ * @param observations - 观察记录 (来自 claude-mem)
+ * @param config - 配置
+ * @param promptsContext - 可选的用户 prompts 文本上下文 (用于提取沟通偏好)
  */
 export async function extractExperience(
   observations: Observation[],
-  config: Config
+  config: Config,
+  promptsContext?: string | null
 ): Promise<ExtractionResult> {
   if (observations.length === 0) {
     logger.warn('没有观察记录可供分析');
@@ -26,19 +31,30 @@ export async function extractExperience(
     };
   }
 
-  // 检查 API Key
+  // 检查 API Key - 允许使用本地代理时使用dummy key
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error('缺少 ANTHROPIC_API_KEY 环境变量');
+  const hasCustomBaseURL = !!config.llm.baseURL;
+
+  if (!apiKey && !hasCustomBaseURL) {
+    throw new Error('缺少 ANTHROPIC_API_KEY 环境变量,或未配置 llm.baseURL 使用本地代理');
   }
 
   logger.info('开始使用 LLM 提取经验...');
   logger.debug(`模型: ${config.llm.model}`);
   logger.debug(`温度: ${config.llm.temperature}`);
   logger.debug(`最大 tokens: ${config.llm.maxTokens}`);
+  if (hasCustomBaseURL) {
+    logger.debug(`使用自定义 baseURL: ${config.llm.baseURL}`);
+  }
+
+  if (promptsContext) {
+    logger.info('  包含用户 prompts 上下文用于沟通偏好提取');
+  }
 
   // 初始化 Anthropic 客户端
-  const clientOptions: any = { apiKey };
+  const clientOptions: any = {
+    apiKey: apiKey || 'dummy-key-for-local-proxy',
+  };
 
   // 支持自定义 API 端点（用于代理服务）
   if (config.llm.baseURL) {
@@ -64,7 +80,7 @@ export async function extractExperience(
     logger.debug(`处理批次 ${i + 1}/${batches.length} (${batch.length} 条记录)...`);
 
     try {
-      const result = await extractFromBatch(batch, config, anthropic);
+      const result = await extractFromBatch(batch, config, anthropic, promptsContext);
       allResults.push(result);
       logger.success(`✓ 批次 ${i + 1} 提取完成`);
     } catch (error) {
@@ -90,13 +106,14 @@ export async function extractExperience(
 async function extractFromBatch(
   observations: Observation[],
   config: Config,
-  anthropic: Anthropic
+  anthropic: Anthropic,
+  promptsContext?: string | null
 ): Promise<ExtractionResult> {
   // 格式化观察记录为文本
   const sessionsText = formatObservationsAsText(observations);
 
   // 构建提示词
-  const userPrompt = buildAnalysisPrompt(sessionsText);
+  const userPrompt = buildAnalysisPrompt(sessionsText, promptsContext);
 
   // 准备消息
   const messages: Anthropic.MessageParam[] = [

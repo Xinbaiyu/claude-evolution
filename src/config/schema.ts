@@ -35,6 +35,11 @@ const SchedulerSchema = z.object({
   interval: z.string().default('6h'), // 改为 string 类型以支持更多格式
   customCron: z.string().optional(),
   runOnStartup: z.boolean().default(false),
+  notifications: z.object({
+    enabled: z.boolean().default(true),
+    onSuccess: z.boolean().default(true),
+    onFailure: z.boolean().default(true),
+  }).default({}),
 });
 
 /**
@@ -222,6 +227,11 @@ export const DEFAULT_CONFIG: Config = {
     enabled: true,
     interval: '6h',
     runOnStartup: false,
+    notifications: {
+      enabled: true,
+      onSuccess: true,
+      onFailure: true,
+    },
   },
   daemon: {
     enabled: true,

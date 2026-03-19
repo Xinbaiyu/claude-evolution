@@ -95,17 +95,45 @@ export const EXTRACTION_PROMPT = `
 
 /**
  * 构建完整的分析提示词
+ *
+ * @param sessionsText - 格式化的观察记录文本
+ * @param promptsContext - 可选的用户 prompts 文本 (用于沟通偏好提取)
  */
-export function buildAnalysisPrompt(sessionsText: string): string {
-  return `${EXTRACTION_PROMPT}
+export function buildAnalysisPrompt(
+  sessionsText: string,
+  promptsContext?: string | null
+): string {
+  let prompt = `${EXTRACTION_PROMPT}
 
 # 会话数据
 
-${sessionsText}
+${sessionsText}`;
+
+  // 如果有用户 prompts 上下文,添加到提示词中
+  if (promptsContext) {
+    prompt += `
+
+# 用户 Prompts 历史 (用于提取沟通偏好)
+
+以下是用户的直接输入历史,可以用来识别沟通风格偏好 (例如: 语言偏好、回答详细程度、确认习惯等):
+
+${promptsContext}
+
+**提示**: 从 prompts 历史中特别关注:
+- 语言偏好 (中文/英文)
+- 回答风格偏好 (简洁/详细)
+- 确认和互动习惯 (是否常说"继续"、"理解了吗"等)
+- 元沟通表达 (对交流方式的明确要求)
+`;
+  }
+
+  prompt += `
 
 # 开始分析
 
 请严格按照上述 JSON 格式输出你的分析结果。确保所有字段都符合要求,特别是 confidence 和 frequency 必须基于实际数据。`;
+
+  return prompt;
 }
 
 /**
