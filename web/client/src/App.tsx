@@ -3,6 +3,7 @@ import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import SourceManager from './pages/SourceManager';
 import LearningReview from './pages/LearningReview';
+import AnalysisLogs from './pages/AnalysisLogs';
 import Toast from './components/Toast';
 
 function App() {
@@ -27,6 +28,8 @@ function App() {
         return <Settings />;
       case '/source-manager':
         return <SourceManager />;
+      case '/analysis-logs':
+        return <AnalysisLogs />;
       case '/':
       default:
         return <Dashboard />;

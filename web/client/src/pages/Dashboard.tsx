@@ -4,6 +4,7 @@ import type { SystemStatus } from '../api/client';
 import { wsClient } from '../api/websocket';
 import { toast } from '../components/Toast';
 import { ManualAnalysisTrigger } from '../components/ManualAnalysisTrigger';
+import RecentAnalysisWidget from '../components/RecentAnalysisWidget';
 
 export default function Dashboard() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
@@ -311,6 +312,14 @@ export default function Dashboard() {
               <div className="text-xs text-slate-400 mt-1">配置参数</div>
             </button>
           </div>
+        </div>
+
+        {/* Recent Analysis Widget */}
+        <div
+          className="mb-8"
+          style={{ animation: 'fadeIn 0.6s ease-out 0.35s backwards' }}
+        >
+          <RecentAnalysisWidget maxItems={5} />
         </div>
 
         {/* System Info Footer */}

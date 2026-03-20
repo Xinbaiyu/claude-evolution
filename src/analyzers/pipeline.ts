@@ -17,14 +17,12 @@ import {
   getObservationStats,
   formatPromptsAsText,
 } from '../analyzers/index.js';
-import {
-  learnPreferences,
-} from '../learners/index.js';
-import { generateCLAUDEmd, writeLearnedContent } from '../generators/index.js';
+import { generateCLAUDEmd } from '../generators/index.js';
 import { executeLearningCycle } from '../memory/learning-orchestrator.js';
 import { logger } from '../utils/index.js';
 import type { ObservationWithMetadata } from '../types/learning.js';
 import type { ExtractionResult } from '../types/index.js';
+import { AnalysisLogger } from './analysis-logger.js';
 
 /**
  * Convert ExtractionResult to ObservationWithMetadata array
@@ -94,12 +92,37 @@ function convertToObservations(extracted: ExtractionResult): ObservationWithMeta
 /**
  * 运行完整的分析流程
  */
-export async function runAnalysisPipeline(): Promise<void> {
+export async function runAnalysisPipeline(options?: {
+  runId?: string;
+  analysisLogger?: AnalysisLogger;
+}): Promise<void> {
   logger.info('========================================');
   logger.info('开始分析流程');
   logger.info('========================================');
 
   const startTime = Date.now();
+  const { runId, analysisLogger } = options || {};
+
+  // 辅助函数：记录步骤
+  const logStep = async (
+    step: number,
+    name: string,
+    status: 'success' | 'failed' | 'skipped',
+    output?: string,
+    error?: string
+  ) => {
+    if (runId && analysisLogger) {
+      const duration = Math.floor((Date.now() - startTime) / 1000);
+      await analysisLogger.logStep(runId, {
+        step,
+        name,
+        status,
+        duration,
+        output,
+        error,
+      });
+    }
+  };
 
   try {
     // 1. 加载配置
@@ -110,10 +133,12 @@ export async function runAnalysisPipeline(): Promise<void> {
 
     logger.info(`  当前学习阶段: ${currentPhase}`);
     logger.info(`  上次分析时间: ${lastAnalysisTime?.toLocaleString() || '从未'}`);
+    await logStep(1, '加载配置', 'success', `学习阶段: ${currentPhase}`);
 
     // 2. 连接 HTTP API
     logger.info('\n[2/8] 连接 claude-mem HTTP API');
     const httpClient = await createHTTPClient();
+    await logStep(2, '连接 HTTP API', 'success', 'API 连接成功');
 
     try {
       // 3. 采集会话数据
@@ -126,6 +151,7 @@ export async function runAnalysisPipeline(): Promise<void> {
 
       if (observations.length === 0) {
         logger.warn('没有新的会话数据需要分析');
+        await logStep(3, '采集会话数据', 'success', '没有新的会话数据');
         await updateAfterAnalysis(true);
         return;
       }
@@ -136,6 +162,7 @@ export async function runAnalysisPipeline(): Promise<void> {
       for (const [type, count] of stats.byType) {
         logger.info(`    ${type}: ${count} 条`);
       }
+      await logStep(3, '采集会话数据', 'success', `找到 ${stats.total} 条观察`);
 
       // 3.5. 采集用户 prompts (用于沟通偏好提取)
       logger.info('\n[3.5/8] 采集用户 prompts');
@@ -146,6 +173,7 @@ export async function runAnalysisPipeline(): Promise<void> {
       );
 
       logger.info(`  采集到 ${prompts.length} 条用户 prompts`);
+      await logStep(4, '采集用户 prompts', 'success', `采集到 ${prompts.length} 条 prompts`);
 
       // 4. 提取经验
       logger.info('\n[4/8] 提取经验和模式');
@@ -162,13 +190,28 @@ export async function runAnalysisPipeline(): Promise<void> {
           `模式: ${extracted.patterns.length} 项, ` +
           `工作流: ${extracted.workflows.length} 项`
       );
+      await logStep(
+        5,
+        '提取经验和模式',
+        'success',
+        `偏好: ${extracted.preferences.length}, 模式: ${extracted.patterns.length}, 工作流: ${extracted.workflows.length}`
+      );
 
       // 5. 增量学习循环 (NEW!)
       logger.info('\n[5/8] 执行增量学习循环');
       const newObservations = convertToObservations(extracted);
 
+      let cycleStats = {
+        merged: 0,
+        promoted: 0,
+        deleted: 0,
+        archived: 0,
+        finalActiveCount: 0,
+        finalContextCount: 0,
+      };
+
       if (config.learning?.enabled) {
-        const cycleStats = await executeLearningCycle(config, newObservations);
+        cycleStats = await executeLearningCycle(config, newObservations);
         logger.info('  学习循环统计:');
         logger.info(`    合并后: ${cycleStats.merged} 条`);
         logger.info(`    晋升: ${cycleStats.promoted} 条`);
@@ -176,8 +219,15 @@ export async function runAnalysisPipeline(): Promise<void> {
         logger.info(`    归档: ${cycleStats.archived} 条`);
         logger.info(`    活跃池: ${cycleStats.finalActiveCount} 条`);
         logger.info(`    上下文: ${cycleStats.finalContextCount} 条`);
+        await logStep(
+          6,
+          '执行增量学习循环',
+          'success',
+          `合并: ${cycleStats.merged}, 晋升: ${cycleStats.promoted}, 归档: ${cycleStats.archived}`
+        );
       } else {
         logger.warn('  增量学习已禁用，跳过学习循环');
+        await logStep(6, '执行增量学习循环', 'skipped', '增量学习已禁用');
       }
 
       // 旧的建议系统逻辑已移除，所有学习由executeLearningCycle处理
@@ -185,18 +235,63 @@ export async function runAnalysisPipeline(): Promise<void> {
       // 8. 生成配置文件
       logger.info('\n[8/8] 生成 CLAUDE.md');
       await generateCLAUDEmd(config);
+      await logStep(7, '生成 CLAUDE.md', 'success', 'CLAUDE.md 已更新');
 
       // 更新状态
       await updateAfterAnalysis(true);
+      await logStep(8, '更新状态', 'success', '分析状态已更新');
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
       logger.success(`\n✅ 分析流程完成 (耗时 ${duration}s)`);
+
+      // 更新 daemon-process 中的统计信息
+      if (runId && analysisLogger) {
+        await analysisLogger.logAnalysisEnd(runId, {
+          status: 'success',
+          stats: {
+            merged: cycleStats.merged,
+            promoted: cycleStats.promoted,
+            archived: cycleStats.archived,
+          },
+        });
+      }
     } finally {
       // 确保断开 HTTP 连接
       await httpClient.disconnect();
     }
   } catch (error) {
     logger.error('\n❌ 分析流程失败:', error);
+
+    // 记录失败的步骤
+    if (runId && analysisLogger) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // 尝试确定失败的步骤
+      let failedStep = 1;
+      let failedStepName = '未知步骤';
+
+      if (errorMessage.includes('HTTP') || errorMessage.includes('连接')) {
+        failedStep = 2;
+        failedStepName = '连接 HTTP API';
+      } else if (errorMessage.includes('采集') || errorMessage.includes('session')) {
+        failedStep = 3;
+        failedStepName = '采集会话数据';
+      } else if (errorMessage.includes('提取') || errorMessage.includes('经验')) {
+        failedStep = 5;
+        failedStepName = '提取经验和模式';
+      } else if (errorMessage.includes('学习') || errorMessage.includes('循环')) {
+        failedStep = 6;
+        failedStepName = '执行增量学习循环';
+      }
+
+      await analysisLogger.logStep(runId, {
+        step: failedStep,
+        name: failedStepName,
+        status: 'failed',
+        error: errorMessage,
+      });
+    }
+
     await updateAfterAnalysis(false);
     throw error;
   }

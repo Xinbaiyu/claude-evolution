@@ -190,6 +190,33 @@ export interface Config {
   };
 }
 
+export interface AnalysisStep {
+  step: number;
+  name: string;
+  status: 'success' | 'failed' | 'skipped';
+  duration?: number;
+  output?: string;
+  error?: string;
+}
+
+export interface AnalysisRun {
+  id: string;
+  startTime: string;
+  endTime?: string;
+  duration?: number;
+  status: 'running' | 'success' | 'failed';
+  error?: {
+    message: string;
+    stack?: string;
+  };
+  steps: AnalysisStep[];
+  stats?: {
+    merged: number;
+    promoted: number;
+    archived: number;
+  };
+}
+
 class ApiError extends Error {
   statusCode?: number;
 
@@ -574,6 +601,35 @@ export const apiClient = {
     });
     if (!response.success || !response.data) {
       throw new ApiError(response.error || 'Batch restore observations failed');
+    }
+    return response.data;
+  },
+
+  // ========== Analysis Logs API ==========
+
+  /**
+   * 获取分析日志列表
+   */
+  async getAnalysisLogs(options?: { limit?: number; offset?: number }): Promise<AnalysisRun[]> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+    const query = params.toString() ? `?${params.toString()}` : '';
+
+    const response = await request<AnalysisRun[]>(`/analysis-logs${query}`);
+    if (!response.success || !response.data) {
+      throw new ApiError(response.error || '获取分析日志失败');
+    }
+    return response.data;
+  },
+
+  /**
+   * 根据 ID 获取单条分析记录
+   */
+  async getAnalysisLogById(runId: string): Promise<AnalysisRun> {
+    const response = await request<AnalysisRun>(`/analysis-logs/${runId}`);
+    if (!response.success || !response.data) {
+      throw new ApiError(response.error || '获取分析记录失败');
     }
     return response.data;
   },

@@ -1,11 +1,12 @@
 interface NavigationProps {
-  currentPage: 'dashboard' | 'learning-review' | 'source-manager' | 'settings';
+  currentPage: 'dashboard' | 'learning-review' | 'source-manager' | 'settings' | 'analysis-logs';
 }
 
 export default function Navigation({ currentPage }: NavigationProps) {
   const navItems = [
     { id: 'dashboard', label: '控制台', href: '/' },
     { id: 'learning-review', label: '学习观察', href: '/learning-review' },
+    { id: 'analysis-logs', label: '分析日志', href: '/analysis-logs' },
     { id: 'source-manager', label: '配置编辑', href: '/source-manager' },
     { id: 'settings', label: '系统设置', href: '/settings' },
   ];

@@ -15,6 +15,7 @@ import { DaemonLogger } from './logger.js';
 import { CronScheduler } from '../scheduler/cron-scheduler.js';
 import { analyzeCommand } from '../cli/commands/analyze.js';
 import { notifySuccess, notifyError } from '../utils/notifier.js';
+import { AnalysisLogger } from '../analyzers/analysis-logger.js';
 
 async function main() {
   const config = await loadConfig();
@@ -30,6 +31,9 @@ async function main() {
 
   await logger.init();
   logger.info('守护进程启动中...');
+
+  // 初始化分析日志记录器
+  const analysisLogger = new AnalysisLogger();
 
   // 读取环境变量
   const port = parseInt(process.env.DAEMON_PORT || '10010', 10);
@@ -61,10 +65,18 @@ async function main() {
       scheduler = new CronScheduler();
       scheduler.start(config, async () => {
         const startTime = new Date();
+        const runId = `run_${Date.now()}`;
         logger.info('定时分析任务开始');
 
+        // 记录分析开始
+        await analysisLogger.logAnalysisStart(runId);
+
         try {
-          await analyzeCommand({ now: true });
+          // 导入 runAnalysisPipeline
+          const { runAnalysisPipeline } = await import('../analyzers/pipeline.js');
+
+          // 运行分析并传递 logger 参数
+          await runAnalysisPipeline({ runId, analysisLogger });
 
           const duration = Math.round((Date.now() - startTime.getTime()) / 1000);
           logger.info('定时分析任务完成');
@@ -78,6 +90,8 @@ async function main() {
           }
         } catch (error) {
           logger.error('定时分析任务失败', error as Error);
+
+          // 记录分析失败已在 pipeline 中处理,这里不需要重复记录
 
           // 发送失败通知（如果启用）
           if (config.scheduler?.notifications?.enabled && config.scheduler?.notifications?.onFailure) {
