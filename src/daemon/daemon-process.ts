@@ -12,13 +12,12 @@ import { homedir } from 'os';
 import { loadConfig } from '../config/index.js';
 import { ProcessManager, PidFileData } from './process-manager.js';
 import { DaemonLogger } from './logger.js';
-import { CronScheduler } from '../scheduler/cron-scheduler.js';
-import { analyzeCommand } from '../cli/commands/analyze.js';
-import { notifySuccess, notifyError } from '../utils/notifier.js';
 import { AnalysisLogger } from '../analyzers/analysis-logger.js';
-import { watchSourceFiles, stopWatching } from '../generators/file-watcher.js';
-import { regenerateClaudeMdFromDisk } from '../memory/claudemd-generator.js';
-import type { FSWatcher } from 'chokidar';
+import {
+  startComponents,
+  stopComponents,
+  type DaemonComponents,
+} from './lifecycle.js';
 
 async function main() {
   const config = await loadConfig();
@@ -58,123 +57,33 @@ async function main() {
     process.exit(1);
   }
 
-  let scheduler: CronScheduler | null = null;
-  let webServer: any = null;
-  let fileWatcher: FSWatcher | null = null;
-
-  // 提取分析回调为命名函数，供初始启动和热重载复用
-  const createAnalysisCallback = () => async () => {
-    const startTime = new Date();
+  // 后台模式专用的分析执行器：使用 runAnalysisPipeline + AnalysisLogger
+  const analysisRunner = async () => {
     const runId = `run_${Date.now()}`;
-    logger.info('定时分析任务开始');
-
     await analysisLogger.logAnalysisStart(runId);
 
-    try {
-      const { runAnalysisPipeline } = await import('../analyzers/pipeline.js');
-      await runAnalysisPipeline({ runId, analysisLogger });
-
-      const duration = Math.round((Date.now() - startTime.getTime()) / 1000);
-      logger.info('定时分析任务完成');
-
-      const currentConfig = await loadConfig();
-      if (currentConfig.scheduler?.notifications?.enabled && currentConfig.scheduler?.notifications?.onSuccess) {
-        await notifySuccess(
-          '定时分析完成',
-          `分析任务已成功完成\n耗时: ${duration}秒\n时间: ${startTime.toLocaleTimeString('zh-CN')}`
-        );
-      }
-    } catch (error) {
-      logger.error('定时分析任务失败', error as Error);
-
-      const currentConfig = await loadConfig();
-      if (currentConfig.scheduler?.notifications?.enabled && currentConfig.scheduler?.notifications?.onFailure) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        await notifyError(
-          '定时分析失败',
-          `任务执行失败\n错误: ${errorMessage.slice(0, 100)}\n时间: ${startTime.toLocaleTimeString('zh-CN')}`
-        );
-      }
-    }
+    const { runAnalysisPipeline } = await import('../analyzers/pipeline.js');
+    await runAnalysisPipeline({ runId, analysisLogger });
   };
 
-  // 调度器热重载函数
-  const reloadScheduler = async () => {
-    logger.info('[热重载] 检测到调度器配置变更，开始重载...');
-
-    // 停止现有调度器
-    if (scheduler) {
-      scheduler.stop();
-      logger.info('[热重载] 调度器已停止');
-    }
-
-    // 从磁盘重新加载配置
-    const newConfig = await loadConfig();
-    logger.info('[热重载] 配置已重新加载');
-
-    // 根据新配置决定是否启动调度器
-    if (newConfig.scheduler?.enabled) {
-      scheduler = new CronScheduler();
-      scheduler.start(newConfig, createAnalysisCallback());
-      logger.info('[热重载] 调度器已使用新配置重新启动');
-    } else {
-      scheduler = null;
-      logger.info('[热重载] 调度器已禁用，不再启动');
-    }
+  // 适配 DaemonLogger → lifecycle DaemonLogger 接口
+  const lifecycleLogger = {
+    info: (msg: string) => logger.info(msg),
+    error: (msg: string, error?: Error | unknown) =>
+      logger.error(msg, error as Error),
   };
+
+  let components: DaemonComponents | null = null;
 
   try {
-    // 启动调度器
-    if (!noScheduler && config.scheduler?.enabled) {
-      logger.info('启动调度器...');
-      scheduler = new CronScheduler();
-      scheduler.start(config, createAnalysisCallback());
-      logger.info('调度器已启动');
-    }
-
-    // 启动文件监听器 (CLAUDE.md 自动更新)
-    logger.info('启动文件监听器...');
-    fileWatcher = watchSourceFiles();
-
-    // 启动时立即同步一次 CLAUDE.md
-    try {
-      await regenerateClaudeMdFromDisk();
-      logger.info('CLAUDE.md 已同步');
-    } catch (error) {
-      logger.error('CLAUDE.md 初始同步失败:', error as Error);
-    }
-
-    // 启动 Web 服务器
-    if (!noWeb) {
-      logger.info(`启动 Web 服务器 (端口 ${port})...`);
-
-      // 动态导入 web server
-      const webModule = await import('../../web/server/index.js');
-      webServer = webModule.server;
-
-      // 注册调度器配置变更回调（热重载）
-      if (!noScheduler) {
-        webModule.onSchedulerConfigChanged(reloadScheduler);
-        logger.info('调度器热重载回调已注册');
-      }
-
-      await new Promise<void>((resolve, reject) => {
-        webServer.listen(port, () => {
-          logger.info(`Web 服务器已启动: http://localhost:${port}`);
-          resolve();
-        });
-
-        webServer.on('error', (error: any) => {
-          if (error.code === 'EADDRINUSE') {
-            logger.error(`端口 ${port} 已被占用`);
-            reject(error);
-          } else {
-            logger.error('Web 服务器启动失败', error);
-            reject(error);
-          }
-        });
-      });
-    }
+    components = await startComponents({
+      config,
+      port,
+      enableScheduler: !noScheduler && (config.scheduler?.enabled ?? true),
+      enableWeb: !noWeb,
+      logger: lifecycleLogger,
+      analysisRunner,
+    });
 
     logger.info('守护进程已完全启动');
 
@@ -182,23 +91,8 @@ async function main() {
     processManager.onShutdown(async () => {
       logger.info('收到关闭信号，开始优雅关闭...');
 
-      if (fileWatcher) {
-        await stopWatching(fileWatcher);
-        logger.info('文件监听器已停止');
-      }
-
-      if (scheduler) {
-        scheduler.stop();
-        logger.info('调度器已停止');
-      }
-
-      if (webServer) {
-        await new Promise<void>((resolve) => {
-          webServer.close(() => {
-            logger.info('Web 服务器已关闭');
-            resolve();
-          });
-        });
+      if (components) {
+        await stopComponents(components, lifecycleLogger);
       }
 
       // 关闭分析日志数据库连接
@@ -225,13 +119,9 @@ async function main() {
   } catch (error) {
     logger.error('守护进程启动失败', error as Error);
 
-    // 清理
-    if (fileWatcher) {
-      await stopWatching(fileWatcher);
-    }
-
-    if (scheduler) {
-      scheduler.stop();
+    // 清理已启动的组件
+    if (components) {
+      await stopComponents(components, lifecycleLogger);
     }
 
     await processManager.deletePidFile();
