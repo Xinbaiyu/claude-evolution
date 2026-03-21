@@ -140,7 +140,11 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2 mt-1">
                   <div className={`w-2 h-2 rounded-full ${status.scheduler.enabled ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
                   <span className="text-sm font-mono font-bold">
-                    {status.scheduler.enabled ? '运行中' : '已停止'}
+                    {status.scheduler.enabled
+                      ? (status.scheduler.interval === 'timepoints'
+                        ? `定时 (${(status.scheduler as any).scheduleTimes?.length || 0} 个时间点)`
+                        : `运行中 (${status.scheduler.interval})`)
+                      : '已停止'}
                   </span>
                 </div>
               </div>
@@ -169,6 +173,9 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8">
+        <div className="flex gap-6">
+        {/* Left: Main Content */}
+        <div className="flex-1 min-w-0">
         {/* Metrics Grid */}
         <div className="grid grid-cols-4 gap-4 mb-8">
           {/* Active Observations - Largest */}
@@ -314,19 +321,20 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Recent Analysis Widget */}
-        <div
-          className="mb-8"
-          style={{ animation: 'fadeIn 0.6s ease-out 0.35s backwards' }}
-        >
-          <RecentAnalysisWidget maxItems={5} />
-        </div>
-
         {/* System Info Footer */}
         <div className="border-t-2 border-slate-800 pt-4 text-center">
           <div className="text-xs font-mono text-slate-600">
             CLAUDE-EVOLUTION v{status.server.version} | 系统正常运行 | {formatUptime(status.server.uptime)} 运行时长
           </div>
+        </div>
+        </div>
+
+        {/* Right: Recent Analysis Sidebar */}
+        <div className="w-72 flex-shrink-0" style={{ animation: 'fadeIn 0.6s ease-out 0.35s backwards' }}>
+          <div className="sticky top-24">
+            <RecentAnalysisWidget maxItems={8} />
+          </div>
+        </div>
         </div>
       </main>
 

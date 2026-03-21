@@ -7,7 +7,6 @@ import {
   calculateTier,
   shouldPromote,
   promoteToContext,
-  isDuplicateInContext,
   manualPromote,
   manualDemote,
 } from '../memory/promotion.js';
@@ -135,25 +134,6 @@ describe('Promotion Module', () => {
       expect(promoted[0].inContext).toBe(true);
       expect(promoted[0].promotedAt).toBeDefined();
       expect(promoted[0].promotionReason).toBe('auto');
-    });
-  });
-
-  describe('isDuplicateInContext', () => {
-    it('should detect duplicate by ID', () => {
-      const isDup = isDuplicateInContext(goldObs, [goldObs]);
-      expect(isDup).toBe(true);
-    });
-
-    it('should detect duplicate by content (preference)', () => {
-      const similar = { ...goldObs, id: 'different-id' };
-      const isDup = isDuplicateInContext(similar, [goldObs]);
-      expect(isDup).toBe(true);
-    });
-
-    it('should not detect different type as duplicate', () => {
-      const different = { ...goldObs, id: 'different-id', type: 'pattern' as const };
-      const isDup = isDuplicateInContext(different, [goldObs]);
-      expect(isDup).toBe(false);
     });
   });
 

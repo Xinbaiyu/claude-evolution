@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Observation, ExtractionResult } from '../types/index.js';
 import { Config } from '../config/index.js';
-import { logger, withLLMRetry } from '../utils/index.js';
+import { logger, withLLMRetry, pMapLimited, getFulfilledValues } from '../utils/index.js';
 import { buildAnalysisPrompt, SYSTEM_MESSAGE } from './prompts.js';
 import { formatObservationsAsText } from './session-collector.js';
 
@@ -73,20 +73,27 @@ export async function extractExperience(
   // 分批处理观察记录
   const batchSize = 10; // 固定批次大小
   const batches = chunkArray(observations, batchSize);
-  const allResults: ExtractionResult[] = [];
 
-  for (let i = 0; i < batches.length; i++) {
-    const batch = batches[i];
-    logger.debug(`处理批次 ${i + 1}/${batches.length} (${batch.length} 条记录)...`);
+  logger.info(`经验提取: ${batches.length} 个批次, 并发数 3`);
 
-    try {
+  // 并行处理各批次（有限并发，单批失败不影响其他批次）
+  const batchResults = await pMapLimited(
+    batches,
+    async (batch, i) => {
+      logger.debug(`处理批次 ${i + 1}/${batches.length} (${batch.length} 条记录)...`);
       const result = await extractFromBatch(batch, config, anthropic, promptsContext);
-      allResults.push(result);
       logger.success(`✓ 批次 ${i + 1} 提取完成`);
-    } catch (error) {
-      logger.error(`批次 ${i + 1} 提取失败:`, error);
-      // 继续处理下一批次
-    }
+      return result;
+    },
+    3
+  );
+
+  const allResults = getFulfilledValues(batchResults);
+
+  // 记录失败的批次
+  const failedCount = batchResults.filter(r => r.status === 'rejected').length;
+  if (failedCount > 0) {
+    logger.warn(`${failedCount} 个批次提取失败，已跳过`);
   }
 
   // 合并所有批次的结果

@@ -5,10 +5,12 @@ import { logger } from '../utils/index.js';
 /**
  * Cron 调度器
  * 负责定时触发分析任务
+ * 支持间隔模式 (6h/12h/24h) 和定时模式 (指定每天的具体时间点)
  */
 export class CronScheduler {
-  private task: cron.ScheduledTask | null = null;
+  private tasks: cron.ScheduledTask[] = [];
   private isRunning = false;
+  private isAnalysisRunning = false;
 
   /**
    * 启动定时任务
@@ -24,22 +26,31 @@ export class CronScheduler {
       return;
     }
 
-    const cronExpression = this.getCronExpression(config.scheduler);
+    const wrappedCallback = async () => {
+      if (this.isAnalysisRunning) {
+        logger.warn('分析任务正在运行中，跳过本次触发');
+        return;
+      }
+      this.isAnalysisRunning = true;
+      logger.info(`定时分析任务开始 [${new Date().toISOString()}]`);
+      try {
+        await analysisCallback();
+        logger.success('定时分析任务完成');
+      } catch (error) {
+        logger.error('定时分析任务失败:', error);
+      } finally {
+        this.isAnalysisRunning = false;
+      }
+    };
 
     try {
-      this.task = cron.schedule(cronExpression, async () => {
-        logger.info(`定时分析任务开始 [${new Date().toISOString()}]`);
-        try {
-          await analysisCallback();
-          logger.success('定时分析任务完成');
-        } catch (error) {
-          logger.error('定时分析任务失败:', error);
-        }
-      });
+      if (config.scheduler.interval === 'timepoints') {
+        this.startTimepointsMode(config, wrappedCallback);
+      } else {
+        this.startIntervalMode(config, wrappedCallback);
+      }
 
       this.isRunning = true;
-      logger.success(`✓ 定时任务已启动: ${cronExpression}`);
-      logger.info(`  下次执行: ${this.getNextExecutionTime(cronExpression)}`);
     } catch (error) {
       logger.error('启动定时任务失败:', error);
       throw error;
@@ -47,11 +58,51 @@ export class CronScheduler {
   }
 
   /**
+   * 间隔模式：使用单个 cron 表达式
+   */
+  private startIntervalMode(config: Config, callback: () => Promise<void>): void {
+    const cronExpression = this.getCronExpression(config.scheduler);
+    const task = cron.schedule(cronExpression, callback);
+    this.tasks.push(task);
+    logger.success(`✓ 定时任务已启动 (间隔模式): ${cronExpression}`);
+    logger.info(`  下次执行: ${this.getNextExecutionTime(cronExpression)}`);
+  }
+
+  /**
+   * 定时模式：为每个时间点创建独立的 cron 任务
+   */
+  private startTimepointsMode(config: Config, callback: () => Promise<void>): void {
+    const scheduleTimes = config.scheduler.scheduleTimes;
+
+    if (!scheduleTimes || scheduleTimes.length === 0) {
+      logger.warn('定时模式已配置但未设置时间点，调度器不会启动');
+      return;
+    }
+
+    const sortedTimes = [...scheduleTimes].sort();
+
+    for (const time of sortedTimes) {
+      const cronExpr = CronScheduler.timeToCronExpression(time);
+      const task = cron.schedule(cronExpr, callback);
+      this.tasks.push(task);
+      logger.info(`  ✓ 已注册时间点: ${time} (${cronExpr})`);
+    }
+
+    const nextTime = CronScheduler.getNextTimepointExecution(sortedTimes);
+    logger.success(`✓ 定时任务已启动 (定时模式): ${sortedTimes.length} 个时间点`);
+    logger.info(`  时间点: ${sortedTimes.join(', ')}`);
+    logger.info(`  下次执行: ${nextTime}`);
+  }
+
+  /**
    * 停止定时任务
    */
   stop(): void {
-    if (this.task) {
-      this.task.stop();
+    if (this.tasks.length > 0) {
+      for (const task of this.tasks) {
+        task.stop();
+      }
+      this.tasks = [];
       this.isRunning = false;
       logger.info('定时任务已停止');
     }
@@ -62,6 +113,45 @@ export class CronScheduler {
    */
   isTaskRunning(): boolean {
     return this.isRunning;
+  }
+
+  /**
+   * 将 HH:MM 时间转换为 cron 表达式
+   */
+  static timeToCronExpression(time: string): string {
+    const [hour, minute] = time.split(':');
+    return `${parseInt(minute)} ${parseInt(hour)} * * *`;
+  }
+
+  /**
+   * 计算下一个最近的时间点执行时间
+   */
+  static getNextTimepointExecution(scheduleTimes: string[]): string {
+    try {
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      // 找今天还没到的最近时间点
+      for (const time of [...scheduleTimes].sort()) {
+        const [h, m] = time.split(':').map(Number);
+        const timeMinutes = h * 60 + m;
+        if (timeMinutes > currentMinutes) {
+          const next = new Date(now);
+          next.setHours(h, m, 0, 0);
+          return next.toLocaleString('zh-CN');
+        }
+      }
+
+      // 今天所有时间点都过了，返回明天第一个
+      const firstTime = [...scheduleTimes].sort()[0];
+      const [h, m] = firstTime.split(':').map(Number);
+      const next = new Date(now);
+      next.setDate(next.getDate() + 1);
+      next.setHours(h, m, 0, 0);
+      return next.toLocaleString('zh-CN');
+    } catch {
+      return '(无法计算)';
+    }
   }
 
   /**

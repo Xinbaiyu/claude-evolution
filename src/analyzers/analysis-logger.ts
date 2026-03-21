@@ -1,6 +1,7 @@
-import fs from 'fs/promises';
+import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { AnalysisDatabase } from './analysis-db.js';
 
 export interface AnalysisStep {
   step: number;
@@ -40,33 +41,20 @@ interface PaginationOptions {
 }
 
 export class AnalysisLogger {
-  private logFile: string;
-  private lockFile: string;
+  private db: AnalysisDatabase;
+  private readonly logsDir: string;
 
   constructor() {
-    const homeDir = os.homedir();
-    const logsDir = path.join(homeDir, '.claude-evolution', 'logs');
-    this.logFile = path.join(logsDir, 'analysis-runs.json');
-    this.lockFile = path.join(logsDir, 'analysis-runs.lock');
+    this.logsDir = path.join(os.homedir(), '.claude-evolution', 'logs');
+    this.db = new AnalysisDatabase();
+    this.migrateFromJson();
   }
 
   /**
    * 记录分析任务开始
    */
   async logAnalysisStart(runId: string): Promise<void> {
-    await this.withLock(async () => {
-      const data = await this.readLogFile();
-
-      const newRun: AnalysisRun = {
-        id: runId,
-        startTime: new Date().toISOString(),
-        status: 'running',
-        steps: [],
-      };
-
-      data.runs.unshift(newRun);
-      await this.writeLogFile(data);
-    });
+    this.db.insertRun(runId, new Date().toISOString());
   }
 
   /**
@@ -80,56 +68,46 @@ export class AnalysisLogger {
       stats?: { merged: number; promoted: number; archived: number };
     }
   ): Promise<void> {
-    await this.withLock(async () => {
-      const data = await this.readLogFile();
-      const run = data.runs.find((r) => r.id === runId);
+    const run = this.db.getRunById(runId);
+    if (!run) {
+      throw new Error(`Run ${runId} not found`);
+    }
 
-      if (!run) {
-        throw new Error(`Run ${runId} not found`);
-      }
+    const endTime = new Date();
+    const startTime = new Date(run.start_time);
+    const duration = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
 
-      const endTime = new Date();
-      const startTime = new Date(run.startTime);
-      const duration = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
-
-      run.endTime = endTime.toISOString();
-      run.duration = duration;
-      run.status = result.status;
-      if (result.error) {
-        run.error = result.error;
-      }
-      if (result.stats) {
-        run.stats = result.stats;
-      }
-
-      await this.writeLogFile(data);
+    this.db.updateRun(runId, {
+      endTime: endTime.toISOString(),
+      duration,
+      status: result.status,
+      errorMessage: result.error?.message,
+      errorStack: result.error?.stack,
+      statsMerged: result.stats?.merged,
+      statsPromoted: result.stats?.promoted,
+      statsArchived: result.stats?.archived,
     });
+
+    // Automatic cleanup after each analysis ends
+    this.db.cleanup();
   }
 
   /**
    * 记录单个步骤执行情况
    */
   async logStep(runId: string, stepInfo: AnalysisStep): Promise<void> {
-    await this.withLock(async () => {
-      const data = await this.readLogFile();
-      const run = data.runs.find((r) => r.id === runId);
+    const run = this.db.getRunById(runId);
+    if (!run) {
+      throw new Error(`Run ${runId} not found`);
+    }
 
-      if (!run) {
-        throw new Error(`Run ${runId} not found`);
-      }
-
-      // 如果步骤已存在则更新，否则添加
-      const existingIndex = run.steps.findIndex((s) => s.step === stepInfo.step);
-      if (existingIndex >= 0) {
-        run.steps[existingIndex] = stepInfo;
-      } else {
-        run.steps.push(stepInfo);
-      }
-
-      // 按步骤编号排序
-      run.steps.sort((a, b) => a.step - b.step);
-
-      await this.writeLogFile(data);
+    this.db.upsertStep(runId, {
+      step: stepInfo.step,
+      name: stepInfo.name,
+      status: stepInfo.status,
+      duration: stepInfo.duration,
+      output: stepInfo.output,
+      error: stepInfo.error,
     });
   }
 
@@ -137,75 +115,132 @@ export class AnalysisLogger {
    * 获取所有分析记录
    */
   async getAllRuns(options?: PaginationOptions): Promise<AnalysisRun[]> {
-    const data = await this.readLogFile();
-    const { limit = 50, offset = 0 } = options || {};
+    const rows = this.db.getAllRuns(options);
 
-    return data.runs.slice(offset, offset + limit);
+    return rows.map((row) => {
+      const steps = this.db.getStepsByRunId(row.id);
+
+      const run: AnalysisRun = {
+        id: row.id,
+        startTime: row.start_time,
+        status: row.status as AnalysisRun['status'],
+        steps: steps.map((s) => ({
+          step: s.step,
+          name: s.name,
+          status: s.status as AnalysisStep['status'],
+          duration: s.duration ?? undefined,
+          output: s.output ?? undefined,
+          error: s.error ?? undefined,
+        })),
+      };
+
+      if (row.end_time) {
+        run.endTime = row.end_time;
+      }
+      if (row.duration !== null) {
+        run.duration = row.duration;
+      }
+      if (row.error_message) {
+        run.error = {
+          message: row.error_message,
+          stack: row.error_stack ?? undefined,
+        };
+      }
+      if (row.stats_merged !== null) {
+        run.stats = {
+          merged: row.stats_merged,
+          promoted: row.stats_promoted ?? 0,
+          archived: row.stats_archived ?? 0,
+        };
+      }
+
+      return run;
+    });
   }
 
   /**
    * 根据 ID 获取单条记录
    */
   async getRunById(runId: string): Promise<AnalysisRun | null> {
-    const data = await this.readLogFile();
-    return data.runs.find((r) => r.id === runId) || null;
+    const row = this.db.getRunById(runId);
+    if (!row) {
+      return null;
+    }
+
+    const steps = this.db.getStepsByRunId(runId);
+
+    const run: AnalysisRun = {
+      id: row.id,
+      startTime: row.start_time,
+      status: row.status as AnalysisRun['status'],
+      steps: steps.map((s) => ({
+        step: s.step,
+        name: s.name,
+        status: s.status as AnalysisStep['status'],
+        duration: s.duration ?? undefined,
+        output: s.output ?? undefined,
+        error: s.error ?? undefined,
+      })),
+    };
+
+    if (row.end_time) {
+      run.endTime = row.end_time;
+    }
+    if (row.duration !== null) {
+      run.duration = row.duration;
+    }
+    if (row.error_message) {
+      run.error = {
+        message: row.error_message,
+        stack: row.error_stack ?? undefined,
+      };
+    }
+    if (row.stats_merged !== null) {
+      run.stats = {
+        merged: row.stats_merged,
+        promoted: row.stats_promoted ?? 0,
+        archived: row.stats_archived ?? 0,
+      };
+    }
+
+    return run;
   }
 
   /**
-   * 读取日志文件
+   * 关闭数据库连接
    */
-  private async readLogFile(): Promise<AnalysisLogFile> {
+  close(): void {
+    this.db.close();
+  }
+
+  /**
+   * 从旧 JSON 文件迁移数据到 SQLite
+   */
+  private migrateFromJson(): void {
+    const jsonFile = path.join(this.logsDir, 'analysis-runs.json');
+    const bakFile = path.join(this.logsDir, 'analysis-runs.json.bak');
+
+    if (!fs.existsSync(jsonFile)) {
+      return;
+    }
+
     try {
-      const content = await fs.readFile(this.logFile, 'utf-8');
-      return JSON.parse(content);
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        // 文件不存在，返回空数据
-        return {
-          schema_version: '1.0',
-          runs: [],
-        };
+      const content = fs.readFileSync(jsonFile, 'utf-8');
+      const data: AnalysisLogFile = JSON.parse(content);
+
+      if (!data.runs || !Array.isArray(data.runs) || data.runs.length === 0) {
+        // Empty or invalid data, just rename
+        fs.renameSync(jsonFile, bakFile);
+        return;
       }
-      throw error;
+
+      this.db.bulkImport(data.runs);
+
+      // Rename JSON file to .bak after successful migration
+      fs.renameSync(jsonFile, bakFile);
+    } catch (error) {
+      console.error('[AnalysisLogger] JSON migration failed, skipping:', error instanceof Error ? error.message : error);
+      // Don't block startup — just leave the JSON file as-is
     }
-  }
-
-  /**
-   * 写入日志文件
-   */
-  private async writeLogFile(data: AnalysisLogFile): Promise<void> {
-    // 确保目录存在
-    await fs.mkdir(path.dirname(this.logFile), { recursive: true });
-    await fs.writeFile(this.logFile, JSON.stringify(data, null, 2), 'utf-8');
-  }
-
-  /**
-   * 文件锁机制，防止并发写入冲突
-   */
-  private async withLock<T>(fn: () => Promise<T>): Promise<T> {
-    let retries = 10;
-    while (retries > 0) {
-      try {
-        // 尝试创建锁文件
-        await fs.mkdir(path.dirname(this.lockFile), { recursive: true });
-        await fs.writeFile(this.lockFile, process.pid.toString(), { flag: 'wx' });
-
-        try {
-          return await fn();
-        } finally {
-          // 释放锁
-          await fs.unlink(this.lockFile).catch(() => {});
-        }
-      } catch (error: any) {
-        if (error.code === 'EEXIST') {
-          // 锁已存在，等待后重试
-          await new Promise((resolve) => setTimeout(resolve, 100));
-          retries--;
-          continue;
-        }
-        throw error;
-      }
-    }
-    throw new Error('Failed to acquire lock after multiple retries');
   }
 }

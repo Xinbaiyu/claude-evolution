@@ -114,53 +114,6 @@ export function promoteToContext(
 }
 
 /**
- * Check for duplicate observations in context
- *
- * Prevents promoting observations that already exist in context
- *
- * @param candidate - Observation to check
- * @param contextObservations - Existing context observations
- * @returns True if duplicate found
- */
-export function isDuplicateInContext(
-  candidate: ObservationWithMetadata,
-  contextObservations: ObservationWithMetadata[]
-): boolean {
-  return contextObservations.some(existing => {
-    // Same ID
-    if (existing.id === candidate.id) {
-      return true;
-    }
-
-    // Same type and similar content
-    if (existing.type !== candidate.type) {
-      return false;
-    }
-
-    // Type-specific duplicate detection
-    if (candidate.type === 'preference') {
-      const candidateItem = candidate.item as any;
-      const existingItem = existing.item as any;
-      return candidateItem.type === existingItem.type;
-    }
-
-    if (candidate.type === 'pattern') {
-      const candidateItem = candidate.item as any;
-      const existingItem = existing.item as any;
-      return candidateItem.problem === existingItem.problem;
-    }
-
-    if (candidate.type === 'workflow') {
-      const candidateItem = candidate.item as any;
-      const existingItem = existing.item as any;
-      return candidateItem.name === existingItem.name;
-    }
-
-    return false;
-  });
-}
-
-/**
  * Filter observations ready for auto-promotion
  *
  * @param activeObservations - Candidate pool observations
@@ -171,27 +124,11 @@ export function isDuplicateInContext(
  */
 export function getObservationsToPromote(
   activeObservations: ObservationWithMetadata[],
-  contextObservations: ObservationWithMetadata[],
+  _contextObservations: ObservationWithMetadata[],
   config: PromotionConfig,
   halfLifeDays: number = 30
 ): ObservationWithMetadata[] {
-  return activeObservations.filter(obs => {
-    // Check if should promote
-    if (!shouldPromote(obs, config, halfLifeDays)) {
-      return false;
-    }
-
-    // Check for duplicates
-    if (isDuplicateInContext(obs, contextObservations)) {
-      logger.warn('Duplicate observation detected, skipping promotion', {
-        id: obs.id,
-        type: obs.type,
-      });
-      return false;
-    }
-
-    return true;
-  });
+  return activeObservations.filter(obs => shouldPromote(obs, config, halfLifeDays));
 }
 
 /**

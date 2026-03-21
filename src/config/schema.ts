@@ -32,7 +32,10 @@ const LearningPhasesSchema = z.object({
  */
 const SchedulerSchema = z.object({
   enabled: z.boolean().default(true),
-  interval: z.string().default('6h'), // 改为 string 类型以支持更多格式
+  interval: z.string().default('6h'), // '6h' | '12h' | '24h' | 'timepoints' | 'custom'
+  scheduleTimes: z.array(
+    z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, '时间格式必须为 HH:MM')
+  ).max(12).optional(),
   customCron: z.string().optional(),
   runOnStartup: z.boolean().default(false),
   notifications: z.object({

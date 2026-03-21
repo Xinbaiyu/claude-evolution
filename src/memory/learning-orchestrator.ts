@@ -8,6 +8,7 @@
  * 4. Deletion → Remove low-confidence observations
  * 5. Capacity Control → Enforce pool size limits
  * 6. Auto-Promotion → Promote gold-tier observations to context
+ * 6.1. Context Pool LLM Merge → Merge similar & resolve conflicts in context
  * 7. Save State → Persist all changes
  * 8. Regenerate CLAUDE.md → Update configuration file
  */
@@ -27,7 +28,7 @@ import {
 } from './observation-manager.js';
 
 // LLM Merge
-import { mergeLLM } from '../learners/llm-merge.js';
+import { mergeLLM, fallbackNoMerge } from '../learners/llm-merge.js';
 
 // Temporal Decay
 import { applyDecayToObservations } from './temporal-decay.js';
@@ -58,6 +59,9 @@ import {
   logCapacityControl,
 } from './capacity-control.js';
 
+// Context Pool LLM Merge
+import { mergeContextPool } from './context-merge.js';
+
 /**
  * Execute the complete learning cycle
  *
@@ -73,6 +77,7 @@ export async function executeLearningCycle(
   promoted: number;
   deleted: number;
   archived: number;
+  contextMerged: number;
   finalActiveCount: number;
   finalContextCount: number;
 }> {
@@ -101,13 +106,21 @@ export async function executeLearningCycle(
 
     // Step 1: LLM Merge (merge new observations with existing active pool)
     logger.info('Step 1: LLM Merge');
-    const mergedObs = await mergeLLM(activeObs, newObservations, {
-      apiKey: process.env.ANTHROPIC_API_KEY || '',
-      baseURL: config.llm.baseURL,
-      model: config.llm.model,
-      maxOldObservations: 50,
-      maxNewObservations: 20,
-    });
+    let mergedObs: ObservationWithMetadata[];
+    try {
+      mergedObs = await mergeLLM(activeObs, newObservations, {
+        apiKey: process.env.ANTHROPIC_API_KEY || '',
+        baseURL: config.llm.baseURL,
+        model: config.llm.model,
+        maxOldObservations: 50,
+        maxNewObservations: 20,
+      });
+    } catch (mergeError) {
+      logger.warn('LLM merge failed in orchestrator, using fallback no-merge', {
+        error: mergeError instanceof Error ? mergeError.message : String(mergeError),
+      });
+      mergedObs = fallbackNoMerge(activeObs, newObservations);
+    }
     logger.info(`Merged observations: ${activeObs.length} + ${newObservations.length} → ${mergedObs.length}`);
 
     // Step 2: Apply Temporal Decay
@@ -160,6 +173,23 @@ export async function executeLearningCycle(
     const updatedActive = afterCapacity.filter(
       obs => !toPromote.some(p => p.id === obs.id)
     );
+
+    // Step 5.1: Context Pool LLM Merge
+    logger.info('Step 5.1: Context Pool LLM Merge');
+    const contextMergeResult = await mergeContextPool(updatedContext, {
+      apiKey: process.env.ANTHROPIC_API_KEY || '',
+      baseURL: config.llm.baseURL,
+      model: config.llm.model,
+    });
+    updatedContext = contextMergeResult.observations;
+
+    if (contextMergeResult.merged > 0 || contextMergeResult.conflicts > 0) {
+      logger.info('Context pool merge results', {
+        merged: contextMergeResult.merged,
+        conflicts: contextMergeResult.conflicts,
+        contextSize: updatedContext.length,
+      });
+    }
 
     // Step 5.5: Context Pool Capacity Control (if enabled)
     let contextCapacityArchived: ObservationWithMetadata[] = [];
@@ -225,6 +255,7 @@ export async function executeLearningCycle(
       promoted: promoted.length,
       deleted: toDelete.length,
       archived: newlyArchived.length + contextCapacityArchived.length,
+      contextMerged: contextMergeResult.merged,
       contextCapacityArchived: contextCapacityArchived.length,
       finalActiveCount: updatedActive.length,
       finalContextCount: updatedContext.length,

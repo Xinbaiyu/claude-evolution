@@ -5,7 +5,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { logger, withLLMRetry } from '../utils/index.js';
+import { logger, withLLMRetry, groupBySimilarity, pMapLimited, getFulfilledValues } from '../utils/index.js';
 import type { ObservationWithMetadata, MergeResult, SimilarityWarning } from '../types/learning.js';
 import { loadArchivedObservations, saveArchivedObservations } from '../memory/observation-manager.js';
 
@@ -139,6 +139,50 @@ Begin adjustment now. Return only the JSON array.`;
 }
 
 /**
+ * Attempt to recover complete items from a truncated JSON array string.
+ *
+ * When stop_reason === 'max_tokens', the JSON is cut mid-stream.
+ * We find the last complete object boundary and close the array.
+ *
+ * @returns Parsed array if recovery succeeds, undefined otherwise.
+ */
+function recoverTruncatedJsonArray<T>(text: string): T[] | undefined {
+  // Find the last complete object by locating the last "}," or "}" before truncation
+  // Strategy: progressively trim from the end to find a valid JSON array
+  const trimmed = text.trim();
+
+  // Must start with '[' to be an array
+  const arrayStart = trimmed.indexOf('[');
+  if (arrayStart === -1) {
+    return undefined;
+  }
+
+  const arrayContent = trimmed.substring(arrayStart);
+
+  // Find the last complete "}" that could end an object in the array
+  let lastValidEnd = -1;
+  for (let i = arrayContent.length - 1; i >= 0; i--) {
+    if (arrayContent[i] === '}') {
+      // Try to close the array here
+      const candidate = arrayContent.substring(0, i + 1).trimEnd();
+      // Remove trailing comma if present
+      const cleaned = candidate.replace(/,\s*$/, '') + ']';
+      try {
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch {
+        // Keep searching backwards
+      }
+      lastValidEnd = i;
+    }
+  }
+
+  return undefined;
+}
+
+/**
  * Parse LLM response and extract JSON
  *
  * Handles responses with or without markdown code blocks
@@ -191,7 +235,7 @@ function parseLLMResponse<T>(response: string): T {
  * Calculate similarity between two observations (simple text-based approach)
  * Returns a score between 0 and 1
  */
-function calculateSimilarity(obs1: ObservationWithMetadata, obs2: ObservationWithMetadata): number {
+export function calculateSimilarity(obs1: ObservationWithMetadata, obs2: ObservationWithMetadata): number {
   // Must be same type
   if (obs1.type !== obs2.type) {
     return 0;
@@ -370,15 +414,21 @@ async function mergeLLMStage1(
 
   // Check if response was truncated
   if (response.stop_reason === 'max_tokens') {
-    logger.warn('LLM response truncated - max_tokens reached!', {
+    logger.warn('Stage 1 LLM response truncated - attempting partial recovery', {
       model,
       maxTokens: 32000,
       textLength: textContent.text.length,
       inputTokens: response.usage.input_tokens,
       outputTokens: response.usage.output_tokens,
-      recommendation: 'Consider reducing batch size or increasing max_tokens',
     });
-    throw new Error('LLM response truncated by max_tokens - reduce observation count or increase token limit');
+
+    const recovered = recoverTruncatedJsonArray<MergeResult>(textContent.text);
+    if (recovered && recovered.length > 0) {
+      logger.warn(`Stage 1 partial recovery succeeded: ${recovered.length} items recovered from truncated response`);
+      return recovered;
+    }
+
+    throw new Error('Stage 1 truncation recovery failed - no complete items could be parsed');
   }
 
   // Parse JSON response
@@ -453,13 +503,30 @@ async function mergeLLMStage2(
 
   // Check if response was truncated
   if (response.stop_reason === 'max_tokens') {
-    logger.warn('Stage 2 LLM response truncated - max_tokens reached!', {
+    logger.warn('Stage 2 LLM response truncated - attempting partial recovery', {
       model,
       maxTokens: 40000,
       textLength: textContent.text.length,
-      recommendation: 'Reduce observation count or increase token limit further',
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
     });
-    throw new Error('Stage 2 LLM response truncated by max_tokens - consider reducing observation batch size');
+
+    const recovered = recoverTruncatedJsonArray<{
+      observation: ObservationWithMetadata;
+      adjustmentReason: string;
+    }>(textContent.text);
+
+    if (recovered && recovered.length > 0) {
+      logger.warn(`Stage 2 partial recovery succeeded: ${recovered.length} items recovered from truncated response`);
+      // Return recovered observations plus any unprocessed originals
+      const recoveredIds = new Set(recovered.map(r => r.observation.id));
+      const unprocessed = mergedObservations.filter(obs => !recoveredIds.has(obs.id));
+      return [...recovered.map(r => r.observation), ...unprocessed];
+    }
+
+    // Recovery failed — return input observations without confidence adjustment
+    logger.warn('Stage 2 truncation recovery failed, skipping confidence adjustment');
+    return mergedObservations;
   }
 
   // Parse JSON response
@@ -580,11 +647,64 @@ export async function mergeLLM(
   const totalInput = limitedOld.length + limitedNew.length;
 
   try {
-    // Stage 1: Merge and Deduplicate
-    const mergeResults = await mergeLLMStage1(anthropic, limitedOld, limitedNew, model, baseURL);
+    // Stage 1: Chunked Merge and Deduplicate
+    // Pre-group all observations by similarity, process each group independently
+    const allInputObs = [...limitedOld, ...limitedNew];
+    const groups = groupBySimilarity(allInputObs);
+
+    // Separate singletons from multi-observation groups
+    const singletons: MergeResult[] = [];
+    const mergeGroups: ObservationWithMetadata[][] = [];
+
+    for (const group of groups) {
+      if (group.length === 1) {
+        singletons.push({ observation: group[0], mergedFrom: [group[0].id] });
+      } else {
+        mergeGroups.push(group);
+      }
+    }
+
+    logger.info('Stage 1: Chunked merge starting', {
+      totalInput,
+      groups: groups.length,
+      singletons: singletons.length,
+      mergeGroups: mergeGroups.length,
+    });
+
+    // Process merge groups in parallel with concurrency limit
+    const groupResults = await pMapLimited(
+      mergeGroups,
+      (group) => {
+        // Split group into "old" and "new" based on whether they were in limitedOld or limitedNew
+        const oldIds = new Set(limitedOld.map(o => o.id));
+        const groupOld = group.filter(o => oldIds.has(o.id));
+        const groupNew = group.filter(o => !oldIds.has(o.id));
+        return mergeLLMStage1(anthropic, groupOld, groupNew, model, baseURL);
+      },
+      3
+    );
+
+    // Combine results: fulfilled groups get merged results, rejected groups return unmerged
+    const allMergeResults: MergeResult[] = [...singletons];
+
+    for (let i = 0; i < groupResults.length; i++) {
+      const result = groupResults[i];
+      if (result.status === 'fulfilled') {
+        allMergeResults.push(...result.value);
+      } else {
+        // Error isolation: return group's observations unmerged
+        logger.warn(`Stage 1 group ${i} failed, returning unmerged`, {
+          error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          groupSize: mergeGroups[i].length,
+        });
+        for (const obs of mergeGroups[i]) {
+          allMergeResults.push({ observation: obs, mergedFrom: [obs.id] });
+        }
+      }
+    }
 
     // Extract observations from merge results
-    const mergedObservations = mergeResults.map(r => r.observation);
+    const mergedObservations = allMergeResults.map(r => r.observation);
 
     // Check merge quality
     const hasQualityIssue = detectMergeQualityIssues(totalInput, mergedObservations.length);
@@ -681,8 +801,10 @@ export async function mergeLLM(
 
     return finalObservations;
   } catch (error) {
-    logger.error('LLM merge failed:', error);
-    throw error;
+    logger.error('LLM merge failed, falling back to no-merge strategy', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return fallbackNoMerge(limitedOld, limitedNew);
   }
 }
 

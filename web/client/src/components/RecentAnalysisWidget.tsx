@@ -78,55 +78,55 @@ export default function RecentAnalysisWidget({ maxItems = 5 }: Props) {
 
   if (loading && runs.length === 0) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">最近分析记录</h3>
-        <div className="text-gray-400 text-center py-8">加载中...</div>
+      <div className="border-4 border-slate-700 bg-slate-900 p-4">
+        <h3 className="text-lg font-black text-amber-500 font-mono tracking-tight mb-4">最近分析记录</h3>
+        <div className="text-slate-500 text-center py-8 font-mono text-sm">加载中...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">最近分析记录</h3>
-        <div className="text-red-400 text-center py-8">{error}</div>
+      <div className="border-4 border-slate-700 bg-slate-900 p-4">
+        <h3 className="text-lg font-black text-amber-500 font-mono tracking-tight mb-4">最近分析记录</h3>
+        <div className="text-red-400 text-center py-8 font-mono text-sm">{error}</div>
       </div>
     );
   }
 
   if (runs.length === 0) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">最近分析记录</h3>
-        <div className="text-gray-400 text-center py-8">暂无分析记录</div>
+      <div className="border-4 border-slate-700 bg-slate-900 p-4">
+        <h3 className="text-lg font-black text-amber-500 font-mono tracking-tight mb-4">最近分析记录</h3>
+        <div className="text-slate-500 text-center py-8 font-mono text-sm">暂无分析记录</div>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-800 rounded-lg p-6">
-      <h3 className="text-lg font-semibold text-white mb-4">最近分析记录</h3>
+    <div className="border-4 border-slate-700 bg-slate-900 p-4">
+      <h3 className="text-lg font-black text-amber-500 font-mono tracking-tight mb-4">最近分析记录</h3>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {runs.map((run) => (
           <div
             key={run.id}
-            className="flex items-start gap-3 p-3 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
+            className="flex items-start gap-2 p-2 bg-slate-800 border-l-2 border-slate-700 hover:border-amber-500 transition-colors cursor-pointer"
             onClick={() => window.location.href = '/analysis-logs'}
           >
-            <div className="text-xl flex-shrink-0">{getStatusIcon(run.status)}</div>
+            <div className="text-base flex-shrink-0">{getStatusIcon(run.status)}</div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm text-gray-300 font-medium">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-xs text-slate-300 font-mono font-bold">
                   {formatTime(run.startTime)}
                 </span>
                 {run.duration && (
-                  <span className="text-xs text-gray-500">
-                    ({formatDuration(run.duration)})
+                  <span className="text-xs text-slate-600 font-mono">
+                    {formatDuration(run.duration)}
                   </span>
                 )}
               </div>
-              <div className="text-sm text-gray-400 truncate">
+              <div className="text-xs text-slate-500 font-mono truncate">
                 {getStatusText(run)}
               </div>
             </div>
@@ -136,7 +136,7 @@ export default function RecentAnalysisWidget({ maxItems = 5 }: Props) {
 
       <button
         onClick={() => window.location.href = '/analysis-logs'}
-        className="mt-4 w-full text-sm text-blue-400 hover:text-blue-300 transition-colors text-center py-2"
+        className="mt-3 w-full text-xs text-amber-500 hover:text-amber-400 border-2 border-amber-500/30 hover:border-amber-500/60 transition-colors text-center py-2 font-mono font-bold"
       >
         查看全部日志 →
       </button>

@@ -324,11 +324,64 @@ async function promptForConfig(apiConfig: { baseURL?: string }) {
 
   console.log(chalk.bold.cyan('\n⏰ 调度配置:\n'));
 
-  // 分析频率
-  const intervalAnswer = await question(
-    chalk.cyan('分析频率 (24h / 12h / 6h): ') + chalk.gray('(默认: 24h) ')
+  // 调度模式选择
+  console.log(chalk.gray('请选择调度模式:\n'));
+  console.log(chalk.white('[1] 每 24 小时'));
+  console.log(chalk.white('[2] 每 12 小时'));
+  console.log(chalk.white('[3] 每 6 小时'));
+  console.log(chalk.white('[4] 定时模式 (指定每天的具体时间)\n'));
+
+  const modeAnswer = await question(
+    chalk.cyan('您的选择 [1/2/3/4]: ') + chalk.gray('(默认: 1) ')
   );
-  const interval = intervalAnswer.trim() || DEFAULT_CONFIG.scheduler.interval;
+
+  let interval = '24h';
+  let scheduleTimes: string[] | undefined;
+
+  const modeChoice = modeAnswer.trim() || '1';
+  switch (modeChoice) {
+    case '2':
+      interval = '12h';
+      break;
+    case '3':
+      interval = '6h';
+      break;
+    case '4': {
+      interval = 'timepoints';
+      // 循环直到输入有效的时间点
+      const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+      let valid = false;
+      while (!valid) {
+        const timesAnswer = await question(
+          chalk.cyan('请输入分析时间点 (HH:MM格式，逗号分隔): ') + chalk.gray('例如: 06:00, 13:00, 16:00\n> ')
+        );
+        const times = timesAnswer.split(',').map(t => t.trim()).filter(Boolean);
+
+        if (times.length === 0) {
+          console.log(chalk.red('至少需要输入一个时间点'));
+          continue;
+        }
+
+        if (times.length > 12) {
+          console.log(chalk.red('最多支持 12 个时间点'));
+          continue;
+        }
+
+        const invalidTimes = times.filter(t => !timeRegex.test(t));
+        if (invalidTimes.length > 0) {
+          console.log(chalk.red(`无效的时间格式: ${invalidTimes.join(', ')} (请使用 HH:MM 格式，如 06:00)`));
+          continue;
+        }
+
+        scheduleTimes = times.sort();
+        valid = true;
+        console.log(chalk.green(`✓ 已设置 ${scheduleTimes.length} 个时间点: ${scheduleTimes.join(', ')}`));
+      }
+      break;
+    }
+    default:
+      interval = '24h';
+  }
 
   rl.close();
 
@@ -356,7 +409,8 @@ async function promptForConfig(apiConfig: { baseURL?: string }) {
     },
     scheduler: {
       ...DEFAULT_CONFIG.scheduler,
-      interval: interval as '6h' | '12h' | '24h' | 'custom',
+      interval,
+      ...(scheduleTimes && { scheduleTimes }),
     },
     llm: llmConfig,
   };
