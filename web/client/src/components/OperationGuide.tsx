@@ -189,14 +189,14 @@ export default function OperationGuide({ onClose }: OperationGuideProps) {
                   ⏱️ 时间衰退（Temporal Decay）
                 </h3>
                 <div className="space-y-2 text-slate-300 text-sm">
-                  <p><strong className="text-blue-400">影响范围：</strong>仅活跃池中的观察</p>
-                  <p><strong className="text-blue-400">衰退规则：</strong></p>
+                  <p><strong className="text-blue-400">衰退公式：</strong>衰减后置信度 = 原始置信度 × 0.5^(天数/半衰期)</p>
+                  <p><strong className="text-blue-400">各池衰退：</strong></p>
                   <ul className="list-disc list-inside space-y-1 ml-4 text-slate-400">
-                    <li>置信度随时间指数衰减（半衰期：默认 90 天）</li>
-                    <li>衰减后置信度 = 原始置信度 × 0.5^(天数/半衰期)</li>
-                    <li>低于阈值的观察可能被自动清理</li>
+                    <li><strong className="text-cyan-400">活跃池：</strong>半衰期约 30 天，衰退较快</li>
+                    <li><strong className="text-green-400">上下文池：</strong>半衰期约 90 天，衰退较慢（用于容量控制评分）</li>
+                    <li><strong className="text-purple-400">归档池：</strong>不受影响</li>
                   </ul>
-                  <p><strong className="text-blue-400">不受影响：</strong>上下文池、归档池中的观察</p>
+                  <p className="text-slate-400">低于阈值的观察可能被自动清理</p>
                 </div>
               </div>
 

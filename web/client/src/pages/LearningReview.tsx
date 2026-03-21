@@ -432,22 +432,8 @@ export default function LearningReview() {
   return (
     <>
       <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* 帮助按钮 */}
-        <div className="flex justify-end mb-4">
-          <button
-            onClick={() => setShowGuide(true)}
-            className="group relative border-2 border-cyan-500 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 font-mono font-bold p-3 transition-colors"
-            title="查看操作指南"
-          >
-            <span className="text-xl">?</span>
-            <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 border border-cyan-500 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-              操作指南
-            </span>
-          </button>
-        </div>
-
         {/* Tab Navigation */}
-        <div className="mb-6 border-b-2 border-slate-700">
+        <div className="mb-6 border-b-2 border-slate-700 flex justify-between items-end">
           <nav className="flex gap-2">
             <button
               onClick={() => setActiveTab('active')}
@@ -480,6 +466,16 @@ export default function LearningReview() {
               归档池 ({archivedObservations.length})
             </button>
           </nav>
+          <button
+            onClick={() => setShowGuide(true)}
+            className="group relative border-2 border-cyan-500 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 font-mono font-bold p-1.5 mb-1 transition-colors"
+            title="查看操作指南"
+          >
+            <span className="text-sm">?</span>
+            <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 border border-cyan-500 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              操作指南
+            </span>
+          </button>
         </div>
 
         {/* Pinned Observations Warning */}
