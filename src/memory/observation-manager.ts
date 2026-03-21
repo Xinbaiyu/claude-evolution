@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { getEvolutionDir } from '../config/loader.js';
 import { logger } from '../utils/index.js';
 import type { ObservationWithMetadata } from '../types/learning.js';
+import type { Preference } from '../types/index.js';
 
 /**
  * Observation file paths
@@ -206,4 +207,55 @@ export async function backupObservationFile(
     await fs.copy(filePath, backupPath, { overwrite: true });
     logger.debug(`Backed up ${filePath} to ${backupPath}`);
   }
+}
+
+/**
+ * Migrate legacy preference type 'workflow' → 'development-process'
+ *
+ * Scans active.json and context.json for observations where
+ * obs.type === 'preference' && item.type === 'workflow', then
+ * rewrites item.type to 'development-process'.
+ *
+ * Idempotent: records with item.type already set to
+ * 'development-process' are left unchanged.
+ */
+export async function migratePreferenceWorkflowType(): Promise<number> {
+  const paths = getObservationPaths();
+  const files = [paths.active, paths.context];
+  let totalMigrated = 0;
+
+  for (const filePath of files) {
+    if (!(await fs.pathExists(filePath))) {
+      continue;
+    }
+
+    const observations = await loadObservationsFromFile(filePath);
+    let migrated = 0;
+
+    const updated = observations.map(obs => {
+      if (obs.type !== 'preference') {
+        return obs;
+      }
+      const pref = obs.item as Preference;
+      if ((pref.type as string) !== 'workflow') {
+        return obs;
+      }
+      migrated++;
+      return {
+        ...obs,
+        item: { ...pref, type: 'development-process' as const },
+      };
+    });
+
+    if (migrated > 0) {
+      await saveObservationsToFile(filePath, updated);
+      logger.info(
+        `Migrated ${migrated} preference(s) from type 'workflow' to 'development-process' in ${path.basename(filePath)}`
+      );
+    }
+
+    totalMigrated += migrated;
+  }
+
+  return totalMigrated;
 }

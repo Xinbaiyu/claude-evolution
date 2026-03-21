@@ -12,6 +12,7 @@ import { loadConfig, Config } from '../config/index.js';
 import { CronScheduler } from '../scheduler/cron-scheduler.js';
 import { watchSourceFiles, stopWatching } from '../generators/file-watcher.js';
 import { regenerateClaudeMdFromDisk } from '../memory/claudemd-generator.js';
+import { migratePreferenceWorkflowType } from '../memory/observation-manager.js';
 import { notifySuccess, notifyError } from '../utils/notifier.js';
 import type { FSWatcher } from 'chokidar';
 
@@ -165,7 +166,17 @@ export async function startComponents(
       log.info('调度器已启动');
     }
 
-    // 2. File watcher (CLAUDE.md auto-regeneration)
+    // 2. Data migration (idempotent, runs before file watcher)
+    try {
+      const migrated = await migratePreferenceWorkflowType();
+      if (migrated > 0) {
+        log.info(`数据迁移完成: ${migrated} 条偏好类型已从 'workflow' 更新为 'development-process'`);
+      }
+    } catch (error) {
+      log.error('数据迁移失败', error as Error);
+    }
+
+    // 3. File watcher (CLAUDE.md auto-regeneration)
     log.info('启动文件监听器...');
     components.fileWatcher = watchSourceFiles();
     try {

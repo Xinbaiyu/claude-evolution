@@ -22,7 +22,7 @@
  * @deprecated Use ObservationWithMetadata instead
  */
 export interface Preference {
-  type: 'style' | 'tool' | 'workflow' | 'communication';
+  type: 'style' | 'tool' | 'development-process' | 'communication';
   description: string;
   confidence: number;
   frequency: number;

@@ -25,7 +25,7 @@ export const EXTRACTION_PROMPT = `
 {
   "preferences": [
     {
-      "type": "style" | "tool" | "workflow" | "communication",
+      "type": "style" | "tool" | "development-process" | "communication",
       "description": "简明描述用户偏好",
       "confidence": 0.0-1.0,
       "frequency": <出现次数>,

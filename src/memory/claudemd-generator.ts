@@ -50,12 +50,23 @@ export function generatePreferencesSection(observations: ObservationWithMetadata
     '',
   ];
 
+  // Display name mapping for preference sub-categories
+  const categoryLabels: Record<string, string> = {
+    communication: '沟通方式',
+    style: '代码风格',
+    tool: '工具偏好',
+    'development-process': '开发流程',
+    workflow: '开发流程', // legacy compatibility
+  };
+
   // Group preferences by category (if available in item.type)
+  // Normalize legacy 'workflow' to 'development-process' for grouping
   const byCategory = new Map<string, ObservationWithMetadata[]>();
 
   observations.forEach(obs => {
     const pref = obs.item as Preference;
-    const category = pref.type || '其他';
+    const rawCategory = pref.type || '其他';
+    const category = (rawCategory as string) === 'workflow' ? 'development-process' : rawCategory;
 
     if (!byCategory.has(category)) {
       byCategory.set(category, []);
@@ -67,7 +78,8 @@ export function generatePreferencesSection(observations: ObservationWithMetadata
   Array.from(byCategory.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .forEach(([category, prefs]) => {
-      lines.push(`### ${category}`);
+      const label = categoryLabels[category] || category;
+      lines.push(`### ${label}`);
       lines.push('');
 
       prefs

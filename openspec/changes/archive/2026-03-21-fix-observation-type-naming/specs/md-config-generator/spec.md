@@ -1,8 +1,5 @@
-# md-config-generator Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change claude-code-evolution-system. Update Purpose after archive.
-## Requirements
 ### Requirement: Assemble CLAUDE.md from multiple sources
 
 The system SHALL combine source files (`source/*.md`) and promoted observations (`context.json`) into a single CLAUDE.md output. The `learned/` directory SHALL NOT be used as an input source.
@@ -11,8 +8,8 @@ Preference sub-categories SHALL be displayed with human-readable Chinese labels 
 - `communication` → "沟通方式"
 - `style` → "代码风格"
 - `tool` → "工具偏好"
-- `development-process` → "开发流程"
-- `workflow` (legacy) → "开发流程" (same as `development-process`)
+- `process` → "开发流程"
+- `workflow` (legacy) → "开发流程" (same as `process`)
 
 #### Scenario: Standard assembly
 - **WHEN** generating CLAUDE.md
@@ -31,40 +28,27 @@ Preference sub-categories SHALL be displayed with human-readable Chinese labels 
 - **THEN** the system truncates learned observation sections first, preserving source files, then logs warning
 
 #### Scenario: Preference sub-group uses Chinese labels
-- **WHEN** generating the "用户偏好" section with preferences of type `development-process`
-- **THEN** the h3 heading SHALL display "开发流程" instead of "development-process"
+- **WHEN** generating the "用户偏好" section with preferences of type `process`
+- **THEN** the h3 heading SHALL display "开发流程" instead of "process"
 
 #### Scenario: Legacy workflow type renders correctly
 - **WHEN** a preference observation has `item.type === "workflow"` (legacy data not yet migrated)
-- **THEN** the system SHALL render it under the "开发流程" heading (same as `development-process`)
+- **THEN** the system SHALL render it under the "开发流程" heading (same as `process`)
+
+## ADDED Requirements
 
 ### Requirement: Migrate legacy preference type values on load
 
-The system SHALL normalize legacy `Preference.type` values when loading observations from disk. Specifically, `item.type === "workflow"` SHALL be rewritten to `development-process` and the updated data SHALL be persisted back to disk.
+The system SHALL normalize legacy `Preference.type` values when loading observations from disk. Specifically, `item.type === "workflow"` SHALL be rewritten to `process` and the updated data SHALL be persisted back to disk.
 
 #### Scenario: context.json contains legacy workflow type
 - **WHEN** `regenerateClaudeMdFromDisk()` loads context.json and finds observations with `item.type === "workflow"`
-- **THEN** the system SHALL update those values to `development-process` and write the corrected data back to context.json
+- **THEN** the system SHALL update those values to `process` and write the corrected data back to context.json
 
 #### Scenario: active.json contains legacy workflow type
 - **WHEN** the migration logic loads active.json and finds observations with `item.type === "workflow"`
-- **THEN** the system SHALL update those values to `development-process` and write the corrected data back to active.json
+- **THEN** the system SHALL update those values to `process` and write the corrected data back to active.json
 
 #### Scenario: No legacy data present
 - **WHEN** no observations have `item.type === "workflow"`
 - **THEN** the system SHALL skip migration and not modify any files
-
-### Requirement: Provide disk-based generation entry point
-The system SHALL provide a `regenerateClaudeMdFromDisk()` function that loads `context.json` from disk, loads `source/*.md`, and generates CLAUDE.md without requiring observations to be passed as arguments.
-
-#### Scenario: Watcher-triggered regeneration
-- **WHEN** the file watcher detects a change and calls `regenerateClaudeMdFromDisk()`
-- **THEN** the system reads current `context.json` from `~/.claude-evolution/memory/observations/context.json`, reads all `source/*.md` files, and writes `~/.claude-evolution/output/CLAUDE.md`
-
-#### Scenario: Context pool is empty
-- **WHEN** `context.json` does not exist or contains no observations
-- **THEN** the system generates CLAUDE.md with only source file content (no learned sections)
-
-#### Scenario: Fallback for CLI analyze command
-- **WHEN** the `analyze` CLI command runs without daemon (no watcher active)
-- **THEN** the pipeline calls `regenerateClaudeMdFromDisk()` directly as fallback
