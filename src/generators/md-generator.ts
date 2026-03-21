@@ -253,9 +253,7 @@ function formatPreferences(preferences: any[]): string {
   for (const [type, prefs] of byType) {
     md += `## ${capitalizeFirst(type)}\n\n`;
     for (const pref of prefs) {
-      md += `- **${pref.description}**\n`;
-      md += `  - 置信度: ${(pref.confidence * 100).toFixed(0)}%\n`;
-      md += `  - 出现频率: ${pref.frequency} 次\n\n`;
+      md += `- **${pref.description}**\n\n`;
     }
   }
 
@@ -273,8 +271,6 @@ function formatPatterns(patterns: any[]): string {
     const pattern = patterns[i];
     md += `## ${i + 1}. ${pattern.problem}\n\n`;
     md += `**解决方案**: ${pattern.solution}\n\n`;
-    md += `- 置信度: ${(pattern.confidence * 100).toFixed(0)}%\n`;
-    md += `- 出现次数: ${pattern.occurrences} 次\n\n`;
     md += '---\n\n';
   }
 
@@ -295,8 +291,6 @@ function formatWorkflows(workflows: any[]): string {
       md += `${i + 1}. ${workflow.steps[i]}\n`;
     }
     md += '\n';
-    md += `- 置信度: ${(workflow.confidence * 100).toFixed(0)}%\n`;
-    md += `- 使用频率: ${workflow.frequency} 次\n\n`;
     md += '---\n\n';
   }
 
