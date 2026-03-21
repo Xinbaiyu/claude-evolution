@@ -145,6 +145,10 @@ export class WebSocketManager {
     this.broadcast('observation_restored', observation);
   }
 
+  public emitConfigChanged(data: { changedKeys: string[]; schedulerChanged: boolean }) {
+    this.broadcast('config_changed', data);
+  }
+
   // 清理资源
   public close() {
     if (this.heartbeatInterval) {

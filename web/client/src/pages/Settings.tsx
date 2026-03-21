@@ -3,6 +3,7 @@ import { apiClient } from '../api/client';
 import { toast } from '../components/Toast';
 import Navigation from '../components/Navigation';
 import LearningTab from './Settings/LearningTab';
+import { TimePicker, Tag, ConfigProvider, theme } from 'antd';
 
 type TabType = 'scheduler' | 'llm' | 'learning';
 
@@ -36,7 +37,11 @@ export default function Settings() {
       } else {
         await apiClient.updateConfig(config);
       }
-      toast.success('配置已保存');
+      if (activeTab === 'scheduler') {
+        toast.success('配置已保存，调度器已自动重载');
+      } else {
+        toast.success('配置已保存');
+      }
     } catch (error: any) {
       toast.error(error.message || '保存失败');
     } finally {
@@ -140,25 +145,113 @@ export default function Settings() {
 
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-bold text-slate-300">分析间隔</div>
-                  <div className="text-xs text-slate-500">定时分析的时间间隔</div>
+                  <div className="text-sm font-bold text-slate-300">调度模式</div>
+                  <div className="text-xs text-slate-500">选择间隔模式或定时模式</div>
                 </div>
                 <select
                   value={config.scheduler.interval}
-                  onChange={(e) =>
-                    setConfig({
+                  onChange={(e) => {
+                    const newInterval = e.target.value;
+                    const updated = {
                       ...config,
-                      scheduler: { ...config.scheduler, interval: e.target.value },
-                    })
-                  }
+                      scheduler: { ...config.scheduler, interval: newInterval },
+                    };
+                    if (newInterval === 'timepoints' && !config.scheduler.scheduleTimes) {
+                      updated.scheduler.scheduleTimes = [];
+                    }
+                    setConfig(updated);
+                  }}
                   disabled={!config.scheduler.enabled}
                   className="border-2 border-slate-600 bg-slate-800 text-slate-100 font-mono font-bold py-2 px-4 disabled:opacity-50"
                 >
                   <option value="6h">每 6 小时</option>
                   <option value="12h">每 12 小时</option>
                   <option value="24h">每 24 小时</option>
+                  <option value="timepoints">定时模式</option>
                 </select>
               </div>
+
+              {/* 定时模式：时间点编辑器 */}
+              {config.scheduler.interval === 'timepoints' && config.scheduler.enabled && (
+                <ConfigProvider
+                  theme={{
+                    algorithm: theme.darkAlgorithm,
+                    token: {
+                      colorPrimary: '#06b6d4',
+                      colorBgContainer: '#1e293b',
+                      colorBorder: '#475569',
+                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                    },
+                  }}
+                >
+                <div className="border-2 border-cyan-500/30 bg-cyan-500/5 p-4">
+                  <div className="text-sm font-bold text-cyan-400 mb-3">时间点配置</div>
+                  <div className="text-xs text-slate-400 mb-3">指定每天执行分析的具体时间（最多 12 个）</div>
+
+                  {/* 已添加的时间点标签 */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {(config.scheduler.scheduleTimes || []).map((time: string) => (
+                      <Tag
+                        key={time}
+                        closable
+                        onClose={() => {
+                          const newTimes = (config.scheduler.scheduleTimes || []).filter((t: string) => t !== time);
+                          setConfig({
+                            ...config,
+                            scheduler: { ...config.scheduler, scheduleTimes: newTimes },
+                          });
+                        }}
+                        style={{
+                          fontSize: 14,
+                          padding: '4px 12px',
+                          borderColor: '#06b6d4',
+                          backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                          color: '#22d3ee',
+                        }}
+                      >
+                        {time}
+                      </Tag>
+                    ))}
+                  </div>
+
+                  {/* 添加新时间点 */}
+                  {(config.scheduler.scheduleTimes || []).length < 12 && (
+                    <div className="flex items-center gap-3">
+                      <TimePicker
+                        format="HH:mm"
+                        placeholder="选择时间"
+                        size="middle"
+                        minuteStep={5}
+                        needConfirm={false}
+                        onChange={(time) => {
+                          if (!time) return;
+                          const value = time.format('HH:mm');
+                          const existing = config.scheduler.scheduleTimes || [];
+                          if (existing.includes(value)) {
+                            toast.error('该时间点已存在');
+                            return;
+                          }
+                          const newTimes = [...existing, value].sort();
+                          setConfig({
+                            ...config,
+                            scheduler: { ...config.scheduler, scheduleTimes: newTimes },
+                          });
+                        }}
+                        value={null}
+                        style={{ width: 140 }}
+                      />
+                      <span className="text-xs text-slate-500">
+                        已添加 {(config.scheduler.scheduleTimes || []).length}/12 个
+                      </span>
+                    </div>
+                  )}
+
+                  {(config.scheduler.scheduleTimes || []).length === 0 && (
+                    <div className="text-xs text-amber-400 mt-2">请至少添加一个时间点</div>
+                  )}
+                </div>
+                </ConfigProvider>
+              )}
             </div>
           </div>
           )}

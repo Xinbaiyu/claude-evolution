@@ -5,8 +5,11 @@ import os from 'os';
 import type { WebSocketManager } from '../websocket.js';
 import type { NotificationManager } from '../notifications.js';
 import { ProcessManager } from '../../../src/daemon/process-manager.js';
-import { analyzeCommand } from '../../../src/cli/commands/analyze.js';
 import { getEvolutionDir } from '../../../src/config/loader.js';
+import { AnalysisLogger } from '../../../src/analyzers/analysis-logger.js';
+import { runAnalysisPipeline } from '../../../src/analyzers/pipeline.js';
+import { CronScheduler } from '../../../src/scheduler/cron-scheduler.js';
+import { triggerSchedulerConfigChanged } from '../index.js';
 
 interface RequestWithManagers extends Request {
   wsManager?: WebSocketManager;
@@ -70,15 +73,24 @@ router.get('/daemon/status', async (req, res) => {
         if (status.lastAnalysis) {
           lastAnalysis = status.lastAnalysis;
 
-          // 简单估算下次执行时间
-          const intervalHours = parseInt(config.scheduler?.interval || '6') || 6;
-          const lastTime = new Date(lastAnalysis).getTime();
-          nextAnalysis = new Date(lastTime + intervalHours * 60 * 60 * 1000).toISOString();
+          const schedulerInterval = config.scheduler?.interval || '6h';
+
+          if (schedulerInterval === 'timepoints' && config.scheduler?.scheduleTimes?.length > 0) {
+            // 定时模式：找下一个最近的时间点
+            nextAnalysis = CronScheduler.getNextTimepointExecution(config.scheduler.scheduleTimes);
+          } else {
+            // 间隔模式：简单估算下次执行时间
+            const intervalHours = parseInt(schedulerInterval) || 6;
+            const lastTime = new Date(lastAnalysis).getTime();
+            nextAnalysis = new Date(lastTime + intervalHours * 60 * 60 * 1000).toISOString();
+          }
         }
       } catch (error) {
         // 忽略错误
       }
     }
+
+    const schedulerMode = config.scheduler?.interval === 'timepoints' ? 'timepoints' : 'interval';
 
     res.json({
       success: true,
@@ -98,6 +110,8 @@ router.get('/daemon/status', async (req, res) => {
         scheduler: {
           enabled: config.scheduler?.enabled !== false,
           interval: config.scheduler?.interval || '6h',
+          mode: schedulerMode,
+          scheduleTimes: config.scheduler?.scheduleTimes || [],
           lastAnalysis,
           nextAnalysis,
         },
@@ -153,7 +167,8 @@ router.get('/status', async (req: RequestWithManagers, res) => {
       data: {
         scheduler: {
           enabled: config.scheduler?.enabled || false,
-          interval: config.scheduler?.interval || '1h',
+          interval: config.scheduler?.interval || '6h',
+          scheduleTimes: config.scheduler?.scheduleTimes || [],
           lastRun: lastAnalysis ? new Date(lastAnalysis).toISOString() : null,
         },
         observations: {
@@ -237,9 +252,23 @@ router.patch('/config', async (req, res) => {
     await fs.ensureDir(CONFIG_DIR);
     await fs.writeJson(CONFIG_FILE, newConfig, { spaces: 2 });
 
+    // 检测调度器配置变更并触发热重载
+    const schedulerChanged = updates.scheduler !== undefined;
+    if (schedulerChanged) {
+      triggerSchedulerConfigChanged();
+    }
+
+    // 广播配置变更事件
+    const typedReq = req as RequestWithManagers;
+    const changedKeys = Object.keys(updates);
+    if (typedReq.wsManager) {
+      typedReq.wsManager.emitConfigChanged({ changedKeys, schedulerChanged });
+    }
+
     res.json({
       success: true,
       data: newConfig,
+      schedulerReloaded: schedulerChanged,
     });
   } catch (error) {
     res.status(500).json({
@@ -269,12 +298,17 @@ router.post('/analyze', async (req: RequestWithManagers, res) => {
     // 异步执行真正的分析
     isAnalyzing = true;
     const startTime = Date.now();
+    const runId = `run_${Date.now()}`;
+    const analysisLogger = new AnalysisLogger();
 
     try {
       console.log('[API] 开始执行分析...');
 
-      // 调用真正的分析命令
-      await analyzeCommand({ now: true });
+      // 记录分析开始
+      await analysisLogger.logAnalysisStart(runId);
+
+      // 调用分析 pipeline（传入 logger 以记录每个步骤）
+      await runAnalysisPipeline({ runId, analysisLogger });
 
       const duration = Math.round((Date.now() - startTime) / 1000);
       console.log(`[API] 分析完成，用时 ${duration}s`);
@@ -308,6 +342,19 @@ router.post('/analyze', async (req: RequestWithManagers, res) => {
     } catch (error) {
       console.error('[API] 分析失败:', error);
 
+      // 记录分析失败
+      try {
+        await analysisLogger.logAnalysisEnd(runId, {
+          status: 'failed',
+          error: {
+            message: error instanceof Error ? error.message : '分析失败',
+            stack: error instanceof Error ? error.stack : undefined,
+          },
+        });
+      } catch (logError) {
+        console.error('[API] 记录分析失败日志出错:', logError);
+      }
+
       // 分析失败也要通知前端
       if (req.wsManager) {
         req.wsManager.broadcast('analysis_failed', {
@@ -324,6 +371,7 @@ router.post('/analyze', async (req: RequestWithManagers, res) => {
       }
     } finally {
       isAnalyzing = false;
+      analysisLogger.close();
     }
   } catch (error) {
     res.status(500).json({

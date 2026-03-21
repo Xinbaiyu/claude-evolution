@@ -111,4 +111,20 @@ export function closeServer(): Promise<void> {
   });
 }
 
+// 调度器配置变更回调注册
+type SchedulerConfigChangedCallback = () => Promise<void>;
+let schedulerConfigChangedCallback: SchedulerConfigChangedCallback | null = null;
+
+export function onSchedulerConfigChanged(callback: SchedulerConfigChangedCallback): void {
+  schedulerConfigChangedCallback = callback;
+}
+
+export function triggerSchedulerConfigChanged(): void {
+  if (schedulerConfigChangedCallback) {
+    schedulerConfigChangedCallback().catch((error) => {
+      console.error('[Config] Scheduler reload failed:', error);
+    });
+  }
+}
+
 export { app, server, wsManager, notificationManager };

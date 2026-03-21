@@ -58,51 +58,73 @@ async function main() {
   let scheduler: CronScheduler | null = null;
   let webServer: any = null;
 
+  // 提取分析回调为命名函数，供初始启动和热重载复用
+  const createAnalysisCallback = () => async () => {
+    const startTime = new Date();
+    const runId = `run_${Date.now()}`;
+    logger.info('定时分析任务开始');
+
+    await analysisLogger.logAnalysisStart(runId);
+
+    try {
+      const { runAnalysisPipeline } = await import('../analyzers/pipeline.js');
+      await runAnalysisPipeline({ runId, analysisLogger });
+
+      const duration = Math.round((Date.now() - startTime.getTime()) / 1000);
+      logger.info('定时分析任务完成');
+
+      const currentConfig = await loadConfig();
+      if (currentConfig.scheduler?.notifications?.enabled && currentConfig.scheduler?.notifications?.onSuccess) {
+        await notifySuccess(
+          '定时分析完成',
+          `分析任务已成功完成\n耗时: ${duration}秒\n时间: ${startTime.toLocaleTimeString('zh-CN')}`
+        );
+      }
+    } catch (error) {
+      logger.error('定时分析任务失败', error as Error);
+
+      const currentConfig = await loadConfig();
+      if (currentConfig.scheduler?.notifications?.enabled && currentConfig.scheduler?.notifications?.onFailure) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        await notifyError(
+          '定时分析失败',
+          `任务执行失败\n错误: ${errorMessage.slice(0, 100)}\n时间: ${startTime.toLocaleTimeString('zh-CN')}`
+        );
+      }
+    }
+  };
+
+  // 调度器热重载函数
+  const reloadScheduler = async () => {
+    logger.info('[热重载] 检测到调度器配置变更，开始重载...');
+
+    // 停止现有调度器
+    if (scheduler) {
+      scheduler.stop();
+      logger.info('[热重载] 调度器已停止');
+    }
+
+    // 从磁盘重新加载配置
+    const newConfig = await loadConfig();
+    logger.info('[热重载] 配置已重新加载');
+
+    // 根据新配置决定是否启动调度器
+    if (newConfig.scheduler?.enabled) {
+      scheduler = new CronScheduler();
+      scheduler.start(newConfig, createAnalysisCallback());
+      logger.info('[热重载] 调度器已使用新配置重新启动');
+    } else {
+      scheduler = null;
+      logger.info('[热重载] 调度器已禁用，不再启动');
+    }
+  };
+
   try {
     // 启动调度器
     if (!noScheduler && config.scheduler?.enabled) {
       logger.info('启动调度器...');
       scheduler = new CronScheduler();
-      scheduler.start(config, async () => {
-        const startTime = new Date();
-        const runId = `run_${Date.now()}`;
-        logger.info('定时分析任务开始');
-
-        // 记录分析开始
-        await analysisLogger.logAnalysisStart(runId);
-
-        try {
-          // 导入 runAnalysisPipeline
-          const { runAnalysisPipeline } = await import('../analyzers/pipeline.js');
-
-          // 运行分析并传递 logger 参数
-          await runAnalysisPipeline({ runId, analysisLogger });
-
-          const duration = Math.round((Date.now() - startTime.getTime()) / 1000);
-          logger.info('定时分析任务完成');
-
-          // 发送成功通知（如果启用）
-          if (config.scheduler?.notifications?.enabled && config.scheduler?.notifications?.onSuccess) {
-            await notifySuccess(
-              '定时分析完成',
-              `分析任务已成功完成\n耗时: ${duration}秒\n时间: ${startTime.toLocaleTimeString('zh-CN')}`
-            );
-          }
-        } catch (error) {
-          logger.error('定时分析任务失败', error as Error);
-
-          // 记录分析失败已在 pipeline 中处理,这里不需要重复记录
-
-          // 发送失败通知（如果启用）
-          if (config.scheduler?.notifications?.enabled && config.scheduler?.notifications?.onFailure) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            await notifyError(
-              '定时分析失败',
-              `任务执行失败\n错误: ${errorMessage.slice(0, 100)}\n时间: ${startTime.toLocaleTimeString('zh-CN')}`
-            );
-          }
-        }
-      });
+      scheduler.start(config, createAnalysisCallback());
       logger.info('调度器已启动');
     }
 
@@ -113,6 +135,12 @@ async function main() {
       // 动态导入 web server
       const webModule = await import('../../web/server/index.js');
       webServer = webModule.server;
+
+      // 注册调度器配置变更回调（热重载）
+      if (!noScheduler) {
+        webModule.onSchedulerConfigChanged(reloadScheduler);
+        logger.info('调度器热重载回调已注册');
+      }
 
       await new Promise<void>((resolve, reject) => {
         webServer.listen(port, () => {
@@ -151,6 +179,10 @@ async function main() {
           });
         });
       }
+
+      // 关闭分析日志数据库连接
+      analysisLogger.close();
+      logger.info('分析日志数据库已关闭');
 
       logger.info('PID 文件将被删除');
       await logger.close();
