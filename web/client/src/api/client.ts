@@ -190,6 +190,12 @@ export interface Config {
   };
 }
 
+export interface AnalysisStatus {
+  isRunning: boolean;
+  startTime: string | null;
+  runId: string | null;
+}
+
 export interface AnalysisStep {
   step: number;
   name: string;
@@ -603,6 +609,24 @@ export const apiClient = {
       throw new ApiError(response.error || 'Batch restore observations failed');
     }
     return response.data;
+  },
+
+  // ========== Analysis Status API ==========
+
+  /**
+   * 查询当前分析运行状态（用于页面刷新后恢复 loading 状态）
+   * 网络失败时静默降级，不抛出异常
+   */
+  async getAnalysisStatus(): Promise<AnalysisStatus> {
+    try {
+      const response = await request<AnalysisStatus>('/analyze/status');
+      if (!response.success || !response.data) {
+        return { isRunning: false, startTime: null, runId: null };
+      }
+      return response.data;
+    } catch {
+      return { isRunning: false, startTime: null, runId: null };
+    }
   },
 
   // ========== Analysis Logs API ==========

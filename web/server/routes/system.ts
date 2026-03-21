@@ -21,8 +21,10 @@ const router = Router();
 const CONFIG_DIR = path.join(os.homedir(), '.claude-evolution');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
-// 并发控制：防止多个分析同时运行
+// 并发控制：防止多个分析同时运行，同时追踪运行元数据
 let isAnalyzing = false;
+let analysisStartTime: string | null = null;
+let analysisRunId: string | null = null;
 
 // GET /api/daemon/status - 获取守护进程状态 (新增)
 router.get('/daemon/status', async (req, res) => {
@@ -278,6 +280,18 @@ router.patch('/config', async (req, res) => {
   }
 });
 
+// GET /api/analyze/status - 查询当前分析运行状态
+router.get('/analyze/status', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      isRunning: isAnalyzing,
+      startTime: analysisStartTime,
+      runId: analysisRunId,
+    },
+  });
+});
+
 // POST /api/analyze - 手动触发分析
 router.post('/analyze', async (req: RequestWithManagers, res) => {
   try {
@@ -299,6 +313,8 @@ router.post('/analyze', async (req: RequestWithManagers, res) => {
     isAnalyzing = true;
     const startTime = Date.now();
     const runId = `run_${Date.now()}`;
+    analysisStartTime = new Date(startTime).toISOString();
+    analysisRunId = runId;
     const analysisLogger = new AnalysisLogger();
 
     try {
@@ -371,6 +387,8 @@ router.post('/analyze', async (req: RequestWithManagers, res) => {
       }
     } finally {
       isAnalyzing = false;
+      analysisStartTime = null;
+      analysisRunId = null;
       analysisLogger.close();
     }
   } catch (error) {

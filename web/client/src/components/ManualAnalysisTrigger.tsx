@@ -8,6 +8,20 @@ export function ManualAnalysisTrigger() {
   const [startTime, setStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
 
+  // 页面加载时查询后端分析状态，恢复 loading
+  useEffect(() => {
+    const restoreAnalysisState = async () => {
+      const status = await apiClient.getAnalysisStatus();
+      if (status.isRunning && status.startTime) {
+        const backendStartTime = new Date(status.startTime).getTime();
+        setIsRunning(true);
+        setStartTime(backendStartTime);
+        setElapsedTime(Date.now() - backendStartTime);
+      }
+    };
+    restoreAnalysisState();
+  }, []);
+
   // 计时器
   useEffect(() => {
     if (!isRunning || !startTime) return;
@@ -62,6 +76,14 @@ export function ManualAnalysisTrigger() {
       setElapsedTime(0);
 
       if (error?.statusCode === 409) {
+        // 409 表示后台已在分析，恢复 loading 状态
+        const status = await apiClient.getAnalysisStatus();
+        if (status.isRunning && status.startTime) {
+          const backendStartTime = new Date(status.startTime).getTime();
+          setIsRunning(true);
+          setStartTime(backendStartTime);
+          setElapsedTime(Date.now() - backendStartTime);
+        }
         toast.warning('分析正在进行中，请稍候');
       } else {
         toast.error(error?.message || '分析启动失败');
