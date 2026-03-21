@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiClient, ApiError, type ObservationWithMetadata, type Config } from '../api/client';
 import { toast } from '../components/Toast';
-import Navigation from '../components/Navigation';
 import ArchivedTab from './Review/ArchivedTab';
 import BatchOperationBar from '../components/BatchOperationBar';
 import OperationGuide from '../components/OperationGuide';
@@ -431,44 +430,22 @@ export default function LearningReview() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      {/* Header */}
-      <header className="border-b-4 border-amber-500 bg-slate-900 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div>
-                <h1
-                  className="text-3xl font-black text-amber-500 tracking-tight"
-                  style={{ fontFamily: '"Noto Sans SC", "Archivo Black", sans-serif' }}
-                >
-                  学习观察管理
-                </h1>
-                <p className="text-sm text-slate-400 font-mono mt-1">
-                  审核和管理增量学习系统的观察
-                </p>
-              </div>
-
-              {/* 帮助按钮 */}
-              <button
-                onClick={() => setShowGuide(true)}
-                className="group relative border-2 border-cyan-500 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 font-mono font-bold p-3 transition-colors"
-                title="查看操作指南"
-              >
-                <span className="text-xl">?</span>
-                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 border border-cyan-500 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                  操作指南
-                </span>
-              </button>
-            </div>
-
-            {/* Navigation */}
-            <Navigation currentPage="learning-review" />
-          </div>
-        </div>
-      </header>
-
+    <>
       <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* 帮助按钮 */}
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={() => setShowGuide(true)}
+            className="group relative border-2 border-cyan-500 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 font-mono font-bold p-3 transition-colors"
+            title="查看操作指南"
+          >
+            <span className="text-xl">?</span>
+            <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 border border-cyan-500 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              操作指南
+            </span>
+          </button>
+        </div>
+
         {/* Tab Navigation */}
         <div className="mb-6 border-b-2 border-slate-700">
           <nav className="flex gap-2">
@@ -748,7 +725,7 @@ export default function LearningReview() {
 
       {/* 操作指南对话框 */}
       {showGuide && <OperationGuide onClose={() => setShowGuide(false)} />}
-    </div>
+    </>
   );
 }
 

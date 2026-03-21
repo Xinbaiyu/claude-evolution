@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import Navigation from '../components/Navigation';
 import FileList from '../components/FileList';
 import MarkdownEditor from '../components/MarkdownEditor';
 import ClaudeMdPreview from '../components/ClaudeMdPreview';
@@ -109,26 +108,7 @@ export default function SourceManager() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      {/* Navigation Header */}
-      <header className="border-b-4 border-amber-500 bg-slate-900 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1
-                className="text-3xl font-black text-amber-500 tracking-tight"
-                style={{ fontFamily: '"Noto Sans SC", "Archivo Black", sans-serif' }}
-              >
-                配置文件管理
-              </h1>
-              <p className="text-sm text-slate-400 font-mono mt-1">编辑 CLAUDE.md 源文件</p>
-            </div>
-
-            <Navigation currentPage="source-manager" />
-          </div>
-        </div>
-      </header>
-
+    <>
       {/* Main Content */}
       <main className="px-6 py-8 h-[calc(100vh-5rem)]">
         <div className="flex gap-6 h-full">
@@ -200,6 +180,6 @@ export default function SourceManager() {
           </div>
         </div>
       </main>
-    </div>
+    </>
   );
 }

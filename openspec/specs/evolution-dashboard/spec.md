@@ -143,3 +143,15 @@ The system SHALL provide commands for users to review and approve pending sugges
 - **WHEN** user runs `claude-evolution reject <id>`
 - **THEN** the system marks suggestion as rejected and excludes from future consideration
 
+### Requirement: Page components receive navigation context from router
+
+Each page component SHALL access route information (current path, params, navigation functions) through React Router hooks instead of receiving props from a parent switch statement.
+
+#### Scenario: Page component uses route hooks
+- **WHEN** a page component (e.g., Dashboard) needs to know the current route
+- **THEN** it SHALL use `useLocation()` or `useParams()` from `react-router` instead of relying on `window.location`
+
+#### Scenario: Navigation component uses route context
+- **WHEN** the Navigation component determines the active page
+- **THEN** it SHALL derive the active state from React Router's `<NavLink>` `isActive` callback instead of receiving a `currentPage` prop
+

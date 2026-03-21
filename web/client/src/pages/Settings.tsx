@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { toast } from '../components/Toast';
-import Navigation from '../components/Navigation';
 import LearningTab from './Settings/LearningTab';
 import { TimePicker, Tag, ConfigProvider, theme } from 'antd';
 
 type TabType = 'scheduler' | 'llm' | 'learning';
 
 export default function Settings() {
+  const navigate = useNavigate();
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -51,34 +52,14 @@ export default function Settings() {
 
   if (loading || !config) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center">
         <div className="text-amber-500 text-xl font-mono">加载配置中...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      {/* Header */}
-      <header className="border-b-4 border-amber-500 bg-slate-900 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1
-                className="text-3xl font-black text-amber-500 tracking-tight"
-                style={{ fontFamily: '"Noto Sans SC", "Archivo Black", sans-serif' }}
-              >
-                系统设置
-              </h1>
-              <p className="text-sm text-slate-400 font-mono mt-1">配置调度器、LLM 和通知</p>
-            </div>
-
-            {/* Navigation */}
-            <Navigation currentPage="settings" />
-          </div>
-        </div>
-      </header>
-
+    <>
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Tab Navigation */}
         <div className="mb-6 border-b-2 border-slate-700">
@@ -405,7 +386,7 @@ export default function Settings() {
           {/* 按钮 */}
           <div className="flex gap-4 justify-end">
             <button
-              onClick={() => window.location.href = '/'}
+              onClick={() => navigate('/')}
               className="border-2 border-slate-600 hover:border-slate-400 text-slate-300 hover:text-slate-100 font-mono font-bold py-3 px-6 transition-colors"
             >
               取消
@@ -420,6 +401,6 @@ export default function Settings() {
           </div>
         </div>
       </main>
-    </div>
+    </>
   );
 }
