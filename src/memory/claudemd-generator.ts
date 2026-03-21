@@ -8,6 +8,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import { getEvolutionDir } from '../config/loader.js';
 import { logger } from '../utils/index.js';
+import { loadContextObservations } from './observation-manager.js';
 import type { ObservationWithMetadata } from '../types/learning.js';
 import type { Preference, Pattern, Workflow } from '../types/index.js';
 
@@ -336,4 +337,90 @@ export async function regenerateClaudeMd(
     logger.error('Failed to regenerate CLAUDE.md', error);
     throw error;
   }
+}
+
+/**
+ * Regenerate CLAUDE.md from disk data (context.json + source files)
+ *
+ * This is the unified entry point for CLAUDE.md generation.
+ * Loads context observations from disk and source files, then generates output.
+ * Used by the file watcher and as a fallback when daemon is not running.
+ *
+ * @returns Path to generated CLAUDE.md
+ */
+export async function regenerateClaudeMdFromDisk(): Promise<string> {
+  logger.info('Regenerating CLAUDE.md from disk data');
+
+  try {
+    // Load context observations from disk
+    const observations = await loadContextObservations();
+
+    // Filter out ignored observations
+    const activeObservations = observations.filter(
+      obs => !obs.manualOverride || obs.manualOverride.action !== 'ignore'
+    );
+
+    // Load source files
+    const sourceContent = await loadSourceFiles();
+
+    logger.debug('Loaded data from disk', {
+      contextObservations: observations.length,
+      activeObservations: activeObservations.length,
+      hasSourceContent: !!sourceContent,
+    });
+
+    // Generate content
+    const content = activeObservations.length > 0
+      ? generateClaudeMdContent(activeObservations, sourceContent)
+      : generateSourceOnlyContent(sourceContent);
+
+    // Write output
+    const outputPath = getClaudeMdPath();
+    await fs.ensureDir(path.dirname(outputPath));
+
+    // Backup existing file
+    if (await fs.pathExists(outputPath)) {
+      const backupPath = `${outputPath}.backup`;
+      await fs.copy(outputPath, backupPath);
+    }
+
+    await fs.writeFile(outputPath, content, 'utf8');
+
+    logger.success(`Generated CLAUDE.md from disk (${activeObservations.length} observations)`, {
+      path: outputPath,
+    });
+
+    return outputPath;
+  } catch (error) {
+    logger.error('Failed to regenerate CLAUDE.md from disk', error);
+    throw error;
+  }
+}
+
+/**
+ * Generate CLAUDE.md content with only source files (no observations)
+ */
+function generateSourceOnlyContent(sourceContent: string): string {
+  const lines: string[] = [
+    '# Claude Code 配置',
+    '',
+    `> 自动生成于: ${new Date().toISOString()}`,
+    '> 版本: claude-evolution v0.1.0',
+    '> 此文件由系统自动生成,请勿手动编辑',
+    '',
+    '---',
+    '',
+  ];
+
+  if (sourceContent && sourceContent.trim()) {
+    lines.push(sourceContent.trim());
+    lines.push('');
+    lines.push('---');
+    lines.push('');
+  }
+
+  lines.push('*此文件由 Claude Evolution 增量学习系统自动生成*');
+  lines.push('');
+
+  return lines.join('\n');
 }

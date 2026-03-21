@@ -10,7 +10,6 @@
  * 6. Auto-Promotion → Promote gold-tier observations to context
  * 6.1. Context Pool LLM Merge → Merge similar & resolve conflicts in context
  * 7. Save State → Persist all changes
- * 8. Regenerate CLAUDE.md → Update configuration file
  */
 
 import { logger } from '../utils/index.js';
@@ -39,9 +38,6 @@ import {
   promoteToContext,
   logPromotions,
 } from './promotion.js';
-
-// CLAUDE.md Generation
-import { regenerateClaudeMd } from './claudemd-generator.js';
 
 // Deletion
 import {
@@ -241,14 +237,8 @@ export async function executeLearningCycle(
       saveArchivedObservations(cleanedArchived),
     ]);
 
-    // Step 8: Regenerate CLAUDE.md
-    logger.info('Step 8: Regenerating CLAUDE.md');
-    if (updatedContext.length > 0) {
-      await regenerateClaudeMd(updatedContext);
-      logger.success(`Generated CLAUDE.md with ${updatedContext.length} observations`);
-    } else {
-      logger.info('No observations in context, skipping CLAUDE.md generation');
-    }
+    // CLAUDE.md regeneration is now handled by the file watcher
+    // (triggered automatically when context.json is saved above)
 
     const stats = {
       merged: mergedObs.length,

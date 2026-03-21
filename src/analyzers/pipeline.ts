@@ -17,7 +17,7 @@ import {
   getObservationStats,
   formatPromptsAsText,
 } from '../analyzers/index.js';
-import { generateCLAUDEmd } from '../generators/index.js';
+import { regenerateClaudeMdFromDisk } from '../memory/claudemd-generator.js';
 import { executeLearningCycle } from '../memory/learning-orchestrator.js';
 import { logger } from '../utils/index.js';
 import type { ObservationWithMetadata } from '../types/learning.js';
@@ -232,9 +232,9 @@ export async function runAnalysisPipeline(options?: {
 
       // 旧的建议系统逻辑已移除，所有学习由executeLearningCycle处理
 
-      // 8. 生成配置文件
-      logger.info('\n[8/8] 生成 CLAUDE.md');
-      await generateCLAUDEmd(config);
+      // 8. 生成配置文件 (fallback: 如果 daemon 的 watcher 未运行则主动生成)
+      logger.info('\n[8/8] 更新 CLAUDE.md');
+      await regenerateClaudeMdFromDisk();
       await logStep(7, '生成 CLAUDE.md', 'success', 'CLAUDE.md 已更新');
 
       // 更新状态

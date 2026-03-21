@@ -1,28 +1,28 @@
 import chokidar, { FSWatcher } from 'chokidar';
 import path from 'path';
-import { Config } from '../config/index.js';
 import { getEvolutionDir } from '../config/loader.js';
-import { generateCLAUDEmd } from './md-generator.js';
+import { regenerateClaudeMdFromDisk } from '../memory/claudemd-generator.js';
+import { getObservationPaths } from '../memory/observation-manager.js';
 import { logger } from '../utils/index.js';
 
 /**
  * 文件监听器
- * 监听 source/ 和 learned/ 目录的变化,自动重新生成 CLAUDE.md
+ * 监听 source/ 目录和 context.json 的变化,自动重新生成 CLAUDE.md
  */
 
 /**
  * 启动文件监听
  */
-export function watchSourceFiles(config: Config): FSWatcher {
+export function watchSourceFiles(): FSWatcher {
   const evolutionDir = getEvolutionDir();
   const sourceDir = path.join(evolutionDir, 'source');
-  const learnedDir = path.join(evolutionDir, 'learned');
+  const { context: contextJsonPath } = getObservationPaths();
 
   logger.info('启动文件监听...');
 
-  const watcher = chokidar.watch([sourceDir, learnedDir], {
+  const watcher = chokidar.watch([sourceDir, contextJsonPath], {
     persistent: true,
-    ignoreInitial: true, // 不触发初始文件的事件
+    ignoreInitial: true,
     awaitWriteFinish: {
       stabilityThreshold: 500,
       pollInterval: 100,
@@ -32,7 +32,6 @@ export function watchSourceFiles(config: Config): FSWatcher {
   let regenerateTimer: NodeJS.Timeout | null = null;
 
   const scheduleRegenerate = (filePath: string) => {
-    // 防抖: 500ms 内的多次变更只触发一次
     if (regenerateTimer) {
       clearTimeout(regenerateTimer);
     }
@@ -42,7 +41,7 @@ export function watchSourceFiles(config: Config): FSWatcher {
       logger.info('重新生成 CLAUDE.md...');
 
       try {
-        await generateCLAUDEmd(config);
+        await regenerateClaudeMdFromDisk();
         logger.success('✓ CLAUDE.md 已更新');
       } catch (error) {
         logger.error('重新生成 CLAUDE.md 失败:', error);
@@ -52,19 +51,23 @@ export function watchSourceFiles(config: Config): FSWatcher {
     }, 500);
   };
 
+  const shouldWatch = (filePath: string): boolean => {
+    return filePath.endsWith('.md') || filePath.endsWith('context.json');
+  };
+
   watcher
     .on('add', (filePath) => {
-      if (filePath.endsWith('.md')) {
+      if (shouldWatch(filePath)) {
         scheduleRegenerate(filePath);
       }
     })
     .on('change', (filePath) => {
-      if (filePath.endsWith('.md')) {
+      if (shouldWatch(filePath)) {
         scheduleRegenerate(filePath);
       }
     })
     .on('unlink', (filePath) => {
-      if (filePath.endsWith('.md')) {
+      if (shouldWatch(filePath)) {
         scheduleRegenerate(filePath);
       }
     })
@@ -74,7 +77,7 @@ export function watchSourceFiles(config: Config): FSWatcher {
 
   logger.success('✓ 文件监听已启动');
   logger.debug(`  监听目录: ${sourceDir}`);
-  logger.debug(`  监听目录: ${learnedDir}`);
+  logger.debug(`  监听文件: ${contextJsonPath}`);
 
   return watcher;
 }

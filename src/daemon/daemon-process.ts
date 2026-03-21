@@ -16,6 +16,9 @@ import { CronScheduler } from '../scheduler/cron-scheduler.js';
 import { analyzeCommand } from '../cli/commands/analyze.js';
 import { notifySuccess, notifyError } from '../utils/notifier.js';
 import { AnalysisLogger } from '../analyzers/analysis-logger.js';
+import { watchSourceFiles, stopWatching } from '../generators/file-watcher.js';
+import { regenerateClaudeMdFromDisk } from '../memory/claudemd-generator.js';
+import type { FSWatcher } from 'chokidar';
 
 async function main() {
   const config = await loadConfig();
@@ -57,6 +60,7 @@ async function main() {
 
   let scheduler: CronScheduler | null = null;
   let webServer: any = null;
+  let fileWatcher: FSWatcher | null = null;
 
   // 提取分析回调为命名函数，供初始启动和热重载复用
   const createAnalysisCallback = () => async () => {
@@ -128,6 +132,18 @@ async function main() {
       logger.info('调度器已启动');
     }
 
+    // 启动文件监听器 (CLAUDE.md 自动更新)
+    logger.info('启动文件监听器...');
+    fileWatcher = watchSourceFiles();
+
+    // 启动时立即同步一次 CLAUDE.md
+    try {
+      await regenerateClaudeMdFromDisk();
+      logger.info('CLAUDE.md 已同步');
+    } catch (error) {
+      logger.error('CLAUDE.md 初始同步失败:', error as Error);
+    }
+
     // 启动 Web 服务器
     if (!noWeb) {
       logger.info(`启动 Web 服务器 (端口 ${port})...`);
@@ -165,6 +181,11 @@ async function main() {
     // 设置优雅关闭
     processManager.onShutdown(async () => {
       logger.info('收到关闭信号，开始优雅关闭...');
+
+      if (fileWatcher) {
+        await stopWatching(fileWatcher);
+        logger.info('文件监听器已停止');
+      }
 
       if (scheduler) {
         scheduler.stop();
@@ -205,6 +226,10 @@ async function main() {
     logger.error('守护进程启动失败', error as Error);
 
     // 清理
+    if (fileWatcher) {
+      await stopWatching(fileWatcher);
+    }
+
     if (scheduler) {
       scheduler.stop();
     }

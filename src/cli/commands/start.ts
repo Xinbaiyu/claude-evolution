@@ -8,7 +8,10 @@ import { DaemonLogger } from '../../daemon/logger.js';
 import { CronScheduler } from '../../scheduler/cron-scheduler.js';
 import { analyzeCommand } from './analyze.js';
 import { notifySuccess, notifyError } from '../../utils/notifier.js';
+import { watchSourceFiles, stopWatching } from '../../generators/file-watcher.js';
+import { regenerateClaudeMdFromDisk } from '../../memory/claudemd-generator.js';
 import chalk from 'chalk';
+import type { FSWatcher } from 'chokidar';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,6 +89,7 @@ async function startForegroundMode(
 
   let scheduler: CronScheduler | null = null;
   let webServer: any = null;
+  let fileWatcher: FSWatcher | null = null;
 
   // 提取分析回调为命名函数，供初始启动和热重载复用
   const createAnalysisCallback = () => async () => {
@@ -150,6 +154,16 @@ async function startForegroundMode(
       console.log(chalk.green('   ✓ 调度器已启动'));
     }
 
+    // 启动文件监听器 (CLAUDE.md 自动更新)
+    console.log(chalk.gray('👁 启动文件监听器...'));
+    fileWatcher = watchSourceFiles();
+    try {
+      await regenerateClaudeMdFromDisk();
+    } catch (error) {
+      logger.error('CLAUDE.md 初始同步失败', error as Error);
+    }
+    console.log(chalk.green('   ✓ 文件监听器已启动'));
+
     // 启动 Web 服务器
     if (enableWeb) {
       console.log(chalk.gray('🌐 启动 Web 服务器...'));
@@ -200,6 +214,10 @@ async function startForegroundMode(
       console.log('');
       console.log(chalk.yellow('正在关闭守护进程...'));
 
+      if (fileWatcher) {
+        await stopWatching(fileWatcher);
+      }
+
       if (scheduler) {
         scheduler.stop();
       }
@@ -223,6 +241,10 @@ async function startForegroundMode(
     logger.error('启动失败', error as Error);
 
     // 清理
+    if (fileWatcher) {
+      await stopWatching(fileWatcher);
+    }
+
     if (scheduler) {
       scheduler.stop();
     }
