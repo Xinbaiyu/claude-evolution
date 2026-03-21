@@ -87,12 +87,6 @@ export function generatePreferencesSection(observations: ObservationWithMetadata
         .forEach(obs => {
           const pref = obs.item as Preference;
           lines.push(`- **${pref.description}**`);
-
-          if (pref.evidence && pref.evidence.length > 0) {
-            const evidenceCount = pref.evidence.length;
-            lines.push(`  - 观察到 ${obs.mentions} 次，来自 ${evidenceCount} 个会话`);
-          }
-
           lines.push('');
         });
     });
@@ -125,11 +119,6 @@ export function generatePatternsSection(observations: ObservationWithMetadata[])
       lines.push(`**解决方案**: ${pattern.solution}`);
       lines.push('');
 
-      if (pattern.evidence && pattern.evidence.length > 0) {
-        const evidenceCount = pattern.evidence.length;
-        lines.push(`*出现 ${obs.mentions} 次，来自 ${evidenceCount} 个会话*`);
-        lines.push('');
-      }
     });
 
   return lines.join('\n');
@@ -165,11 +154,6 @@ export function generateWorkflowsSection(observations: ObservationWithMetadata[]
         lines.push('');
       }
 
-      if (workflow.evidence && workflow.evidence.length > 0) {
-        const evidenceCount = workflow.evidence.length;
-        lines.push(`*使用 ${obs.mentions} 次，来自 ${evidenceCount} 个会话*`);
-        lines.push('');
-      }
     });
 
   return lines.join('\n');

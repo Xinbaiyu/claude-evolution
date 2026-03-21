@@ -1,8 +1,5 @@
-# md-config-generator Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change claude-code-evolution-system. Update Purpose after archive.
-## Requirements
 ### Requirement: Assemble CLAUDE.md from multiple sources
 
 The system SHALL combine source files (`source/*.md`) and promoted observations (`context.json`) into a single CLAUDE.md output. The `learned/` directory SHALL NOT be used as an input source.
@@ -42,33 +39,18 @@ The sort order within each category SHALL use `mentions` descending to determine
 - **WHEN** a preference observation has `item.type === "workflow"` (legacy data not yet migrated)
 - **THEN** the system SHALL render it under the "开发流程" heading (same as `development-process`)
 
-### Requirement: Migrate legacy preference type values on load
+#### Scenario: Preference entry without statistics
+- **WHEN** generating a preference entry with description "优先使用中文进行沟通" and mentions=34 and evidence.length=15
+- **THEN** the output SHALL be `- **优先使用中文进行沟通**` only, with no sub-line containing "观察到" or session/mention counts
 
-The system SHALL normalize legacy `Preference.type` values when loading observations from disk. Specifically, `item.type === "workflow"` SHALL be rewritten to `development-process` and the updated data SHALL be persisted back to disk.
+#### Scenario: Pattern entry without statistics
+- **WHEN** generating a pattern entry with description "使用函数式编程模式" and mentions=12
+- **THEN** the output SHALL be `- **使用函数式编程模式**` only, with no sub-line containing "出现" or counts
 
-#### Scenario: context.json contains legacy workflow type
-- **WHEN** `regenerateClaudeMdFromDisk()` loads context.json and finds observations with `item.type === "workflow"`
-- **THEN** the system SHALL update those values to `development-process` and write the corrected data back to context.json
+#### Scenario: Workflow entry without statistics
+- **WHEN** generating a development-process entry with description "TDD开发流程"
+- **THEN** the output SHALL be `- **TDD开发流程**` only, with no sub-line containing "使用" or counts
 
-#### Scenario: active.json contains legacy workflow type
-- **WHEN** the migration logic loads active.json and finds observations with `item.type === "workflow"`
-- **THEN** the system SHALL update those values to `development-process` and write the corrected data back to active.json
-
-#### Scenario: No legacy data present
-- **WHEN** no observations have `item.type === "workflow"`
-- **THEN** the system SHALL skip migration and not modify any files
-
-### Requirement: Provide disk-based generation entry point
-The system SHALL provide a `regenerateClaudeMdFromDisk()` function that loads `context.json` from disk, loads `source/*.md`, and generates CLAUDE.md without requiring observations to be passed as arguments.
-
-#### Scenario: Watcher-triggered regeneration
-- **WHEN** the file watcher detects a change and calls `regenerateClaudeMdFromDisk()`
-- **THEN** the system reads current `context.json` from `~/.claude-evolution/memory/observations/context.json`, reads all `source/*.md` files, and writes `~/.claude-evolution/output/CLAUDE.md`
-
-#### Scenario: Context pool is empty
-- **WHEN** `context.json` does not exist or contains no observations
-- **THEN** the system generates CLAUDE.md with only source file content (no learned sections)
-
-#### Scenario: Fallback for CLI analyze command
-- **WHEN** the `analyze` CLI command runs without daemon (no watcher active)
-- **THEN** the pipeline calls `regenerateClaudeMdFromDisk()` directly as fallback
+#### Scenario: Entries remain sorted by frequency
+- **WHEN** generating entries within a category
+- **THEN** entries with higher `mentions` values SHALL appear before entries with lower `mentions` values
