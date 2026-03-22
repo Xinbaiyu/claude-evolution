@@ -196,6 +196,12 @@ export interface AnalysisStatus {
   runId: string | null;
 }
 
+export interface StatsOverview {
+  typeDistribution: Array<{ type: string; count: number }>;
+  analysisTrend: Array<{ date: string; runCount: number; mergedCount: number }>;
+  trendDays: number;
+}
+
 export interface AnalysisStep {
   step: number;
   name: string;
@@ -609,6 +615,24 @@ export const apiClient = {
       throw new ApiError(response.error || 'Batch restore observations failed');
     }
     return response.data;
+  },
+
+  // ========== Stats API ==========
+
+  /**
+   * 获取统计概览数据（图表用）
+   * 网络失败时静默降级
+   */
+  async getStatsOverview(): Promise<StatsOverview> {
+    try {
+      const response = await request<StatsOverview>('/stats/overview');
+      if (!response.success || !response.data) {
+        return { typeDistribution: [], analysisTrend: [], trendDays: 30 };
+      }
+      return response.data;
+    } catch {
+      return { typeDistribution: [], analysisTrend: [], trendDays: 30 };
+    }
   },
 
   // ========== Analysis Status API ==========

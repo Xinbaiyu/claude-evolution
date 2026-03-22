@@ -7,6 +7,7 @@ import systemRouter from './routes/system.js';
 import sourceRouter from './routes/source.js';
 import learningRouter from './routes/learning.js';
 import analysisLogsRouter from './routes/analysis-logs.js';
+import statsRouter from './routes/stats.js';
 import { WebSocketManager } from './websocket.js';
 import { NotificationManager } from './notifications.js';
 
@@ -52,6 +53,7 @@ app.use('/api', systemRouter);
 app.use('/api/source', sourceRouter);
 app.use('/api/learning', learningRouter);
 app.use('/api', analysisLogsRouter);
+app.use('/api', statsRouter);
 
 // 静态文件服务（前端构建产物）
 // 使用 process.cwd() 获取命令执行目录（项目根）

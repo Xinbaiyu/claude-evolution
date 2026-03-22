@@ -1,40 +1,47 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient, ApiError } from '../api/client';
-import type { SystemStatus } from '../api/client';
+import type { SystemStatus, StatsOverview } from '../api/client';
 import { wsClient } from '../api/websocket';
 import { toast } from '../components/Toast';
 import { ManualAnalysisTrigger } from '../components/ManualAnalysisTrigger';
 import RecentAnalysisWidget from '../components/RecentAnalysisWidget';
+import AnalysisTrendChart from '../charts/AnalysisTrendChart';
+import TypeDistributionChart from '../charts/TypeDistributionChart';
+import ConfidenceGauge from '../charts/ConfidenceGauge';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<SystemStatus | null>(null);
+  const [stats, setStats] = useState<StatsOverview | null>(null);
   const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
     fetchStatus();
+    fetchStats();
 
-    // WebSocket 事件监听
     const unsubscribeAnalysis = wsClient.on('analysis_complete', () => {
       toast.success('分析完成，数据已刷新');
       fetchStatus();
+      fetchStats();
     });
 
-    // New observation events
     const unsubscribePromoted = wsClient.on('observation_promoted', () => {
       fetchStatus();
+      fetchStats();
     });
 
     const unsubscribeDemoted = wsClient.on('observation_demoted', () => {
       fetchStatus();
+      fetchStats();
     });
 
     const unsubscribeArchived = wsClient.on('observation_archived', () => {
       fetchStatus();
+      fetchStats();
     });
 
-    // 清理
     return () => {
       unsubscribeAnalysis();
       unsubscribePromoted();
@@ -51,10 +58,21 @@ export default function Dashboard() {
     } catch (error) {
       const errorMessage =
         error instanceof ApiError ? error.message : '加载系统状态失败';
-      console.error('Failed to fetch status:', error);
       toast.error(errorMessage);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      setStatsLoading(true);
+      const data = await apiClient.getStatsOverview();
+      setStats(data);
+    } catch {
+      setStats({ typeDistribution: [], analysisTrend: [], trendDays: 30 });
+    } finally {
+      setStatsLoading(false);
     }
   };
 
@@ -89,13 +107,9 @@ export default function Dashboard() {
 
   return (
     <>
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="flex gap-6">
-        {/* Left: Main Content */}
-        <div className="flex-1 min-w-0">
-        {/* Metrics Grid */}
-        <div className="grid grid-cols-4 gap-4 mb-8">
+        {/* === Section 1: Metrics Row === */}
+        <div className="grid grid-cols-4 gap-4 mb-6">
           {/* Active Observations - Largest */}
           <div
             className="col-span-2 border-4 border-amber-500 bg-slate-900 p-6 relative overflow-hidden group hover:border-amber-400 transition-colors"
@@ -129,25 +143,10 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Confidence Score */}
-          <div
-            className="border-4 border-slate-700 bg-slate-900 p-6 hover:border-green-500 transition-colors"
-            style={{ animation: 'slideInRight 0.6s ease-out 0.2s backwards' }}
-          >
-            <div className="text-xs text-slate-500 font-mono font-bold tracking-widest">置信度</div>
-            <div className="text-5xl font-black mt-2 text-green-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-              {Math.round(status.metrics.avgConfidence * 100)}
-              <span className="text-2xl text-slate-600">%</span>
-            </div>
-            <div className="text-xs text-slate-500 font-mono mt-2">
-              平均分数
-            </div>
-          </div>
-
           {/* Total Observations */}
           <div
             className="border-4 border-slate-700 bg-slate-900 p-6 hover:border-purple-500 transition-colors"
-            style={{ animation: 'slideInLeft 0.6s ease-out 0.15s backwards' }}
+            style={{ animation: 'slideInRight 0.6s ease-out 0.2s backwards' }}
           >
             <div className="text-xs text-slate-500 font-mono font-bold tracking-widest">总观察数</div>
             <div className="text-5xl font-black mt-2 text-purple-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
@@ -157,102 +156,103 @@ export default function Dashboard() {
               全部观察
             </div>
           </div>
+        </div>
 
-          {/* Pool Distribution */}
-          <div
-            className="col-span-3 border-4 border-slate-700 bg-slate-900 p-6 hover:border-slate-500 transition-colors"
-            style={{ animation: 'slideInLeft 0.6s ease-out 0.25s backwards' }}
-          >
-            <div className="flex items-end justify-between">
-              <div>
-                <div className="text-xs text-slate-500 font-mono font-bold tracking-widest">观察池分布</div>
-                <div className="text-4xl font-black mt-2" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                  {status.observations.total}
-                </div>
-              </div>
+        {/* === Section 2: Charts Area === */}
+        <div
+          className="grid grid-cols-3 gap-4 mb-6"
+          style={{ animation: 'fadeIn 0.6s ease-out 0.25s backwards' }}
+        >
+          {/* Left: Analysis Trend (2/3 width) */}
+          <div className="col-span-2 border-4 border-slate-700 bg-slate-900 p-5 flex flex-col">
+            <h3 className="text-sm font-bold text-amber-500 font-mono tracking-widest mb-3">
+              分析趋势 · 近{stats?.trendDays || 30}天
+            </h3>
+            <AnalysisTrendChart
+              data={stats?.analysisTrend || []}
+              loading={statsLoading}
+            />
+          </div>
 
-              {/* Progress Bar */}
-              <div className="flex-1 ml-8">
-                <div className="h-2 bg-slate-800 relative overflow-hidden">
-                  <div
-                    className="absolute h-full bg-amber-500"
-                    style={{
-                      width: `${(status.observations.active / (status.observations.total || 1)) * 100}%`,
-                      transition: 'width 1s ease-out'
-                    }}
-                  ></div>
-                  <div
-                    className="absolute h-full bg-cyan-500"
-                    style={{
-                      left: `${(status.observations.active / (status.observations.total || 1)) * 100}%`,
-                      width: `${(status.observations.context / (status.observations.total || 1)) * 100}%`,
-                      transition: 'width 1s ease-out, left 1s ease-out'
-                    }}
-                  ></div>
-                </div>
-                <div className="flex justify-between text-xs font-mono text-slate-500 mt-2">
-                  <span>{Math.round((status.observations.active / (status.observations.total || 1)) * 100)}% 候选池</span>
-                  <span>{Math.round((status.observations.context / (status.observations.total || 1)) * 100)}% 上下文池</span>
-                </div>
-              </div>
+          {/* Right: Distribution + Gauge (1/3 width) */}
+          <div className="flex flex-col gap-4">
+            {/* Type Distribution Ring */}
+            <div className="border-4 border-slate-700 bg-slate-900 p-4 flex-1 min-h-[260px]">
+              <h3 className="text-sm font-bold text-cyan-400 font-mono tracking-widest mb-2">
+                观察类型分布
+              </h3>
+              <TypeDistributionChart
+                data={stats?.typeDistribution || []}
+                loading={statsLoading}
+              />
+            </div>
+
+            {/* Confidence Gauge */}
+            <div className="border-4 border-slate-700 bg-slate-900 p-4">
+              <h3 className="text-sm font-bold text-emerald-400 font-mono tracking-widest mb-1">
+                系统置信度
+              </h3>
+              <ConfidenceGauge
+                value={status.metrics.avgConfidence}
+                loading={statsLoading}
+              />
             </div>
           </div>
         </div>
 
-        {/* Quick Actions */}
+        {/* === Section 3: Actions + Recent Analysis === */}
         <div
-          className="border-4 border-slate-700 bg-slate-900 p-6 mb-8"
+          className="grid grid-cols-3 gap-4 mb-6"
           style={{ animation: 'fadeIn 0.6s ease-out 0.3s backwards' }}
         >
-          <h2 className="text-lg font-black text-amber-500 mb-4 tracking-tight" style={{ fontFamily: '"Noto Sans SC", "Archivo Black", sans-serif' }}>
-            快捷操作
-          </h2>
-          <div className="grid grid-cols-4 gap-4">
-            <button
-              onClick={() => navigate('/learning-review')}
-              className="border-2 border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-mono font-bold py-4 px-6 transition-colors text-left group"
-            >
-              <div className="text-2xl mb-1">→</div>
-              <div className="text-sm">审核观察</div>
-              <div className="text-xs text-slate-400 mt-1">{status.observations.active} 条待审核</div>
-            </button>
+          {/* Left: Quick Actions (2/3 width) */}
+          <div className="col-span-2 border-4 border-slate-700 bg-slate-900 p-6">
+            <h2 className="text-lg font-black text-amber-500 mb-4 tracking-tight" style={{ fontFamily: '"Noto Sans SC", "Archivo Black", sans-serif' }}>
+              快捷操作
+            </h2>
+            <div className="grid grid-cols-4 gap-4">
+              <button
+                onClick={() => navigate('/learning-review')}
+                className="border-2 border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-mono font-bold py-4 px-6 transition-colors text-left group"
+              >
+                <div className="text-2xl mb-1">&rarr;</div>
+                <div className="text-sm">审核观察</div>
+                <div className="text-xs text-slate-400 mt-1">{status.observations.active} 条待审核</div>
+              </button>
 
-            <button
-              onClick={() => navigate('/source-manager')}
-              className="border-2 border-cyan-500 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-500 font-mono font-bold py-4 px-6 transition-colors text-left group"
-            >
-              <div className="text-2xl mb-1">✏</div>
-              <div className="text-sm">配置编辑器</div>
-              <div className="text-xs text-slate-400 mt-1">编辑源文件</div>
-            </button>
+              <button
+                onClick={() => navigate('/source-manager')}
+                className="border-2 border-cyan-500 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-500 font-mono font-bold py-4 px-6 transition-colors text-left group"
+              >
+                <div className="text-2xl mb-1">&hearts;</div>
+                <div className="text-sm">配置编辑器</div>
+                <div className="text-xs text-slate-400 mt-1">编辑源文件</div>
+              </button>
 
-            <ManualAnalysisTrigger />
+              <ManualAnalysisTrigger />
 
-            <button
-              onClick={() => navigate('/settings')}
-              className="border-2 border-slate-600 hover:border-slate-400 hover:bg-slate-400/10 text-slate-300 hover:text-slate-100 font-mono font-bold py-4 px-6 transition-colors text-left"
-            >
-              <div className="text-2xl mb-1">⚙</div>
-              <div className="text-sm">系统设置</div>
-              <div className="text-xs text-slate-400 mt-1">配置参数</div>
-            </button>
+              <button
+                onClick={() => navigate('/settings')}
+                className="border-2 border-slate-600 hover:border-slate-400 hover:bg-slate-400/10 text-slate-300 hover:text-slate-100 font-mono font-bold py-4 px-6 transition-colors text-left"
+              >
+                <div className="text-2xl mb-1">&equiv;</div>
+                <div className="text-sm">系统设置</div>
+                <div className="text-xs text-slate-400 mt-1">配置参数</div>
+              </button>
+            </div>
+          </div>
+
+          {/* Right: Recent Analysis (1/3 width) */}
+          <div>
+            <RecentAnalysisWidget maxItems={8} />
           </div>
         </div>
 
-        {/* System Info Footer */}
+        {/* === Footer === */}
         <div className="border-t-2 border-slate-800 pt-4 text-center">
           <div className="text-xs font-mono text-slate-600">
             CLAUDE-EVOLUTION v{status.server.version} | 系统正常运行 | {formatUptime(status.server.uptime)} 运行时长
           </div>
-        </div>
-        </div>
-
-        {/* Right: Recent Analysis Sidebar */}
-        <div className="w-72 flex-shrink-0" style={{ animation: 'fadeIn 0.6s ease-out 0.35s backwards' }}>
-          <div className="sticky top-24">
-            <RecentAnalysisWidget maxItems={8} />
-          </div>
-        </div>
         </div>
       </main>
 

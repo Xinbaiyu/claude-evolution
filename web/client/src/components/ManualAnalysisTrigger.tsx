@@ -70,6 +70,9 @@ export function ManualAnalysisTrigger() {
 
       await apiClient.triggerAnalysis();
       toast.info('分析已启动');
+
+      // 通知其他组件（如 RecentAnalysisWidget）刷新数据
+      window.dispatchEvent(new CustomEvent('analysis_triggered'));
     } catch (error: any) {
       setIsRunning(false);
       setStartTime(null);

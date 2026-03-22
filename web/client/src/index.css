@@ -18,6 +18,15 @@ body {
   font-family: Inter, -apple-system, sans-serif;
 }
 
+/* 自动滚动容器：隐藏滚动条但允许 JS 控制 scrollTop */
+.auto-scroll-container {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.auto-scroll-container::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
 @keyframes slideInRight {
   from {
     opacity: 0;
