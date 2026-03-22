@@ -109,10 +109,10 @@ export default function Dashboard() {
     <>
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* === Section 1: Metrics Row === */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-4 gap-3 mb-4">
           {/* Active Observations - Largest */}
           <div
-            className="col-span-2 border-4 border-amber-500 bg-slate-900 p-6 relative overflow-hidden group hover:border-amber-400 transition-colors"
+            className="col-span-2 border-4 border-amber-500 bg-slate-900 p-4 relative overflow-hidden group hover:border-amber-400 transition-colors"
             style={{ animation: 'slideInLeft 0.6s ease-out' }}
           >
             <div className="absolute top-0 right-0 text-[120px] font-black text-amber-500/5 leading-none">
@@ -120,10 +120,10 @@ export default function Dashboard() {
             </div>
             <div className="relative z-10">
               <div className="text-xs text-amber-500 font-mono font-bold tracking-widest">候选池</div>
-              <div className="text-6xl font-black mt-2 text-amber-500" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+              <div className="text-5xl font-black mt-1 text-amber-500" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                 {status.observations.active}
               </div>
-              <div className="text-sm text-slate-400 font-mono mt-2">
+              <div className="text-sm text-slate-400 font-mono mt-1">
                 等待审核的观察
               </div>
             </div>
@@ -131,28 +131,28 @@ export default function Dashboard() {
 
           {/* Context Observations */}
           <div
-            className="border-4 border-slate-700 bg-slate-900 p-6 hover:border-cyan-500 transition-colors"
+            className="border-4 border-slate-700 bg-slate-900 p-4 hover:border-cyan-500 transition-colors"
             style={{ animation: 'slideInRight 0.6s ease-out 0.1s backwards' }}
           >
             <div className="text-xs text-slate-500 font-mono font-bold tracking-widest">上下文池</div>
-            <div className="text-5xl font-black mt-2 text-cyan-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+            <div className="text-4xl font-black mt-1 text-cyan-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
               {status.observations.context}
             </div>
-            <div className="text-xs text-slate-500 font-mono mt-2">
+            <div className="text-xs text-slate-500 font-mono mt-1">
               已应用 {status.observations.context} 条
             </div>
           </div>
 
           {/* Total Observations */}
           <div
-            className="border-4 border-slate-700 bg-slate-900 p-6 hover:border-purple-500 transition-colors"
+            className="border-4 border-slate-700 bg-slate-900 p-4 hover:border-purple-500 transition-colors"
             style={{ animation: 'slideInRight 0.6s ease-out 0.2s backwards' }}
           >
             <div className="text-xs text-slate-500 font-mono font-bold tracking-widest">总观察数</div>
-            <div className="text-5xl font-black mt-2 text-purple-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+            <div className="text-4xl font-black mt-1 text-purple-400" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
               {status.observations.total}
             </div>
-            <div className="text-xs text-slate-500 font-mono mt-2">
+            <div className="text-xs text-slate-500 font-mono mt-1">
               全部观察
             </div>
           </div>
@@ -160,12 +160,12 @@ export default function Dashboard() {
 
         {/* === Section 2: Charts Area === */}
         <div
-          className="grid grid-cols-3 gap-4 mb-6"
+          className="grid grid-cols-3 gap-3 mb-4"
           style={{ animation: 'fadeIn 0.6s ease-out 0.25s backwards' }}
         >
           {/* Left: Analysis Trend (2/3 width) */}
-          <div className="col-span-2 border-4 border-slate-700 bg-slate-900 p-5 flex flex-col">
-            <h3 className="text-sm font-bold text-amber-500 font-mono tracking-widest mb-3">
+          <div className="col-span-2 border-4 border-slate-700 bg-slate-900 p-4 flex flex-col">
+            <h3 className="text-xs font-bold text-amber-500 font-mono tracking-widest mb-2">
               分析趋势 · 近{stats?.trendDays || 30}天
             </h3>
             <AnalysisTrendChart
@@ -175,10 +175,10 @@ export default function Dashboard() {
           </div>
 
           {/* Right: Distribution + Gauge (1/3 width) */}
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
             {/* Type Distribution Ring */}
-            <div className="border-4 border-slate-700 bg-slate-900 p-4 flex-1 min-h-[260px]">
-              <h3 className="text-sm font-bold text-cyan-400 font-mono tracking-widest mb-2">
+            <div className="border-4 border-slate-700 bg-slate-900 p-3 flex-1 min-h-[190px]">
+              <h3 className="text-xs font-bold text-cyan-400 font-mono tracking-widest mb-1">
                 观察类型分布
               </h3>
               <TypeDistributionChart
@@ -188,8 +188,8 @@ export default function Dashboard() {
             </div>
 
             {/* Confidence Gauge */}
-            <div className="border-4 border-slate-700 bg-slate-900 p-4">
-              <h3 className="text-sm font-bold text-emerald-400 font-mono tracking-widest mb-1">
+            <div className="border-4 border-slate-700 bg-slate-900 p-3">
+              <h3 className="text-xs font-bold text-emerald-400 font-mono tracking-widest mb-0">
                 系统置信度
               </h3>
               <ConfidenceGauge
@@ -202,18 +202,18 @@ export default function Dashboard() {
 
         {/* === Section 3: Actions + Recent Analysis === */}
         <div
-          className="grid grid-cols-3 gap-4 mb-6"
+          className="grid grid-cols-3 gap-3 mb-4"
           style={{ animation: 'fadeIn 0.6s ease-out 0.3s backwards' }}
         >
           {/* Left: Quick Actions (2/3 width) */}
-          <div className="col-span-2 border-4 border-slate-700 bg-slate-900 p-6">
-            <h2 className="text-lg font-black text-amber-500 mb-4 tracking-tight" style={{ fontFamily: '"Noto Sans SC", "Archivo Black", sans-serif' }}>
+          <div className="col-span-2 border-4 border-slate-700 bg-slate-900 p-4">
+            <h2 className="text-base font-black text-amber-500 mb-3 tracking-tight" style={{ fontFamily: '"Noto Sans SC", "Archivo Black", sans-serif' }}>
               快捷操作
             </h2>
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-4 gap-3">
               <button
                 onClick={() => navigate('/learning-review')}
-                className="border-2 border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-mono font-bold py-4 px-6 transition-colors text-left group"
+                className="border-2 border-amber-500 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-mono font-bold py-3 px-4 transition-colors text-left group"
               >
                 <div className="text-2xl mb-1">&rarr;</div>
                 <div className="text-sm">审核观察</div>
@@ -222,7 +222,7 @@ export default function Dashboard() {
 
               <button
                 onClick={() => navigate('/source-manager')}
-                className="border-2 border-cyan-500 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-500 font-mono font-bold py-4 px-6 transition-colors text-left group"
+                className="border-2 border-cyan-500 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-500 font-mono font-bold py-3 px-4 transition-colors text-left group"
               >
                 <div className="text-2xl mb-1">&hearts;</div>
                 <div className="text-sm">配置编辑器</div>
@@ -233,7 +233,7 @@ export default function Dashboard() {
 
               <button
                 onClick={() => navigate('/settings')}
-                className="border-2 border-slate-600 hover:border-slate-400 hover:bg-slate-400/10 text-slate-300 hover:text-slate-100 font-mono font-bold py-4 px-6 transition-colors text-left"
+                className="border-2 border-slate-600 hover:border-slate-400 hover:bg-slate-400/10 text-slate-300 hover:text-slate-100 font-mono font-bold py-3 px-4 transition-colors text-left"
               >
                 <div className="text-2xl mb-1">&equiv;</div>
                 <div className="text-sm">系统设置</div>

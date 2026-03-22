@@ -45,8 +45,8 @@ export default function TypeDistributionChart({ data, loading }: Props) {
       // 外圈装饰环
       {
         type: 'pie',
-        radius: ['82%', '85%'],
-        center: ['50%', '42%'],
+        radius: ['78%', '82%'],
+        center: ['50%', '40%'],
         silent: true,
         label: { show: false },
         data: [{ value: 1, itemStyle: { color: CHART_COLORS.slate700 } }],
@@ -54,8 +54,8 @@ export default function TypeDistributionChart({ data, loading }: Props) {
       // 主环形图
       {
         type: 'pie',
-        radius: ['45%', '78%'],
-        center: ['50%', '42%'],
+        radius: ['42%', '74%'],
+        center: ['50%', '40%'],
         avoidLabelOverlap: true,
         itemStyle: {
           borderRadius: 6,
@@ -108,7 +108,7 @@ export default function TypeDistributionChart({ data, loading }: Props) {
       {
         type: 'pie',
         radius: [0, 0],
-        center: ['50%', '42%'],
+        center: ['50%', '40%'],
         silent: true,
         label: {
           show: true,
@@ -116,7 +116,7 @@ export default function TypeDistributionChart({ data, loading }: Props) {
           formatter: `{total|${total}}\n{label|总数}`,
           rich: {
             total: {
-              fontSize: 26,
+              fontSize: 22,
               fontWeight: 'bold',
               fontFamily: 'JetBrains Mono, monospace',
               color: '#f8fafc',

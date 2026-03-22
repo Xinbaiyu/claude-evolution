@@ -15,7 +15,7 @@ interface Props {
 export default function AnalysisTrendChart({ data, loading }: Props) {
   if (loading) {
     return (
-      <div className="flex-1 min-h-[200px] flex items-center justify-center">
+      <div className="flex-1 min-h-[170px] flex items-center justify-center">
         <div className="animate-pulse text-slate-500 font-mono text-sm">
           加载趋势数据...
         </div>
@@ -25,7 +25,7 @@ export default function AnalysisTrendChart({ data, loading }: Props) {
 
   if (data.length === 0) {
     return (
-      <div className="flex-1 min-h-[200px] flex items-center justify-center">
+      <div className="flex-1 min-h-[170px] flex items-center justify-center">
         <div className="text-slate-600 font-mono text-sm text-center">
           <div className="text-3xl mb-2 opacity-30">📈</div>
           运行更多分析以查看趋势
@@ -124,7 +124,7 @@ export default function AnalysisTrendChart({ data, loading }: Props) {
   };
 
   return (
-    <div className="flex-1 min-h-[200px]">
+    <div className="flex-1 min-h-[170px]">
       <ReactECharts
         option={option}
         style={{ height: '100%', width: '100%' }}

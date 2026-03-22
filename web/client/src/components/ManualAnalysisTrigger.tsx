@@ -107,7 +107,7 @@ export function ManualAnalysisTrigger() {
         onClick={handleTriggerAnalysis}
         disabled={isRunning}
         className={`
-          w-full border-2 font-mono font-bold py-4 px-6 transition-all text-left
+          w-full border-2 font-mono font-bold py-3 px-4 transition-all text-left
           ${
             isRunning
               ? 'border-amber-500 bg-amber-500/10 text-amber-500 cursor-not-allowed'

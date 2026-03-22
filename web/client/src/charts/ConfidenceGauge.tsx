@@ -10,44 +10,64 @@ interface Props {
 export default function ConfidenceGauge({ value, loading }: Props) {
   const percentage = Math.round(value * 100);
 
+  // 根据值选择颜色：红(<40) / 黄(40-70) / 绿(>70)
+  const gaugeColor = percentage < 40
+    ? CHART_COLORS.red400
+    : percentage < 70
+      ? CHART_COLORS.yellow400
+      : CHART_COLORS.emerald400;
+
+  const gaugeAccent = percentage < 40
+    ? '#dc2626'
+    : percentage < 70
+      ? '#ca8a04'
+      : '#059669';
+
   const option = useMemo(() => ({
     series: [
+      // 外层：主进度环 + 刻度
       {
         type: 'gauge',
-        startAngle: 180,
-        endAngle: 0,
+        center: ['50%', '60%'],
+        startAngle: 200,
+        endAngle: -20,
         min: 0,
         max: 100,
-        radius: '100%',
-        center: ['50%', '75%'],
         splitNumber: 10,
-        axisLine: {
-          lineStyle: {
-            width: 16,
-            color: [
-              [0.4, '#ef4444'],
-              [0.7, '#eab308'],
-              [1, '#22c55e'],
-            ],
-          },
+        itemStyle: {
+          color: gaugeColor,
+        },
+        progress: {
+          show: true,
+          width: 12,
         },
         pointer: {
-          icon: 'path://M12.8,0.7l12,40.1H0.7L12.8,0.7z',
-          length: '55%',
-          width: 8,
-          offsetCenter: [0, '-10%'],
-          itemStyle: { color: CHART_COLORS.slate300 },
+          show: false,
+        },
+        axisLine: {
+          lineStyle: {
+            width: 12,
+            color: [[1, CHART_COLORS.slate700]],
+          },
         },
         axisTick: {
-          length: 6,
-          lineStyle: { color: CHART_COLORS.slate600, width: 1 },
+          distance: -22,
+          splitNumber: 5,
+          lineStyle: {
+            width: 1,
+            color: CHART_COLORS.slate500,
+          },
         },
         splitLine: {
-          length: 12,
-          lineStyle: { color: CHART_COLORS.slate600, width: 2 },
+          distance: -26,
+          length: 8,
+          lineStyle: {
+            width: 2,
+            color: CHART_COLORS.slate500,
+          },
         },
         axisLabel: {
-          distance: 20,
+          distance: -10,
           color: CHART_COLORS.slate500,
           fontSize: 10,
           fontFamily: 'JetBrains Mono, monospace',
@@ -56,30 +76,68 @@ export default function ConfidenceGauge({ value, loading }: Props) {
             return '';
           },
         },
+        anchor: {
+          show: false,
+        },
         title: {
-          offsetCenter: [0, '20%'],
-          fontSize: 11,
-          color: CHART_COLORS.slate500,
-          fontFamily: 'JetBrains Mono, monospace',
+          show: false,
         },
         detail: {
-          fontSize: 28,
-          offsetCenter: [0, '-5%'],
           valueAnimation: true,
-          formatter: '{value}%',
-          color: CHART_COLORS.slate300,
+          width: '60%',
+          lineHeight: 24,
+          borderRadius: 6,
+          offsetCenter: [0, '-15%'],
+          fontSize: 26,
+          fontWeight: 'bolder',
           fontFamily: 'JetBrains Mono, monospace',
-          fontWeight: 900,
+          formatter: '{value}%',
+          color: 'inherit',
         },
-        data: [{ value: percentage, name: '置信度' }],
+        data: [{ value: percentage }],
+      },
+      // 内层：细进度条
+      {
+        type: 'gauge',
+        center: ['50%', '60%'],
+        startAngle: 200,
+        endAngle: -20,
+        min: 0,
+        max: 100,
+        itemStyle: {
+          color: gaugeAccent,
+        },
+        progress: {
+          show: true,
+          width: 3,
+        },
+        pointer: {
+          show: false,
+        },
+        axisLine: {
+          show: false,
+        },
+        axisTick: {
+          show: false,
+        },
+        splitLine: {
+          show: false,
+        },
+        axisLabel: {
+          show: false,
+        },
+        detail: {
+          show: false,
+        },
+        data: [{ value: percentage }],
       },
     ],
-  }), [percentage]);
+  }), [percentage, gaugeColor, gaugeAccent]);
 
   if (loading) {
     return (
-      <div className="h-40 flex items-center justify-center">
-        <div className="w-24 h-24 rounded-full bg-slate-800 animate-pulse" />
+      <div className="h-[140px] flex items-center justify-center">
+        <div className="w-20 h-20 rounded-full bg-slate-800 animate-pulse" />
       </div>
     );
   }
@@ -87,7 +145,7 @@ export default function ConfidenceGauge({ value, loading }: Props) {
   return (
     <ReactECharts
       option={option}
-      style={{ height: '160px', width: '100%' }}
+      style={{ height: '140px', width: '100%' }}
       opts={{ renderer: 'canvas' }}
     />
   );
