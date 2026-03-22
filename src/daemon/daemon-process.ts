@@ -13,6 +13,7 @@ import { loadConfig } from '../config/index.js';
 import { ProcessManager, PidFileData } from './process-manager.js';
 import { DaemonLogger } from './logger.js';
 import { AnalysisLogger } from '../analyzers/analysis-logger.js';
+import { AnalysisExecutor } from '../analyzers/analysis-executor.js';
 import {
   startComponents,
   stopComponents,
@@ -57,14 +58,8 @@ async function main() {
     process.exit(1);
   }
 
-  // 后台模式专用的分析执行器：使用 runAnalysisPipeline + AnalysisLogger
-  const analysisRunner = async () => {
-    const runId = `run_${Date.now()}`;
-    await analysisLogger.logAnalysisStart(runId);
-
-    const { runAnalysisPipeline } = await import('../analyzers/pipeline.js');
-    await runAnalysisPipeline({ runId, analysisLogger });
-  };
+  // 统一的分析执行器（共享 analysisLogger，daemon 生命周期管理其关闭）
+  const executor = new AnalysisExecutor({ analysisLogger });
 
   // 适配 DaemonLogger → lifecycle DaemonLogger 接口
   const lifecycleLogger = {
@@ -82,7 +77,7 @@ async function main() {
       enableScheduler: !noScheduler && (config.scheduler?.enabled ?? true),
       enableWeb: !noWeb,
       logger: lifecycleLogger,
-      analysisRunner,
+      executor,
     });
 
     logger.info('守护进程已完全启动');

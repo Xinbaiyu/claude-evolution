@@ -17,6 +17,8 @@ export function ManualAnalysisTrigger() {
         setIsRunning(true);
         setStartTime(backendStartTime);
         setElapsedTime(Date.now() - backendStartTime);
+        // 通知其他组件（如 RecentAnalysisWidget）当前有分析在运行
+        window.dispatchEvent(new CustomEvent('analysis_triggered'));
       }
     };
     restoreAnalysisState();
@@ -33,8 +35,23 @@ export function ManualAnalysisTrigger() {
     return () => clearInterval(timer);
   }, [isRunning, startTime]);
 
-  // 监听 WebSocket 完成/失败事件
+  // 监听 WebSocket 开始/完成/失败事件
   useEffect(() => {
+    // 分析开始（自动触发场景：后端广播 analysis_started）
+    const unsubscribeStarted = wsClient.on('analysis_started', (data: any) => {
+      if (!isRunning) {
+        const backendStartTime = data?.data?.startTime
+          ? new Date(data.data.startTime).getTime()
+          : Date.now();
+        setIsRunning(true);
+        setStartTime(backendStartTime);
+        setElapsedTime(Date.now() - backendStartTime);
+
+        // 通知 RecentAnalysisWidget 刷新
+        window.dispatchEvent(new CustomEvent('analysis_triggered'));
+      }
+    });
+
     // 分析成功
     const unsubscribeSuccess = wsClient.on('analysis_complete', (data: any) => {
       setIsRunning(false);
@@ -57,6 +74,7 @@ export function ManualAnalysisTrigger() {
     });
 
     return () => {
+      unsubscribeStarted();
       unsubscribeSuccess();
       unsubscribeFailed();
     };

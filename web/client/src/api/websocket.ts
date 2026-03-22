@@ -8,6 +8,7 @@ const RECONNECT_DELAY = 3000; // 3 秒后重连
 const HEARTBEAT_INTERVAL = 30000; // 30 秒心跳
 
 export type WebSocketEventType =
+  | 'analysis_started'
   | 'analysis_complete'
   | 'analysis_failed'
   // Legacy suggestion events (DEPRECATED - will be removed in v0.5.0)

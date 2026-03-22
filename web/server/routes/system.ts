@@ -6,8 +6,10 @@ import type { WebSocketManager } from '../websocket.js';
 import type { NotificationManager } from '../notifications.js';
 import { ProcessManager } from '../../../src/daemon/process-manager.js';
 import { getEvolutionDir } from '../../../src/config/loader.js';
-import { AnalysisLogger } from '../../../src/analyzers/analysis-logger.js';
-import { runAnalysisPipeline } from '../../../src/analyzers/pipeline.js';
+import {
+  AnalysisExecutor,
+  AnalysisAlreadyRunningError,
+} from '../../../src/analyzers/analysis-executor.js';
 import { CronScheduler } from '../../../src/scheduler/cron-scheduler.js';
 import { triggerSchedulerConfigChanged } from '../index.js';
 
@@ -21,10 +23,23 @@ const router = Router();
 const CONFIG_DIR = path.join(os.homedir(), '.claude-evolution');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 
-// 并发控制：防止多个分析同时运行，同时追踪运行元数据
-let isAnalyzing = false;
-let analysisStartTime: string | null = null;
-let analysisRunId: string | null = null;
+// ---------------------------------------------------------------------------
+// AnalysisExecutor — 由外部 (lifecycle / web index) 注入
+// ---------------------------------------------------------------------------
+let sharedExecutor: AnalysisExecutor | null = null;
+
+/** 注入共享 executor 实例（由 lifecycle startComponents 调用） */
+export function setExecutor(executor: AnalysisExecutor): void {
+  sharedExecutor = executor;
+}
+
+/** 获取当前 executor（POST /api/analyze 等路由使用） */
+function getExecutor(): AnalysisExecutor {
+  if (!sharedExecutor) {
+    throw new Error('AnalysisExecutor not initialized — call setExecutor() first');
+  }
+  return sharedExecutor;
+}
 
 // GET /api/daemon/status - 获取守护进程状态 (新增)
 router.get('/daemon/status', async (req, res) => {
@@ -282,21 +297,32 @@ router.patch('/config', async (req, res) => {
 
 // GET /api/analyze/status - 查询当前分析运行状态
 router.get('/analyze/status', (req, res) => {
-  res.json({
-    success: true,
-    data: {
-      isRunning: isAnalyzing,
-      startTime: analysisStartTime,
-      runId: analysisRunId,
-    },
-  });
+  try {
+    const state = getExecutor().getState();
+    res.json({
+      success: true,
+      data: {
+        isRunning: state.isRunning,
+        startTime: state.startTime,
+        runId: state.runId,
+      },
+    });
+  } catch {
+    // executor 尚未注入时返回默认状态
+    res.json({
+      success: true,
+      data: { isRunning: false, startTime: null, runId: null },
+    });
+  }
 });
 
 // POST /api/analyze - 手动触发分析
 router.post('/analyze', async (req: RequestWithManagers, res) => {
   try {
+    const executor = getExecutor();
+
     // 检查是否已有分析在运行
-    if (isAnalyzing) {
+    if (executor.getState().isRunning) {
       return res.status(409).json({
         success: false,
         error: '分析正在进行中，请稍候',
@@ -309,93 +335,21 @@ router.post('/analyze', async (req: RequestWithManagers, res) => {
       message: '分析已启动',
     });
 
-    // 异步执行真正的分析
-    isAnalyzing = true;
-    const startTime = Date.now();
-    const runId = `run_${Date.now()}`;
-    analysisStartTime = new Date(startTime).toISOString();
-    analysisRunId = runId;
-    const analysisLogger = new AnalysisLogger();
-
+    // 异步执行（executor 内部处理状态、日志、hooks 通知）
     try {
-      console.log('[API] 开始执行分析...');
-
-      // 记录分析开始
-      await analysisLogger.logAnalysisStart(runId);
-
-      // 调用分析 pipeline（传入 logger 以记录每个步骤）
-      await runAnalysisPipeline({ runId, analysisLogger });
-
-      const duration = Math.round((Date.now() - startTime) / 1000);
-      console.log(`[API] 分析完成，用时 ${duration}s`);
-
-      // 读取新生成的观察（优先使用新系统）
-      const MEMORY_DIR = path.join(getEvolutionDir(), 'memory', 'observations');
-      const activePath = path.join(MEMORY_DIR, 'active.json');
-      const active = await fs.pathExists(activePath)
-        ? await fs.readJson(activePath)
-        : [];
-
-      const newCount = active.length;
-      console.log(`[API] 发现 ${newCount} 条新观察`);
-
-      // 发送 WebSocket 事件
-      if (req.wsManager) {
-        req.wsManager.emitAnalysisComplete({
-          observationsCount: active.length,
-          duration,
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      // 发送桌面通知
-      if (req.notificationManager) {
-        req.notificationManager.notifyAnalysisComplete({
-          newSuggestions: newCount,
-          duration,
-        });
-      }
+      const result = await executor.execute();
+      console.log(`[API] 分析完成，用时 ${result.duration}s，发现 ${result.observationsCount} 条观察`);
     } catch (error) {
       console.error('[API] 分析失败:', error);
-
-      // 记录分析失败
-      try {
-        await analysisLogger.logAnalysisEnd(runId, {
-          status: 'failed',
-          error: {
-            message: error instanceof Error ? error.message : '分析失败',
-            stack: error instanceof Error ? error.stack : undefined,
-          },
-        });
-      } catch (logError) {
-        console.error('[API] 记录分析失败日志出错:', logError);
-      }
-
-      // 分析失败也要通知前端
-      if (req.wsManager) {
-        req.wsManager.broadcast('analysis_failed', {
-          error: error instanceof Error ? error.message : '分析失败',
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      // 发送桌面通知 - 分析失败
-      if (req.notificationManager) {
-        req.notificationManager.notifyAnalysisFailed(
-          error instanceof Error ? error.message : '未知错误'
-        );
-      }
-    } finally {
-      isAnalyzing = false;
-      analysisStartTime = null;
-      analysisRunId = null;
-      analysisLogger.close();
     }
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
+    // 仅在 executor 未初始化等启动异常时到达
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   }
 });
 

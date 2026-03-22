@@ -10,10 +10,9 @@ import { logger } from '../utils/index.js';
 export class CronScheduler {
   private tasks: cron.ScheduledTask[] = [];
   private isRunning = false;
-  private isAnalysisRunning = false;
-
   /**
    * 启动定时任务
+   * 并发控制由 AnalysisExecutor 统一管理，CronScheduler 仅负责调度触发。
    */
   start(config: Config, analysisCallback: () => Promise<void>): void {
     if (!config.scheduler.enabled) {
@@ -26,28 +25,11 @@ export class CronScheduler {
       return;
     }
 
-    const wrappedCallback = async () => {
-      if (this.isAnalysisRunning) {
-        logger.warn('分析任务正在运行中，跳过本次触发');
-        return;
-      }
-      this.isAnalysisRunning = true;
-      logger.info(`定时分析任务开始 [${new Date().toISOString()}]`);
-      try {
-        await analysisCallback();
-        logger.success('定时分析任务完成');
-      } catch (error) {
-        logger.error('定时分析任务失败:', error);
-      } finally {
-        this.isAnalysisRunning = false;
-      }
-    };
-
     try {
       if (config.scheduler.interval === 'timepoints') {
-        this.startTimepointsMode(config, wrappedCallback);
+        this.startTimepointsMode(config, analysisCallback);
       } else {
-        this.startIntervalMode(config, wrappedCallback);
+        this.startIntervalMode(config, analysisCallback);
       }
 
       this.isRunning = true;

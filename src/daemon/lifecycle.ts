@@ -4,8 +4,9 @@
  * Shared startup/shutdown logic for both foreground (start.ts) and
  * background (daemon-process.ts) modes.
  *
- * Each mode injects its own logger, analysis runner, and notification
- * config via DaemonStartOptions, avoiding any conditional branches.
+ * Each mode creates an AnalysisExecutor and passes it via
+ * DaemonStartOptions. The lifecycle wires hooks (WS broadcast,
+ * desktop notifications) after the web server starts.
  */
 
 import { loadConfig, Config } from '../config/index.js';
@@ -14,6 +15,7 @@ import { watchSourceFiles, stopWatching } from '../generators/file-watcher.js';
 import { regenerateClaudeMdFromDisk } from '../memory/claudemd-generator.js';
 import { migratePreferenceWorkflowType } from '../memory/observation-manager.js';
 import { notifySuccess, notifyError } from '../utils/notifier.js';
+import { AnalysisExecutor } from '../analyzers/analysis-executor.js';
 import type { FSWatcher } from 'chokidar';
 
 // ---------------------------------------------------------------------------
@@ -39,8 +41,8 @@ export interface DaemonStartOptions {
   port: number;
   enableScheduler: boolean;
   enableWeb: boolean;
-  /** The function that actually runs analysis (different per mode) */
-  analysisRunner: () => Promise<void>;
+  /** Shared executor — all paths (scheduler, API, CLI) use this single instance */
+  executor: AnalysisExecutor;
   logger: LifecycleLogger;
 }
 
@@ -49,22 +51,19 @@ export interface DaemonStartOptions {
 // ---------------------------------------------------------------------------
 
 /**
- * Wrap an analysisRunner with notification logic.
+ * Wrap executor.execute() with notification logic.
  * Returns an async function suitable for CronScheduler.start().
  */
 export function createAnalysisCallback(
-  runner: () => Promise<void>,
-  log: LifecycleLogger
+  executor: AnalysisExecutor,
+  log: LifecycleLogger,
 ): () => Promise<void> {
   return async () => {
-    const startTime = new Date();
     log.info('定时分析任务开始');
 
     try {
-      await runner();
-
-      const duration = Math.round((Date.now() - startTime.getTime()) / 1000);
-      log.info('定时分析任务完成');
+      const result = await executor.execute();
+      log.info(`定时分析任务完成 (${result.duration}s, ${result.observationsCount} 条观察)`);
 
       const currentConfig = await loadConfig();
       if (
@@ -73,7 +72,7 @@ export function createAnalysisCallback(
       ) {
         await notifySuccess(
           '定时分析完成',
-          `分析任务已成功完成\n耗时: ${duration}秒\n时间: ${startTime.toLocaleTimeString('zh-CN')}`
+          `分析任务已成功完成\n耗时: ${result.duration}秒\n观察: ${result.observationsCount} 条`
         );
       }
     } catch (error) {
@@ -88,7 +87,7 @@ export function createAnalysisCallback(
           error instanceof Error ? error.message : String(error);
         await notifyError(
           '定时分析失败',
-          `任务执行失败\n错误: ${errorMessage.slice(0, 100)}\n时间: ${startTime.toLocaleTimeString('zh-CN')}`
+          `任务执行失败\n错误: ${errorMessage.slice(0, 100)}`
         );
       }
     }
@@ -102,14 +101,11 @@ export function createAnalysisCallback(
 /**
  * Create a reload function that stops the current scheduler, reloads config,
  * and starts a new scheduler with the updated config.
- *
- * The returned function is registered as the web-server callback for
- * "scheduler config changed" events.
  */
 export function createReloadScheduler(
   components: DaemonComponents,
-  makeCallback: () => () => Promise<void>,
-  log: LifecycleLogger
+  executor: AnalysisExecutor,
+  log: LifecycleLogger,
 ): () => Promise<void> {
   return async () => {
     log.info('[热重载] 检测到调度器配置变更，开始重载...');
@@ -124,7 +120,10 @@ export function createReloadScheduler(
 
     if (newConfig.scheduler?.enabled) {
       components.scheduler = new CronScheduler();
-      components.scheduler.start(newConfig, makeCallback());
+      components.scheduler.start(
+        newConfig,
+        createAnalysisCallback(executor, log),
+      );
       log.info('[热重载] 调度器已使用新配置重新启动');
     } else {
       components.scheduler = null;
@@ -145,9 +144,9 @@ export function createReloadScheduler(
  * started components.
  */
 export async function startComponents(
-  opts: DaemonStartOptions
+  opts: DaemonStartOptions,
 ): Promise<DaemonComponents> {
-  const { config, port, enableScheduler, enableWeb, logger: log } = opts;
+  const { config, port, enableScheduler, enableWeb, executor, logger: log } = opts;
 
   const components: DaemonComponents = {
     scheduler: null,
@@ -155,7 +154,7 @@ export async function startComponents(
     webServer: null,
   };
 
-  const analysisCallback = createAnalysisCallback(opts.analysisRunner, log);
+  const analysisCallback = createAnalysisCallback(executor, log);
 
   try {
     // 1. Scheduler
@@ -186,17 +185,49 @@ export async function startComponents(
       log.error('CLAUDE.md 初始同步失败', error as Error);
     }
 
-    // 3. Web server
+    // 4. Web server
     if (enableWeb) {
       log.info(`启动 Web 服务器 (端口 ${port})...`);
 
       const webModule = await import('../../web/server/index.js');
+      const { setExecutor } = await import('../../web/server/routes/system.js');
+
+      // 注入 executor 到 API 路由，让 POST /api/analyze 和 GET /api/analyze/status 使用同一实例
+      setExecutor(executor);
+
+      // 注入 hooks：WS 广播 + 桌面通知
+      executor.setHooks({
+        onStart: (ctx) => {
+          webModule.wsManager.broadcast('analysis_started', {
+            startTime: ctx.startTime,
+            runId: ctx.runId,
+          });
+        },
+        onComplete: (result) => {
+          webModule.wsManager.emitAnalysisComplete({
+            observationsCount: result.observationsCount,
+            duration: result.duration,
+            timestamp: result.timestamp,
+          });
+          // 桌面通知
+          webModule.notificationManager?.notifyAnalysisComplete({
+            newSuggestions: result.observationsCount,
+            duration: result.duration,
+          });
+        },
+        onFailed: (ctx) => {
+          webModule.wsManager.broadcast('analysis_failed', {
+            error: ctx.error,
+            timestamp: ctx.timestamp,
+          });
+          // 桌面通知
+          webModule.notificationManager?.notifyAnalysisFailed(ctx.error);
+        },
+      });
 
       // Register scheduler hot-reload callback
       if (enableScheduler) {
-        const makeCallback = () =>
-          createAnalysisCallback(opts.analysisRunner, log);
-        const reloadFn = createReloadScheduler(components, makeCallback, log);
+        const reloadFn = createReloadScheduler(components, executor, log);
         webModule.onSchedulerConfigChanged(reloadFn);
         log.info('调度器热重载回调已注册');
       }
@@ -223,7 +254,7 @@ export async function startComponents(
  */
 export async function stopComponents(
   components: DaemonComponents,
-  log: LifecycleLogger
+  log: LifecycleLogger,
 ): Promise<void> {
   if (components.fileWatcher) {
     await stopWatching(components.fileWatcher);

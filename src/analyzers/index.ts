@@ -3,3 +3,4 @@ export * from './session-collector.js';
 export * from './experience-extractor.js';
 export * from './prompts.js';
 export * from './pipeline.js';
+export * from './analysis-executor.js';

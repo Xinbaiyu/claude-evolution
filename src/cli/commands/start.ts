@@ -5,7 +5,7 @@ import { homedir } from 'os';
 import { loadConfig } from '../../config/index.js';
 import { ProcessManager, PidFileData } from '../../daemon/process-manager.js';
 import { DaemonLogger } from '../../daemon/logger.js';
-import { analyzeCommand } from './analyze.js';
+import { AnalysisExecutor } from '../../analyzers/analysis-executor.js';
 import {
   startComponents,
   stopComponents,
@@ -84,10 +84,8 @@ async function startForegroundMode(
   const enableScheduler = !options.noScheduler && (config.scheduler?.enabled ?? true);
   const enableWeb = !options.noWeb;
 
-  // 前台模式的分析执行器：直接调用 CLI analyzeCommand
-  const analysisRunner = async () => {
-    await analyzeCommand({ now: true });
-  };
+  // 统一分析执行器（前台模式无共享 logger，每次 execute 自动创建）
+  const executor = new AnalysisExecutor();
 
   // 前台模式使用 chalk console + DaemonLogger 双写
   const lifecycleLogger = {
@@ -110,7 +108,7 @@ async function startForegroundMode(
       enableScheduler,
       enableWeb,
       logger: lifecycleLogger,
-      analysisRunner,
+      executor,
     });
 
     console.log('');

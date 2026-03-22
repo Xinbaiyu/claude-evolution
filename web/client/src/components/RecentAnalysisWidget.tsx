@@ -83,6 +83,9 @@ export default function RecentAnalysisWidget({ maxItems = 20 }: Props) {
     loadRecentRuns();
 
     // 订阅 WebSocket 事件，自动刷新列表
+    const unsubStarted = wsClient.on('analysis_started', () => {
+      setTimeout(loadRecentRuns, 500);
+    });
     const unsubComplete = wsClient.on('analysis_complete', () => {
       loadRecentRuns();
     });
@@ -98,6 +101,7 @@ export default function RecentAnalysisWidget({ maxItems = 20 }: Props) {
     window.addEventListener('analysis_triggered', onTriggered);
 
     return () => {
+      unsubStarted();
       unsubComplete();
       unsubFailed();
       window.removeEventListener('analysis_triggered', onTriggered);

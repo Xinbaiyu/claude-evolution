@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { runAnalysisPipeline } from '../../analyzers/index.js';
+import { AnalysisExecutor } from '../../analyzers/analysis-executor.js';
 import { logger } from '../../utils/index.js';
 import { loadConfig } from '../../config/index.js';
 
@@ -24,10 +24,11 @@ export async function analyzeCommand(options: { now?: boolean }): Promise<void> 
       throw new Error('缺少 ANTHROPIC_API_KEY 环境变量。请设置: export ANTHROPIC_API_KEY=your-api-key\n或在配置文件中设置 llm.baseURL 使用本地代理');
     }
 
-    // 运行分析流程
-    await runAnalysisPipeline();
+    // 运行分析流程（通过统一的 AnalysisExecutor）
+    const executor = new AnalysisExecutor();
+    const result = await executor.execute();
 
-    console.log(chalk.bold.green('\n✅ 分析完成!\n'));
+    console.log(chalk.bold.green(`\n✅ 分析完成! 发现 ${result.observationsCount} 条观察 (${result.duration}s)\n`));
     console.log(chalk.bold('查看结果:'));
     console.log(chalk.cyan('  claude-evolution review  ') + chalk.gray('# 查看待审批建议'));
     console.log(chalk.cyan('  cat ~/.claude-evolution/output/CLAUDE.md  ') + chalk.gray('# 查看生成的配置\n'));
