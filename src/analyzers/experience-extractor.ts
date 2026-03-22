@@ -4,6 +4,7 @@ import { Config } from '../config/index.js';
 import { logger, withLLMRetry, pMapLimited, getFulfilledValues } from '../utils/index.js';
 import { buildAnalysisPrompt, SYSTEM_MESSAGE } from './prompts.js';
 import { formatObservationsAsText } from './session-collector.js';
+import { loadExistingObservationsSummary } from './existing-observations-loader.js';
 
 /**
  * 经验提取器
@@ -70,6 +71,17 @@ export async function extractExperience(
 
   const anthropic = new Anthropic(clientOptions);
 
+  // 加载已有观察摘要，注入到提取 prompt 中防止重复提取
+  let existingObsSummary: string | null = null;
+  try {
+    existingObsSummary = await loadExistingObservationsSummary(30);
+    if (existingObsSummary) {
+      logger.info(`  已加载 ${existingObsSummary.split('\n').length} 条已知观察用于去重`);
+    }
+  } catch (error) {
+    logger.warn('加载已有观察摘要失败，将不进行提取去重:', error);
+  }
+
   // 分批处理观察记录
   const batchSize = 10; // 固定批次大小
   const batches = chunkArray(observations, batchSize);
@@ -81,7 +93,7 @@ export async function extractExperience(
     batches,
     async (batch, i) => {
       logger.debug(`处理批次 ${i + 1}/${batches.length} (${batch.length} 条记录)...`);
-      const result = await extractFromBatch(batch, config, anthropic, promptsContext);
+      const result = await extractFromBatch(batch, config, anthropic, promptsContext, existingObsSummary);
       logger.success(`✓ 批次 ${i + 1} 提取完成`);
       return result;
     },
@@ -114,13 +126,14 @@ async function extractFromBatch(
   observations: Observation[],
   config: Config,
   anthropic: Anthropic,
-  promptsContext?: string | null
+  promptsContext?: string | null,
+  existingObsSummary?: string | null
 ): Promise<ExtractionResult> {
   // 格式化观察记录为文本
   const sessionsText = formatObservationsAsText(observations);
 
   // 构建提示词
-  const userPrompt = buildAnalysisPrompt(sessionsText, promptsContext);
+  const userPrompt = buildAnalysisPrompt(sessionsText, promptsContext, existingObsSummary);
 
   // 准备消息
   const messages: Anthropic.MessageParam[] = [

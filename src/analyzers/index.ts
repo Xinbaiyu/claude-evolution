@@ -4,3 +4,4 @@ export * from './experience-extractor.js';
 export * from './prompts.js';
 export * from './pipeline.js';
 export * from './analysis-executor.js';
+export * from './existing-observations-loader.js';

@@ -139,9 +139,9 @@ describe('LLM Merge', () => {
         apiKey: 'test-key',
       });
 
-      // With chunked strategy: all 3 observations are singletons (Jaccard < 0.5),
-      // so Stage 1 makes 0 LLM calls, only Stage 2 fires = 1 call total
-      expect(mockCreate).toHaveBeenCalledTimes(1);
+      // With hybrid tokenization: old-1 (preference: async/await) and new-1 (preference: async/await)
+      // group together → 1 Stage 1 call + 1 Stage 2 call = 2 calls total
+      expect(mockCreate).toHaveBeenCalledTimes(2);
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           model: 'claude-3-5-haiku-20241022',

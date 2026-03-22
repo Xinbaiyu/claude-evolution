@@ -8,6 +8,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { logger, withLLMRetry, groupBySimilarity, pMapLimited, getFulfilledValues } from '../utils/index.js';
 import type { ObservationWithMetadata, MergeResult, SimilarityWarning } from '../types/learning.js';
 import { loadArchivedObservations, saveArchivedObservations } from '../memory/observation-manager.js';
+import { deduplicateAgainstContextPool } from './cross-pool-dedup.js';
 
 /**
  * Stage 1: Merge and Deduplicate Prompt Template
@@ -232,8 +233,97 @@ function parseLLMResponse<T>(response: string): T {
 }
 
 /**
- * Calculate similarity between two observations (simple text-based approach)
- * Returns a score between 0 and 1
+ * Tokenize text into a set of tokens for similarity comparison.
+ * Supports both English words and CJK character bigrams.
+ *
+ * - English: extracts words via /[a-z]+/g, filters length > 2
+ * - CJK: extracts character bigrams from consecutive CJK characters
+ * - Mixed text: produces both token types in a single set
+ */
+export function tokenize(text: string): Set<string> {
+  const normalized = text.toLowerCase().trim();
+  const tokens = new Set<string>();
+
+  // English words (length > 2)
+  const englishWords = normalized.match(/[a-z]+/g) || [];
+  for (const w of englishWords) {
+    if (w.length > 2) {
+      tokens.add(w);
+    }
+  }
+
+  // CJK character bigrams (CJK Unified Ideographs + Extension A)
+  const cjkChars = normalized.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || [];
+  for (let i = 0; i < cjkChars.length - 1; i++) {
+    tokens.add(cjkChars[i] + cjkChars[i + 1]);
+  }
+
+  return tokens;
+}
+
+/**
+ * Compute Jaccard similarity between two token sets.
+ * Returns |intersection| / |union|, or 0 if both sets are empty.
+ */
+function jaccardSimilarity(a: Set<string>, b: Set<string>): number {
+  let intersectionSize = 0;
+  for (const token of a) {
+    if (b.has(token)) {
+      intersectionSize++;
+    }
+  }
+
+  const unionSize = a.size + b.size - intersectionSize;
+  if (unionSize === 0) {
+    return 0;
+  }
+
+  return intersectionSize / unionSize;
+}
+
+/**
+ * Compare key fields of two observations for bonus similarity.
+ * Returns a bonus between 0 and 0.15 based on field-level overlap.
+ *
+ * - preference: same `item.type` → +0.15
+ * - pattern: `item.problem` token overlap > 0.5 → +0.15
+ * - workflow: `item.name` token overlap > 0.5 → +0.15
+ */
+function compareKeyFields(obs1: ObservationWithMetadata, obs2: ObservationWithMetadata): number {
+  const BONUS = 0.15;
+
+  if (obs1.type === 'preference' && obs2.type === 'preference') {
+    const type1 = (obs1.item as any)?.type;
+    const type2 = (obs2.item as any)?.type;
+    if (type1 && type2 && type1 === type2) {
+      return BONUS;
+    }
+    return 0;
+  }
+
+  if (obs1.type === 'pattern' && obs2.type === 'pattern') {
+    const problem1 = (obs1.item as any)?.problem || '';
+    const problem2 = (obs2.item as any)?.problem || '';
+    const sim = jaccardSimilarity(tokenize(problem1), tokenize(problem2));
+    return sim > 0.5 ? BONUS : 0;
+  }
+
+  if (obs1.type === 'workflow' && obs2.type === 'workflow') {
+    const name1 = (obs1.item as any)?.name || '';
+    const name2 = (obs2.item as any)?.name || '';
+    const sim = jaccardSimilarity(tokenize(name1), tokenize(name2));
+    return sim > 0.5 ? BONUS : 0;
+  }
+
+  return 0;
+}
+
+/**
+ * Calculate similarity between two observations using hybrid tokenization.
+ * Uses Jaccard similarity on mixed tokens (English words + CJK bigrams)
+ * with a key-field matching bonus.
+ *
+ * Returns a score between 0 and 1.
  */
 export function calculateSimilarity(obs1: ObservationWithMetadata, obs2: ObservationWithMetadata): number {
   // Must be same type
@@ -245,18 +335,16 @@ export function calculateSimilarity(obs1: ObservationWithMetadata, obs2: Observa
   const text1 = JSON.stringify(obs1.item).toLowerCase();
   const text2 = JSON.stringify(obs2.item).toLowerCase();
 
-  // Simple Jaccard similarity on words
-  const words1 = new Set(text1.split(/\W+/).filter(w => w.length > 2));
-  const words2 = new Set(text2.split(/\W+/).filter(w => w.length > 2));
+  // Hybrid tokenization: English words + CJK bigrams
+  const tokens1 = tokenize(text1);
+  const tokens2 = tokenize(text2);
 
-  const intersection = new Set([...words1].filter(w => words2.has(w)));
-  const union = new Set([...words1, ...words2]);
+  const tokenSim = jaccardSimilarity(tokens1, tokens2);
 
-  if (union.size === 0) {
-    return 0;
-  }
+  // Key field matching bonus
+  const fieldBonus = compareKeyFields(obs1, obs2);
 
-  return intersection.size / union.size;
+  return Math.min(tokenSim + fieldBonus, 1.0);
 }
 
 /**
@@ -599,6 +687,7 @@ export async function mergeLLM(
     maxOldObservations?: number;
     maxNewObservations?: number;
     checkDeletedSimilarity?: boolean;
+    contextPoolObservations?: ObservationWithMetadata[];
   } = {}
 ): Promise<ObservationWithMetadata[]> {
   const {
@@ -608,6 +697,7 @@ export async function mergeLLM(
     maxOldObservations = 50,
     maxNewObservations = 20,
     checkDeletedSimilarity = true,
+    contextPoolObservations: contextPoolObs = [],
   } = options;
 
   // When using a custom baseURL (e.g., local proxy), allow empty API key
@@ -762,8 +852,23 @@ export async function mergeLLM(
       );
     }
 
-    // Stage 3: Check similarity to deleted observations
-    const finalObservations = observationsAfterIgnoreCheck.map(obs => {
+    // Stage 3: Cross-pool deduplication
+    let observationsForDeletedCheck = observationsAfterIgnoreCheck;
+    let crossPoolMatchCount = 0;
+    if (contextPoolObs.length > 0) {
+      const crossPoolResult = deduplicateAgainstContextPool(
+        observationsAfterIgnoreCheck,
+        contextPoolObs,
+      );
+      crossPoolMatchCount = crossPoolResult.merged.length;
+      if (crossPoolMatchCount > 0) {
+        logger.info(`Cross-pool dedup: ${crossPoolMatchCount} observation(s) matched context pool entries`);
+      }
+      observationsForDeletedCheck = crossPoolResult.kept;
+    }
+
+    // Stage 4: Check similarity to deleted observations
+    const finalObservations = observationsForDeletedCheck.map(obs => {
       if (checkDeletedSimilarity && archivedObservations.length > 0) {
         const similarityWarning = checkSimilarityToDeleted(obs, archivedObservations);
         if (similarityWarning) {
@@ -796,6 +901,7 @@ export async function mergeLLM(
       inputCount: totalInput,
       outputCount: finalObservations.length,
       ignoredInherited: toArchive.length,
+      crossPoolMatches: crossPoolMatchCount,
       similarityWarnings: finalObservations.filter(o => o.similarToDeleted).length,
     });
 

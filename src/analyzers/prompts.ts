@@ -98,12 +98,28 @@ export const EXTRACTION_PROMPT = `
  *
  * @param sessionsText - 格式化的观察记录文本
  * @param promptsContext - 可选的用户 prompts 文本 (用于沟通偏好提取)
+ * @param existingObservations - 可选的已有观察摘要文本 (用于避免重复提取)
  */
 export function buildAnalysisPrompt(
   sessionsText: string,
-  promptsContext?: string | null
+  promptsContext?: string | null,
+  existingObservations?: string | null
 ): string {
-  let prompt = `${EXTRACTION_PROMPT}
+  let prompt = `${EXTRACTION_PROMPT}`;
+
+  // 注入已有观察列表，指示 LLM 不要重复提取
+  if (existingObservations) {
+    prompt += `
+
+# 已知观察（请勿重复提取）
+
+以下是系统已经了解的用户偏好和模式。如果会话数据中的行为与这些已知观察一致，请不要重复提取。仅提取下方列表中未涵盖的新发现。如果发现已知观察的显著更新或补充信息，可以提取更新版本。
+
+${existingObservations}
+`;
+  }
+
+  prompt += `
 
 # 会话数据
 

@@ -110,6 +110,7 @@ export async function executeLearningCycle(
         model: config.llm.model,
         maxOldObservations: 50,
         maxNewObservations: 20,
+        contextPoolObservations: contextObs,
       });
     } catch (mergeError) {
       logger.warn('LLM merge failed in orchestrator, using fallback no-merge', {
