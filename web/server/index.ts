@@ -56,9 +56,8 @@ app.use('/api', analysisLogsRouter);
 app.use('/api', statsRouter);
 
 // 静态文件服务（前端构建产物）
-// 使用 process.cwd() 获取命令执行目录（项目根）
-// 无论开发还是生产，只要在项目根执行命令，路径就是一致的
-const clientDistPath = path.join(process.cwd(), 'web/client/dist');
+// 使用 __dirname 相对路径定位，确保全局安装后在任意目录都能找到静态资源
+const clientDistPath = path.join(__dirname, '../../../web/client/dist');
 app.use(express.static(clientDistPath));
 
 // SPA fallback - 所有未匹配的路由返回 index.html
