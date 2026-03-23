@@ -60,6 +60,7 @@ export interface LearningStats {
         demoted: number;
         ignored: number;
       };
+      pinnedCount: number;
     };
     archived: {
       total: number;

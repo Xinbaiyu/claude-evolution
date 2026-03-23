@@ -70,8 +70,7 @@ export default function LearningTab({ config, onConfigChange }: LearningTabProps
   const contextTargetSize = contextCap?.targetSize || 50;
   const contextMaxSize = contextCap?.maxSize || 80;
   const contextProgress = (contextSize / contextMaxSize) * 100;
-  const pinnedCount = stats?.pools.context ?
-    (stats.pools.context as any).pinnedCount || 0 : 0;
+  const pinnedCount = stats?.pools.context?.pinnedCount || 0;
 
   return (
     <div className="space-y-6">

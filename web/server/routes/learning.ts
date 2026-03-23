@@ -584,6 +584,7 @@ router.get('/stats', async (req: Request, res: Response) => {
             tiers: contextTiers,
             types: typeStats(context),
             manualOverrides: manualOverrideStats(context),
+            pinnedCount: context.filter((obs) => obs.pinned === true).length,
           },
           archived: {
             total: archived.length,
