@@ -195,6 +195,18 @@ export interface Config {
     channels: {
       desktop: { enabled: boolean };
       websocket: { enabled: boolean };
+      webhook?: {
+        enabled: boolean;
+        webhooks: Array<{
+          name: string;
+          url: string;
+          preset?: 'dingtalk' | 'feishu' | 'wecom' | 'slack-incoming';
+          template?: string;
+          secret?: string;
+          headers?: Record<string, string>;
+          enabled?: boolean;
+        }>;
+      };
     };
   };
 }
@@ -322,6 +334,17 @@ export const apiClient = {
     if (!response.success) {
       throw new ApiError(response.error || '更新配置失败');
     }
+  },
+
+  /**
+   * 测试 webhook 连通性
+   */
+  async testWebhook(webhook: { name: string; url: string; preset?: string; secret?: string }): Promise<{ success: boolean; error?: string }> {
+    const response = await request<{ success: boolean; error?: string }>('/webhook/test', {
+      method: 'POST',
+      body: JSON.stringify(webhook),
+    });
+    return response.data ?? { success: response.success, error: response.error };
   },
 
   /**

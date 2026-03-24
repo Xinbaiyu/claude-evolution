@@ -5,7 +5,14 @@ import { toast } from '../components/Toast';
 import LearningTab from './Settings/LearningTab';
 import { TimePicker, Tag, ConfigProvider, theme } from 'antd';
 
-type TabType = 'scheduler' | 'llm' | 'learning';
+type TabType = 'scheduler' | 'llm' | 'learning' | 'notifications';
+
+const PRESET_LABELS: Record<string, string> = {
+  dingtalk: '钉钉',
+  feishu: '飞书',
+  wecom: '企业微信',
+  'slack-incoming': 'Slack',
+};
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -13,6 +20,10 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('scheduler');
+  const [testingWebhook, setTestingWebhook] = useState<number | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [webhookForm, setWebhookForm] = useState({ name: '', url: '', preset: 'dingtalk' as string, secret: '' });
 
   useEffect(() => {
     loadConfig();
@@ -47,6 +58,90 @@ export default function Settings() {
       toast.error(error.message || '保存失败');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const webhooks: Array<{ name: string; url: string; preset?: string; secret?: string; enabled?: boolean }> =
+    config?.reminders?.channels?.webhook?.webhooks || [];
+
+  const maskUrl = (url: string) => {
+    try {
+      const u = new URL(url);
+      return `${u.origin}/***`;
+    } catch {
+      return url.length > 30 ? `${url.slice(0, 30)}...` : url;
+    }
+  };
+
+  const updateWebhooks = (newWebhooks: typeof webhooks) => {
+    setConfig({
+      ...config,
+      reminders: {
+        ...config.reminders,
+        channels: {
+          ...config.reminders?.channels,
+          webhook: {
+            ...config.reminders?.channels?.webhook,
+            enabled: newWebhooks.length > 0,
+            webhooks: newWebhooks,
+          },
+        },
+      },
+    });
+  };
+
+  const resetForm = () => {
+    setWebhookForm({ name: '', url: '', preset: 'dingtalk', secret: '' });
+    setShowAddForm(false);
+    setEditingIndex(null);
+  };
+
+  const handleAddWebhook = () => {
+    if (!webhookForm.name.trim() || !webhookForm.url.trim()) {
+      toast.error('名称和 URL 不能为空');
+      return;
+    }
+    const entry = {
+      name: webhookForm.name.trim(),
+      url: webhookForm.url.trim(),
+      preset: webhookForm.preset,
+      secret: webhookForm.secret.trim() || undefined,
+      enabled: true,
+    };
+    if (editingIndex !== null) {
+      const updated = webhooks.map((w, i) => (i === editingIndex ? entry : w));
+      updateWebhooks(updated);
+    } else {
+      updateWebhooks([...webhooks, entry]);
+    }
+    resetForm();
+  };
+
+  const handleDeleteWebhook = (index: number) => {
+    updateWebhooks(webhooks.filter((_, i) => i !== index));
+  };
+
+  const handleEditWebhook = (index: number) => {
+    const w = webhooks[index];
+    setWebhookForm({ name: w.name, url: w.url, preset: w.preset || 'dingtalk', secret: w.secret || '' });
+    setEditingIndex(index);
+    setShowAddForm(true);
+  };
+
+  const handleTestWebhook = async (index: number) => {
+    setTestingWebhook(index);
+    try {
+      const w = webhooks[index];
+      const result = await apiClient.testWebhook({ name: w.name, url: w.url, preset: w.preset, secret: w.secret });
+      if (result.success) {
+        toast.success(`${w.name}: 测试消息发送成功`);
+      } else {
+        toast.error(`${w.name}: ${result.error || '发送失败'}`);
+      }
+    } catch (error: any) {
+      toast.error(error.message || '测试失败');
+    } finally {
+      setTestingWebhook(null);
     }
   };
 
@@ -93,6 +188,16 @@ export default function Settings() {
               }`}
             >
               增量学习 {config.learning ? '' : '(未启用)'}
+            </button>
+            <button
+              onClick={() => setActiveTab('notifications')}
+              className={`px-6 py-3 font-mono font-bold transition-colors border-b-4 ${
+                activeTab === 'notifications'
+                  ? 'border-amber-500 text-amber-500'
+                  : 'border-transparent text-slate-400 hover:text-slate-300'
+              }`}
+            >
+              通知通道
             </button>
           </nav>
         </div>
@@ -381,6 +486,154 @@ export default function Settings() {
           {/* 增量学习配置 */}
           {activeTab === 'learning' && (
             <LearningTab config={config} onConfigChange={setConfig} />
+          )}
+
+          {/* 通知通道配置 */}
+          {activeTab === 'notifications' && (
+            <div className="border-4 border-slate-700 bg-slate-900 p-6">
+              <h2 className="text-xl font-black text-amber-500 mb-4 font-mono">通知通道</h2>
+              <div className="text-xs text-slate-500 mb-6">
+                配置 Webhook 通知端点，分析完成或提醒触发时自动推送到钉钉、飞书等即时通讯工具。
+              </div>
+
+              {/* Webhook 列表 */}
+              {webhooks.length > 0 ? (
+                <div className="space-y-3 mb-6">
+                  {webhooks.map((w, i) => (
+                    <div
+                      key={i}
+                      className="border-2 border-slate-700 bg-slate-800 p-4 flex items-center justify-between gap-4"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-bold text-slate-200">{w.name}</span>
+                          {w.preset && (
+                            <span className="text-xs px-2 py-0.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-mono">
+                              {PRESET_LABELS[w.preset] || w.preset}
+                            </span>
+                          )}
+                          {w.secret && (
+                            <span className="text-xs px-2 py-0.5 bg-green-500/10 border border-green-500/30 text-green-400 font-mono">
+                              签名
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-500 font-mono truncate">
+                          {maskUrl(w.url)}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => handleTestWebhook(i)}
+                          disabled={testingWebhook === i}
+                          className="text-xs border border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 px-3 py-1.5 font-mono transition-colors disabled:opacity-50"
+                        >
+                          {testingWebhook === i ? '发送中...' : '测试'}
+                        </button>
+                        <button
+                          onClick={() => handleEditWebhook(i)}
+                          className="text-xs border border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-400 px-3 py-1.5 font-mono transition-colors"
+                        >
+                          编辑
+                        </button>
+                        <button
+                          onClick={() => handleDeleteWebhook(i)}
+                          className="text-xs border border-red-500/50 text-red-400 hover:bg-red-500/10 px-3 py-1.5 font-mono transition-colors"
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="border-2 border-dashed border-slate-700 p-8 text-center mb-6">
+                  <div className="text-slate-500 text-sm">暂无 Webhook 配置</div>
+                  <div className="text-slate-600 text-xs mt-1">点击下方按钮添加通知端点</div>
+                </div>
+              )}
+
+              {/* 添加 / 编辑表单 */}
+              {showAddForm ? (
+                <div className="border-2 border-cyan-500/30 bg-cyan-500/5 p-4 space-y-4">
+                  <div className="text-sm font-bold text-cyan-400">
+                    {editingIndex !== null ? '编辑 Webhook' : '添加 Webhook'}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 block mb-1">名称</label>
+                      <input
+                        type="text"
+                        placeholder="例：钉钉群机器人"
+                        value={webhookForm.name}
+                        onChange={(e) => setWebhookForm({ ...webhookForm, name: e.target.value })}
+                        className="w-full border-2 border-slate-600 bg-slate-800 text-slate-100 font-mono py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 block mb-1">预设类型</label>
+                      <select
+                        value={webhookForm.preset}
+                        onChange={(e) => setWebhookForm({ ...webhookForm, preset: e.target.value })}
+                        className="w-full border-2 border-slate-600 bg-slate-800 text-slate-100 font-mono py-2 px-3 text-sm"
+                      >
+                        <option value="dingtalk">钉钉</option>
+                        <option value="feishu">飞书</option>
+                        <option value="wecom">企业微信</option>
+                        <option value="slack-incoming">Slack</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 block mb-1">Webhook URL</label>
+                    <input
+                      type="text"
+                      placeholder="https://oapi.dingtalk.com/robot/send?access_token=..."
+                      value={webhookForm.url}
+                      onChange={(e) => setWebhookForm({ ...webhookForm, url: e.target.value })}
+                      className="w-full border-2 border-slate-600 bg-slate-800 text-slate-100 font-mono py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 block mb-1">
+                      签名密钥 <span className="text-slate-600 font-normal">(可选，钉钉加签)</span>
+                    </label>
+                    <input
+                      type="password"
+                      placeholder="SEC..."
+                      value={webhookForm.secret}
+                      onChange={(e) => setWebhookForm({ ...webhookForm, secret: e.target.value })}
+                      className="w-full border-2 border-slate-600 bg-slate-800 text-slate-100 font-mono py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={resetForm}
+                      className="text-sm border border-slate-600 text-slate-400 hover:text-slate-200 px-4 py-2 font-mono transition-colors"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={handleAddWebhook}
+                      className="text-sm border border-cyan-500 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 px-4 py-2 font-mono font-bold transition-colors"
+                    >
+                      {editingIndex !== null ? '保存修改' : '添加'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="w-full border-2 border-dashed border-slate-600 hover:border-cyan-500/50 text-slate-400 hover:text-cyan-400 py-3 font-mono text-sm transition-colors"
+                >
+                  + 添加 Webhook
+                </button>
+              )}
+            </div>
           )}
 
           {/* 按钮 */}

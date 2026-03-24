@@ -263,6 +263,17 @@ router.patch('/config', async (req, res) => {
         ...currentConfig.learningPhases,
         ...updates.learningPhases,
       },
+      reminders: {
+        ...currentConfig.reminders,
+        ...updates.reminders,
+        channels: {
+          ...currentConfig.reminders?.channels,
+          ...updates.reminders?.channels,
+          webhook: updates.reminders?.channels?.webhook !== undefined
+            ? updates.reminders.channels.webhook
+            : currentConfig.reminders?.channels?.webhook,
+        },
+      },
     };
 
     // 写入配置文件
@@ -313,6 +324,59 @@ router.get('/analyze/status', (req, res) => {
       success: true,
       data: { isRunning: false, startTime: null, runId: null },
     });
+  }
+});
+
+// POST /api/webhook/test - 测试 webhook 连通性
+router.post('/webhook/test', async (req, res) => {
+  try {
+    const { name, url, preset, secret } = req.body || {};
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ success: false, error: 'url 是必填项' });
+    }
+
+    // 动态导入 webhook 工具
+    const { renderTemplate, signDingTalkUrl } = await import('../../../src/notifications/webhook-utils.js');
+    const { WEBHOOK_PRESETS } = await import('../../../src/notifications/webhook-presets.js');
+
+    const presetConfig = preset ? WEBHOOK_PRESETS.get(preset) : undefined;
+    const template = presetConfig?.template ?? '{"text":"{{title}}: {{body}}"}';
+    const contentType = presetConfig?.contentType ?? 'application/json';
+
+    const body = renderTemplate(template, {
+      title: '测试通知',
+      body: `来自 claude-evolution 的 webhook 连通性测试 (${name || 'unnamed'})`,
+      type: 'system',
+      timestamp: new Date().toISOString(),
+    });
+
+    let finalUrl = url;
+    if (secret && presetConfig?.signFn) {
+      finalUrl = presetConfig.signFn(finalUrl, secret);
+    }
+
+    const response = await fetch(finalUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': contentType },
+      body,
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      return res.json({ success: false, error: `HTTP ${response.status}: ${text.slice(0, 200)}` });
+    }
+
+    const result = await response.json().catch(() => ({})) as Record<string, unknown>;
+    // 钉钉/飞书返回 errcode
+    if (result.errcode !== undefined && result.errcode !== 0) {
+      return res.json({ success: false, error: `${result.errmsg || 'Unknown error'} (errcode: ${result.errcode})` });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
   }
 });
 
