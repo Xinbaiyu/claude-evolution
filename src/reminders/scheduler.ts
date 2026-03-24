@@ -1,6 +1,7 @@
 /**
  * 提醒调度器
- * 统一使用 node-cron 调度所有提醒
+ * one-shot 提醒使用 setTimeout 精确调度
+ * recurring 提醒使用 node-cron 调度
  */
 
 import cron from 'node-cron';
@@ -8,7 +9,8 @@ import type { Reminder } from './types.js';
 
 type TriggerCallback = (reminder: Reminder) => void;
 
-const activeTasks = new Map<string, cron.ScheduledTask>();
+const activeCronTasks = new Map<string, cron.ScheduledTask>();
+const activeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 /**
  * 将 ISO 8601 时间转换为精确到分钟的 cron 表达式
@@ -27,34 +29,52 @@ export function scheduleReminder(
   reminder: Reminder,
   onTrigger: TriggerCallback,
 ): void {
-  // Cancel existing task if any
   cancelReminder(reminder.id);
 
+  if (reminder.type === 'one-shot' && reminder.triggerAt) {
+    const delayMs = new Date(reminder.triggerAt).getTime() - Date.now();
+    if (delayMs <= 0) {
+      // Already overdue — fire immediately
+      onTrigger(reminder);
+      return;
+    }
+    const timer = setTimeout(() => {
+      activeTimers.delete(reminder.id);
+      onTrigger(reminder);
+    }, delayMs);
+    activeTimers.set(reminder.id, timer);
+    return;
+  }
+
+  // Recurring reminders use cron
   const task = cron.schedule(reminder.cronExpression, () => {
     onTrigger(reminder);
-
-    // One-shot reminders auto-cancel after firing
-    if (reminder.type === 'one-shot') {
-      cancelReminder(reminder.id);
-    }
   });
-
-  activeTasks.set(reminder.id, task);
+  activeCronTasks.set(reminder.id, task);
 }
 
 export function cancelReminder(id: string): void {
-  const task = activeTasks.get(id);
+  const task = activeCronTasks.get(id);
   if (task) {
     task.stop();
-    activeTasks.delete(id);
+    activeCronTasks.delete(id);
+  }
+  const timer = activeTimers.get(id);
+  if (timer) {
+    clearTimeout(timer);
+    activeTimers.delete(id);
   }
 }
 
 export function cancelAll(): void {
-  for (const task of activeTasks.values()) {
+  for (const task of activeCronTasks.values()) {
     task.stop();
   }
-  activeTasks.clear();
+  activeCronTasks.clear();
+  for (const timer of activeTimers.values()) {
+    clearTimeout(timer);
+  }
+  activeTimers.clear();
 }
 
 export function validateCronExpression(expression: string): boolean {
