@@ -8,6 +8,7 @@ import sourceRouter from './routes/source.js';
 import learningRouter from './routes/learning.js';
 import analysisLogsRouter from './routes/analysis-logs.js';
 import statsRouter from './routes/stats.js';
+import remindersRouter from './routes/reminders.js';
 import { WebSocketManager } from './websocket.js';
 import { NotificationManager } from './notifications.js';
 
@@ -34,6 +35,9 @@ const notificationManager = new NotificationManager(PORT as number);
 app.use((req: any, res: Response, next: NextFunction) => {
   req.wsManager = wsManager;
   req.notificationManager = notificationManager;
+  if (reminderServiceInstance) {
+    req.reminderService = reminderServiceInstance;
+  }
   next();
 });
 
@@ -54,6 +58,7 @@ app.use('/api/source', sourceRouter);
 app.use('/api/learning', learningRouter);
 app.use('/api', analysisLogsRouter);
 app.use('/api', statsRouter);
+app.use('/api', remindersRouter);
 
 // 静态文件服务（前端构建产物）
 // 使用 __dirname 相对路径定位，确保全局安装后在任意目录都能找到静态资源
@@ -115,6 +120,13 @@ export function closeServer(): Promise<void> {
 // 调度器配置变更回调注册
 type SchedulerConfigChangedCallback = () => Promise<void>;
 let schedulerConfigChangedCallback: SchedulerConfigChangedCallback | null = null;
+
+// ReminderService 注入
+let reminderServiceInstance: any = null;
+
+export function setReminderService(service: any): void {
+  reminderServiceInstance = service;
+}
 
 export function onSchedulerConfigChanged(callback: SchedulerConfigChangedCallback): void {
   schedulerConfigChangedCallback = callback;

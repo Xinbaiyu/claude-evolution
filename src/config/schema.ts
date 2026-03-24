@@ -190,6 +190,21 @@ const LearningConfigSchema = z.object({
 });
 
 /**
+ * 提醒系统配置
+ */
+const RemindersConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  channels: z.object({
+    desktop: z.object({
+      enabled: z.boolean().default(true),
+    }),
+    websocket: z.object({
+      enabled: z.boolean().default(true),
+    }),
+  }),
+});
+
+/**
  * 完整配置 Schema
  */
 export const ConfigSchema = z.object({
@@ -198,6 +213,7 @@ export const ConfigSchema = z.object({
   daemon: DaemonConfigSchema.optional(), // 可选，用于向后兼容
   webUI: WebUIConfigSchema.optional(), // 可选，用于向后兼容
   learning: LearningConfigSchema.optional(), // 可选，增量学习配置
+  reminders: RemindersConfigSchema.optional(), // 可选，提醒系统配置
   llm: LLMSchema,
   httpApi: HttpApiSchema,
   filters: FiltersSchema,
@@ -290,6 +306,13 @@ export const DEFAULT_CONFIG: Config = {
     },
     retention: {
       archivedDays: 30,
+    },
+  },
+  reminders: {
+    enabled: true,
+    channels: {
+      desktop: { enabled: true },
+      websocket: { enabled: true },
     },
   },
   llm: {

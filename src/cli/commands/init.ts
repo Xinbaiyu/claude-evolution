@@ -80,6 +80,9 @@ export async function initCommand(): Promise<void> {
   await saveConfig(config);
   logger.success(`✓ 配置已保存到 ${path.join(evolutionDir, 'config.json')}`);
 
+  // 安装 Skill 文件
+  await installSkillFiles();
+
   // 显示下一步提示
   console.log(chalk.bold.green('\n✅ 初始化完成!\n'));
   console.log(chalk.bold('下一步:'));
@@ -414,4 +417,35 @@ async function promptForConfig(apiConfig: { baseURL?: string }) {
     },
     llm: llmConfig,
   };
+}
+
+/**
+ * 安装 Skill 文件到 ~/.claude/skills/
+ */
+async function installSkillFiles(): Promise<void> {
+  const targetDir = path.join(os.homedir(), '.claude', 'skills', 'remind');
+  const targetPath = path.join(targetDir, 'SKILL.md');
+
+  // Check if user has a custom (unversioned) skill file
+  if (await fs.pathExists(targetPath)) {
+    const content = await fs.readFile(targetPath, 'utf-8');
+    if (!content.includes('name: remind')) {
+      console.log(chalk.yellow('⚠️  跳过 Skill 安装：检测到用户自定义的 remind skill'));
+      return;
+    }
+  }
+
+  // Copy skill file from project's skills/ directory
+  const { fileURLToPath } = await import('url');
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const sourcePath = path.join(__dirname, '../../../skills/remind/SKILL.md');
+
+  if (await fs.pathExists(sourcePath)) {
+    await fs.ensureDir(targetDir);
+    await fs.copyFile(sourcePath, targetPath);
+    logger.success('✓ Skill 文件已安装: ~/.claude/skills/remind/SKILL.md');
+  } else {
+    console.log(chalk.yellow('⚠️  Skill 源文件未找到，跳过安装'));
+  }
 }

@@ -16,6 +16,9 @@ import { regenerateClaudeMdFromDisk } from '../memory/claudemd-generator.js';
 import { migratePreferenceWorkflowType } from '../memory/observation-manager.js';
 import { notifySuccess, notifyError } from '../utils/notifier.js';
 import { AnalysisExecutor } from '../analyzers/analysis-executor.js';
+import { ReminderService } from '../reminders/service.js';
+import { NotificationDispatcher } from '../notifications/dispatcher.js';
+import { DesktopChannel } from '../notifications/desktop-channel.js';
 import type { FSWatcher } from 'chokidar';
 
 // ---------------------------------------------------------------------------
@@ -33,6 +36,7 @@ export interface DaemonComponents {
   scheduler: CronScheduler | null;
   fileWatcher: FSWatcher | null;
   webServer: any | null;
+  reminderService: ReminderService | null;
 }
 
 /** Options for startComponents — each mode fills in its own values */
@@ -152,6 +156,7 @@ export async function startComponents(
     scheduler: null,
     fileWatcher: null,
     webServer: null,
+    reminderService: null,
   };
 
   const analysisCallback = createAnalysisCallback(executor, log);
@@ -235,6 +240,28 @@ export async function startComponents(
       await webModule.startServer(port);
       components.webServer = webModule.server;
       log.info(`Web 服务器已启动: http://localhost:${port}`);
+
+      // 5. Reminder Service (after web server so wsManager is available)
+      if (config.reminders?.enabled !== false) {
+        log.info('启动提醒服务...');
+        const { WebSocketChannel } = await import('../notifications/websocket-channel.js');
+
+        const dispatcher = new NotificationDispatcher();
+        if (config.reminders?.channels?.desktop?.enabled !== false) {
+          dispatcher.addChannel(new DesktopChannel());
+        }
+        if (config.reminders?.channels?.websocket?.enabled !== false) {
+          dispatcher.addChannel(new WebSocketChannel(webModule.wsManager));
+        }
+
+        const reminderService = new ReminderService(dispatcher);
+        await reminderService.recover();
+        components.reminderService = reminderService;
+
+        // Inject reminderService into Express middleware
+        webModule.setReminderService(reminderService);
+        log.info('提醒服务已启动');
+      }
     }
 
     return components;
@@ -266,6 +293,12 @@ export async function stopComponents(
     components.scheduler.stop();
     components.scheduler = null;
     log.info('调度器已停止');
+  }
+
+  if (components.reminderService) {
+    components.reminderService.shutdown();
+    components.reminderService = null;
+    log.info('提醒服务已停止');
   }
 
   if (components.webServer) {

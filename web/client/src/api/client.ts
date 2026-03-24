@@ -190,6 +190,13 @@ export interface Config {
       archivedDays: number;
     };
   };
+  reminders?: {
+    enabled: boolean;
+    channels: {
+      desktop: { enabled: boolean };
+      websocket: { enabled: boolean };
+    };
+  };
 }
 
 export interface AnalysisStatus {

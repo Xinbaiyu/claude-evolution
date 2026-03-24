@@ -145,6 +145,11 @@ function migrateConfig(oldConfig: any): any {
     }
   }
 
+  // 迁移 11: 添加 reminders 配置（如果不存在）
+  if (!migrated.reminders) {
+    migrated.reminders = DEFAULT_CONFIG.reminders;
+  }
+
   return migrated;
 }
 
