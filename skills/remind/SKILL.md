@@ -58,3 +58,29 @@ curl -s -X PATCH http://localhost:10010/api/reminders/<id> \
 # Delete a reminder
 curl -s -X DELETE http://localhost:10010/api/reminders/<id>
 ```
+
+## Webhook 通知通道（钉钉/飞书/企微）
+
+提醒支持通过 webhook 推送到钉钉、飞书、企业微信等 IM 工具。在 `~/.claude-evolution/config.json` 中配置：
+
+```json
+{
+  "reminders": {
+    "channels": {
+      "webhook": {
+        "enabled": true,
+        "webhooks": [
+          {
+            "name": "钉钉-团队群",
+            "url": "https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN",
+            "preset": "dingtalk",
+            "secret": "SEC..."
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+支持的预设: `dingtalk`(钉钉), `feishu`(飞书), `wecom`(企业微信), `slack-incoming`(Slack)。也可用 `template` 字段自定义请求体模板，可用变量: `{{title}}`, `{{body}}`, `{{type}}`, `{{timestamp}}`。配置后重启 daemon 生效。

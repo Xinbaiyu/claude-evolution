@@ -245,6 +245,7 @@ export async function startComponents(
       if (config.reminders?.enabled !== false) {
         log.info('启动提醒服务...');
         const { WebSocketChannel } = await import('../notifications/websocket-channel.js');
+        const { WebhookChannel } = await import('../notifications/webhook-channel.js');
 
         const dispatcher = new NotificationDispatcher();
         if (config.reminders?.channels?.desktop?.enabled !== false) {
@@ -252,6 +253,11 @@ export async function startComponents(
         }
         if (config.reminders?.channels?.websocket?.enabled !== false) {
           dispatcher.addChannel(new WebSocketChannel(webModule.wsManager));
+        }
+        const webhookConfig = config.reminders?.channels?.webhook;
+        if (webhookConfig?.enabled && webhookConfig.webhooks?.length > 0) {
+          dispatcher.addChannel(new WebhookChannel(webhookConfig.webhooks));
+          log.info(`Webhook 通知渠道已启用 (${webhookConfig.webhooks.length} 个端点)`);
         }
 
         const reminderService = new ReminderService(dispatcher);

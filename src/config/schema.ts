@@ -190,6 +190,19 @@ const LearningConfigSchema = z.object({
 });
 
 /**
+ * Webhook 端点配置
+ */
+const WebhookEndpointSchema = z.object({
+  name: z.string().min(1),
+  url: z.string().url(),
+  preset: z.enum(['dingtalk', 'feishu', 'wecom', 'slack-incoming']).optional(),
+  template: z.string().optional(),
+  secret: z.string().optional(),
+  headers: z.record(z.string()).optional(),
+  enabled: z.boolean().default(true),
+});
+
+/**
  * 提醒系统配置
  */
 const RemindersConfigSchema = z.object({
@@ -201,6 +214,10 @@ const RemindersConfigSchema = z.object({
     websocket: z.object({
       enabled: z.boolean().default(true),
     }),
+    webhook: z.object({
+      enabled: z.boolean().default(false),
+      webhooks: z.array(WebhookEndpointSchema).default([]),
+    }).default({ enabled: false, webhooks: [] }),
   }),
 });
 
@@ -313,6 +330,7 @@ export const DEFAULT_CONFIG: Config = {
     channels: {
       desktop: { enabled: true },
       websocket: { enabled: true },
+      webhook: { enabled: false, webhooks: [] },
     },
   },
   llm: {
