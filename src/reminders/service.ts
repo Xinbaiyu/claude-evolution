@@ -14,7 +14,7 @@ import {
   timeToCronExpression,
   validateCronExpression,
 } from './scheduler.js';
-import type { Reminder, CreateReminderInput } from './types.js';
+import type { Reminder, CreateReminderInput, UpdateReminderInput } from './types.js';
 
 export class ReminderService {
   private reminders: Reminder[] = [];
@@ -90,6 +90,57 @@ export class ReminderService {
 
   getById(id: string): Reminder | undefined {
     return this.reminders.find((r) => r.id === id);
+  }
+
+  async update(id: string, input: UpdateReminderInput): Promise<Reminder> {
+    const existing = this.reminders.find((r) => r.id === id);
+    if (!existing) {
+      throw new Error('Reminder not found');
+    }
+
+    const message = input.message ?? existing.message;
+    const triggerAt = input.triggerAt ?? existing.triggerAt;
+    const schedule = input.schedule ?? existing.schedule;
+
+    // Determine new type and cron based on what changed
+    let type = existing.type;
+    let cronExpression = existing.cronExpression;
+
+    if (input.triggerAt) {
+      const targetDate = new Date(input.triggerAt);
+      if (isNaN(targetDate.getTime())) {
+        throw new Error('triggerAt must be a valid ISO 8601 datetime');
+      }
+      if (targetDate.getTime() <= Date.now()) {
+        throw new Error('Reminder time is in the past');
+      }
+      type = 'one-shot';
+      cronExpression = timeToCronExpression(input.triggerAt);
+    } else if (input.schedule) {
+      if (!validateCronExpression(input.schedule)) {
+        throw new Error('Invalid cron expression');
+      }
+      type = 'recurring';
+      cronExpression = input.schedule;
+    }
+
+    const updated: Reminder = {
+      ...existing,
+      message,
+      type,
+      triggerAt: type === 'one-shot' ? triggerAt : undefined,
+      schedule: type === 'recurring' ? schedule : undefined,
+      cronExpression,
+    };
+
+    // Cancel old schedule, register new one
+    cancelReminder(id);
+    this.reminders = this.reminders.map((r) => (r.id === id ? updated : r));
+    await saveReminders(this.reminders);
+    scheduleReminder(updated, (r) => this.handleTrigger(r));
+
+    logger.info(`提醒已更新: ${id}`);
+    return updated;
   }
 
   async recover(): Promise<void> {

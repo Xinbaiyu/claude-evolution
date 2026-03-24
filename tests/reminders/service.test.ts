@@ -234,4 +234,55 @@ describe('ReminderService', () => {
       expect(cancelAll).toHaveBeenCalledOnce();
     });
   });
+
+  describe('update', () => {
+    it('updates message only', async () => {
+      const future = new Date(Date.now() + 60_000).toISOString();
+      const created = await service.create({ message: 'old', triggerAt: future });
+
+      const updated = await service.update(created.id, { message: 'new' });
+
+      expect(updated.message).toBe('new');
+      expect(updated.triggerAt).toBe(future);
+      expect(cancelReminder).toHaveBeenCalledWith(created.id);
+    });
+
+    it('updates triggerAt and reschedules', async () => {
+      const future1 = new Date(Date.now() + 60_000).toISOString();
+      const future2 = new Date(Date.now() + 120_000).toISOString();
+      const created = await service.create({ message: 'test', triggerAt: future1 });
+
+      const updated = await service.update(created.id, { triggerAt: future2 });
+
+      expect(updated.triggerAt).toBe(future2);
+      expect(scheduleReminder).toHaveBeenCalledTimes(2); // create + update
+    });
+
+    it('updates schedule for recurring reminder', async () => {
+      const created = await service.create({ message: 'test', schedule: '0 9 * * *' });
+
+      const updated = await service.update(created.id, { schedule: '0 10 * * *' });
+
+      expect(updated.cronExpression).toBe('0 10 * * *');
+    });
+
+    it('throws for non-existent reminder', async () => {
+      await expect(service.update('unknown', { message: 'x' })).rejects.toThrow('Reminder not found');
+    });
+
+    it('throws for past triggerAt', async () => {
+      const future = new Date(Date.now() + 60_000).toISOString();
+      const created = await service.create({ message: 'test', triggerAt: future });
+      const past = new Date(Date.now() - 60_000).toISOString();
+
+      await expect(service.update(created.id, { triggerAt: past })).rejects.toThrow('in the past');
+    });
+
+    it('throws for invalid cron', async () => {
+      const created = await service.create({ message: 'test', schedule: '0 9 * * *' });
+      vi.mocked(validateCronExpression).mockReturnValueOnce(false);
+
+      await expect(service.update(created.id, { schedule: 'bad' })).rejects.toThrow('Invalid cron');
+    });
+  });
 });

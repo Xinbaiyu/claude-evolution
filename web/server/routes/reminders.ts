@@ -16,6 +16,12 @@ const CreateReminderSchema = z.object({
   { message: 'Either triggerAt or schedule is required' }
 );
 
+const UpdateReminderSchema = z.object({
+  message: z.string().min(1).optional(),
+  triggerAt: z.string().datetime({ offset: true, message: 'triggerAt must be a valid ISO 8601 datetime' }).optional(),
+  schedule: z.string().optional(),
+});
+
 // POST /api/reminders — Create reminder
 router.post('/reminders', async (req: Request, res: Response) => {
   try {
@@ -77,6 +83,33 @@ router.get('/reminders/:id', (req: Request, res: Response) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to get reminder';
     res.status(500).json({ success: false, error: message });
+  }
+});
+
+// PATCH /api/reminders/:id — Update reminder
+router.patch('/reminders/:id', async (req: Request, res: Response) => {
+  try {
+    const parsed = UpdateReminderSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const firstError = parsed.error.errors[0]?.message ?? 'Invalid input';
+      res.status(400).json({ success: false, error: firstError });
+      return;
+    }
+
+    const reminderService = (req as any).reminderService;
+    if (!reminderService) {
+      res.status(503).json({ success: false, error: 'Reminder service not available' });
+      return;
+    }
+
+    const reminder = await reminderService.update(req.params.id, parsed.data);
+    res.json({ success: true, data: reminder });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to update reminder';
+    const status = message === 'Reminder not found' ? 404
+      : (message.includes('in the past') || message.includes('Invalid')) ? 400
+      : 500;
+    res.status(status).json({ success: false, error: message });
   }
 });
 

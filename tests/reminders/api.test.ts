@@ -152,6 +152,63 @@ describe('Reminders REST API', () => {
     });
   });
 
+  describe('PATCH /api/reminders/:id', () => {
+    it('updates message', async () => {
+      const future = new Date(Date.now() + 120_000).toISOString();
+      const createRes = await request(app)
+        .post('/api/reminders')
+        .send({ message: 'original', triggerAt: future });
+
+      const id = createRes.body.data.id;
+      const res = await request(app)
+        .patch(`/api/reminders/${id}`)
+        .send({ message: 'updated' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.message).toBe('updated');
+    });
+
+    it('updates triggerAt', async () => {
+      const future1 = new Date(Date.now() + 120_000).toISOString();
+      const future2 = new Date(Date.now() + 240_000).toISOString();
+      const createRes = await request(app)
+        .post('/api/reminders')
+        .send({ message: 'test', triggerAt: future1 });
+
+      const id = createRes.body.data.id;
+      const res = await request(app)
+        .patch(`/api/reminders/${id}`)
+        .send({ triggerAt: future2 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.triggerAt).toBe(future2);
+    });
+
+    it('returns 404 for unknown id', async () => {
+      const res = await request(app)
+        .patch('/api/reminders/nonexistent')
+        .send({ message: 'x' });
+
+      expect(res.status).toBe(404);
+    });
+
+    it('returns 400 for past triggerAt', async () => {
+      const future = new Date(Date.now() + 120_000).toISOString();
+      const createRes = await request(app)
+        .post('/api/reminders')
+        .send({ message: 'test', triggerAt: future });
+
+      const id = createRes.body.data.id;
+      const past = new Date(Date.now() - 60_000).toISOString();
+      const res = await request(app)
+        .patch(`/api/reminders/${id}`)
+        .send({ triggerAt: past });
+
+      expect(res.status).toBe(400);
+    });
+  });
+
   describe('DELETE /api/reminders/:id', () => {
     it('deletes a reminder', async () => {
       const future = new Date(Date.now() + 120_000).toISOString();

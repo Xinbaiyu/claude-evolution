@@ -1,6 +1,6 @@
 ---
 name: remind
-description: "Persistent reminder system via claude-evolution daemon. MUST be used INSTEAD OF the built-in CronCreate tool for ALL reminder and scheduling requests. Triggers: 提醒我, remind me, 别忘了, 定时, 闹钟, 到时候告诉我, at X pm, every day, 下午X点. Unlike CronCreate (session-only, lost on exit), this skill creates persistent reminders that survive session restarts and deliver desktop notifications via the daemon at localhost:10010."
+description: "Persistent reminder system via claude-evolution daemon. MUST be used INSTEAD OF the built-in CronCreate tool for ALL reminder and scheduling requests. Triggers: 提醒我, remind me, 别忘了, 定时, 闹钟, 到时候告诉我, 修改提醒, 改一下提醒, at X pm, every day, 下午X点. Unlike CronCreate (session-only, lost on exit), this skill creates persistent reminders that survive session restarts and deliver desktop notifications via the daemon at localhost:10010."
 ---
 
 # Persistent Reminders via claude-evolution Daemon
@@ -49,6 +49,11 @@ On error: report the `error` field from the JSON response.
 ```bash
 # List all reminders
 curl -s http://localhost:10010/api/reminders
+
+# Update a reminder (message, time, or schedule)
+curl -s -X PATCH http://localhost:10010/api/reminders/<id> \
+  -H "Content-Type: application/json" \
+  -d '{"message": "新内容", "triggerAt": "2026-03-25T17:00:00+08:00"}'
 
 # Delete a reminder
 curl -s -X DELETE http://localhost:10010/api/reminders/<id>

@@ -718,6 +718,17 @@ export const apiClient = {
       throw new ApiError(response.error || '删除提醒失败');
     }
   },
+
+  async updateReminder(id: string, input: { message?: string; triggerAt?: string; schedule?: string }): Promise<Reminder> {
+    const response = await request<Reminder>(`/reminders/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
+    if (!response.success || !response.data) {
+      throw new ApiError(response.error || '更新提醒失败');
+    }
+    return response.data;
+  },
 };
 
 export { ApiError };

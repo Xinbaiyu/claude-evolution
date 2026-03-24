@@ -24,3 +24,9 @@ export interface CreateReminderInput {
   readonly triggerAt?: string;
   readonly schedule?: string;
 }
+
+export interface UpdateReminderInput {
+  readonly message?: string;
+  readonly triggerAt?: string;
+  readonly schedule?: string;
+}

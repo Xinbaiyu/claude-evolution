@@ -89,6 +89,12 @@ export default function Reminders() {
 
   // Recurring state
   const [recurringType, setRecurringType] = useState<RecurringType>('daily');
+
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editMessage, setEditMessage] = useState('');
+  const [editTriggerAt, setEditTriggerAt] = useState<Dayjs | null>(null);
+  const [editSchedule, setEditSchedule] = useState('');
   const [recurringTime, setRecurringTime] = useState<Dayjs>(dayjs().hour(9).minute(0));
   const [weekdays, setWeekdays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [monthDay, setMonthDay] = useState(1);
@@ -169,6 +175,44 @@ export default function Reminders() {
     try {
       await apiClient.deleteReminder(id);
       toast.success('提醒已删除');
+      await fetchReminders();
+    } catch (err) {
+      if (err instanceof ApiError) toast.error(err.message);
+    }
+  };
+
+  const startEdit = (r: Reminder) => {
+    setEditingId(r.id);
+    setEditMessage(r.message);
+    setEditTriggerAt(r.triggerAt ? dayjs(r.triggerAt) : null);
+    setEditSchedule(r.schedule || r.cronExpression);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditMessage('');
+    setEditTriggerAt(null);
+    setEditSchedule('');
+  };
+
+  const handleUpdate = async (r: Reminder) => {
+    try {
+      const input: { message?: string; triggerAt?: string; schedule?: string } = {};
+      if (editMessage !== r.message) input.message = editMessage;
+      if (r.type === 'one-shot' && editTriggerAt) {
+        input.triggerAt = editTriggerAt.toISOString();
+      } else if (r.type === 'recurring' && editSchedule !== (r.schedule || r.cronExpression)) {
+        input.schedule = editSchedule;
+      }
+
+      if (Object.keys(input).length === 0) {
+        cancelEdit();
+        return;
+      }
+
+      await apiClient.updateReminder(r.id, input);
+      toast.success('提醒已更新');
+      cancelEdit();
       await fetchReminders();
     } catch (err) {
       if (err instanceof ApiError) toast.error(err.message);
@@ -374,29 +418,83 @@ export default function Reminders() {
               {reminders.map((r) => (
                 <div
                   key={r.id}
-                  className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded-lg px-4 py-3"
+                  className="bg-slate-800 border border-slate-700 rounded-lg px-4 py-3"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="text-slate-100 font-mono truncate">{r.message}</div>
-                    <div className="flex gap-4 mt-1 text-xs text-slate-400 font-mono">
-                      <span
-                        className={`px-2 py-0.5 rounded ${
-                          r.type === 'one-shot'
-                            ? 'bg-blue-500/10 text-blue-400'
-                            : 'bg-green-500/10 text-green-400'
-                        }`}
-                      >
-                        {r.type === 'one-shot' ? '一次性' : '重复'}
-                      </span>
-                      <span>{describeCron(r)}</span>
+                  {editingId === r.id ? (
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        value={editMessage}
+                        onChange={(e) => setEditMessage(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-slate-100 font-mono focus:border-amber-500 focus:outline-none"
+                      />
+                      {r.type === 'one-shot' ? (
+                        <DatePicker
+                          showTime={{ format: 'HH:mm' }}
+                          format="YYYY-MM-DD HH:mm"
+                          value={editTriggerAt}
+                          onChange={(val) => setEditTriggerAt(val)}
+                          size="middle"
+                          style={{ width: 240 }}
+                          disabledDate={(current) => current && current.isBefore(dayjs().startOf('day'))}
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={editSchedule}
+                          onChange={(e) => setEditSchedule(e.target.value)}
+                          placeholder="cron 表达式"
+                          className="bg-slate-900 border border-slate-600 rounded px-3 py-2 text-slate-100 font-mono focus:border-amber-500 focus:outline-none"
+                        />
+                      )}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleUpdate(r)}
+                          className="px-3 py-1 text-sm font-mono bg-amber-500 text-slate-900 font-bold rounded hover:bg-amber-400 transition-colors"
+                        >
+                          保存
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          className="px-3 py-1 text-sm font-mono text-slate-400 border border-slate-600 rounded hover:border-slate-500 transition-colors"
+                        >
+                          取消
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <button
-                    onClick={() => handleDelete(r.id)}
-                    className="ml-4 px-3 py-1 text-sm font-mono text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-transparent hover:border-red-500/30 rounded transition-colors"
-                  >
-                    删除
-                  </button>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-slate-100 font-mono truncate">{r.message}</div>
+                        <div className="flex gap-4 mt-1 text-xs text-slate-400 font-mono">
+                          <span
+                            className={`px-2 py-0.5 rounded ${
+                              r.type === 'one-shot'
+                                ? 'bg-blue-500/10 text-blue-400'
+                                : 'bg-green-500/10 text-green-400'
+                            }`}
+                          >
+                            {r.type === 'one-shot' ? '一次性' : '重复'}
+                          </span>
+                          <span>{describeCron(r)}</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-1 ml-4">
+                        <button
+                          onClick={() => startEdit(r)}
+                          className="px-3 py-1 text-sm font-mono text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-transparent hover:border-amber-500/30 rounded transition-colors"
+                        >
+                          编辑
+                        </button>
+                        <button
+                          onClick={() => handleDelete(r.id)}
+                          className="px-3 py-1 text-sm font-mono text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-transparent hover:border-red-500/30 rounded transition-colors"
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
