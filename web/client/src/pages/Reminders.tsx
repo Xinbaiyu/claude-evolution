@@ -95,6 +95,10 @@ export default function Reminders() {
   const [editMessage, setEditMessage] = useState('');
   const [editTriggerAt, setEditTriggerAt] = useState<Dayjs | null>(null);
   const [editSchedule, setEditSchedule] = useState('');
+  const [editRecurringType, setEditRecurringType] = useState<RecurringType>('daily');
+  const [editRecurringTime, setEditRecurringTime] = useState<Dayjs>(dayjs().hour(9).minute(0));
+  const [editWeekdays, setEditWeekdays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [editMonthDay, setEditMonthDay] = useState(1);
   const [recurringTime, setRecurringTime] = useState<Dayjs>(dayjs().hour(9).minute(0));
   const [weekdays, setWeekdays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [monthDay, setMonthDay] = useState(1);
@@ -185,7 +189,31 @@ export default function Reminders() {
     setEditingId(r.id);
     setEditMessage(r.message);
     setEditTriggerAt(r.triggerAt ? dayjs(r.triggerAt) : null);
-    setEditSchedule(r.schedule || r.cronExpression);
+
+    if (r.type === 'recurring') {
+      const expr = r.schedule || r.cronExpression;
+      const parts = expr.split(' ');
+      if (parts.length === 5) {
+        const [min, hour, dom, , dow] = parts;
+        setEditRecurringTime(dayjs().hour(Number(hour)).minute(Number(min)));
+
+        if (dom !== '*' && dow === '*') {
+          setEditRecurringType('monthly');
+          setEditMonthDay(Number(dom));
+        } else if (dom === '*' && dow !== '*') {
+          setEditRecurringType('weekly');
+          setEditWeekdays(dow.split(',').map(Number));
+        } else if (dom === '*' && dow === '*') {
+          setEditRecurringType('daily');
+        } else {
+          setEditRecurringType('custom');
+          setEditSchedule(expr);
+        }
+      } else {
+        setEditRecurringType('custom');
+        setEditSchedule(expr);
+      }
+    }
   };
 
   const cancelEdit = () => {
@@ -193,6 +221,16 @@ export default function Reminders() {
     setEditMessage('');
     setEditTriggerAt(null);
     setEditSchedule('');
+    setEditRecurringType('daily');
+    setEditRecurringTime(dayjs().hour(9).minute(0));
+    setEditWeekdays([1, 2, 3, 4, 5]);
+    setEditMonthDay(1);
+  };
+
+  const toggleEditWeekday = (day: number) => {
+    setEditWeekdays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
   };
 
   const handleUpdate = async (r: Reminder) => {
@@ -201,8 +239,11 @@ export default function Reminders() {
       if (editMessage !== r.message) input.message = editMessage;
       if (r.type === 'one-shot' && editTriggerAt) {
         input.triggerAt = editTriggerAt.toISOString();
-      } else if (r.type === 'recurring' && editSchedule !== (r.schedule || r.cronExpression)) {
-        input.schedule = editSchedule;
+      } else if (r.type === 'recurring') {
+        const newCron = buildCronExpression(editRecurringType, editRecurringTime, editWeekdays, editMonthDay, editSchedule);
+        if (newCron !== (r.schedule || r.cronExpression)) {
+          input.schedule = newCron;
+        }
       }
 
       if (Object.keys(input).length === 0) {
@@ -439,13 +480,83 @@ export default function Reminders() {
                           disabledDate={(current) => current && current.isBefore(dayjs().startOf('day'))}
                         />
                       ) : (
-                        <input
-                          type="text"
-                          value={editSchedule}
-                          onChange={(e) => setEditSchedule(e.target.value)}
-                          placeholder="cron 表达式"
-                          className="bg-slate-900 border border-slate-600 rounded px-3 py-2 text-slate-100 font-mono focus:border-amber-500 focus:outline-none"
-                        />
+                        <div className="space-y-3">
+                          <div className="flex gap-4 items-center">
+                            <label className="block text-sm text-slate-400 font-mono">频率</label>
+                            <div className="flex gap-2">
+                              {([
+                                ['daily', '每日'],
+                                ['weekly', '每周'],
+                                ['monthly', '每月'],
+                                ['custom', '自定义'],
+                              ] as const).map(([type, label]) => (
+                                <button
+                                  key={type}
+                                  onClick={() => setEditRecurringType(type)}
+                                  className={btnClass(editRecurringType === type)}
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          {editRecurringType !== 'custom' && (
+                            <div>
+                              <label className="block text-sm text-slate-400 font-mono mb-1">时间</label>
+                              <TimePicker
+                                format="HH:mm"
+                                value={editRecurringTime}
+                                onChange={(val) => { if (val) setEditRecurringTime(val); }}
+                                size="middle"
+                                style={{ width: 140 }}
+                              />
+                            </div>
+                          )}
+                          {editRecurringType === 'weekly' && (
+                            <div>
+                              <label className="block text-sm text-slate-400 font-mono mb-2">星期</label>
+                              <div className="flex gap-2">
+                                {WEEKDAYS.map((day) => (
+                                  <button
+                                    key={day.value}
+                                    onClick={() => toggleEditWeekday(day.value)}
+                                    className={`w-10 h-10 rounded font-mono text-sm border transition-colors ${
+                                      editWeekdays.includes(day.value)
+                                        ? 'text-amber-500 bg-amber-500/15 border-amber-500/40 font-bold'
+                                        : 'text-slate-400 border-slate-600 hover:border-amber-500/30'
+                                    }`}
+                                  >
+                                    {day.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {editRecurringType === 'monthly' && (
+                            <div>
+                              <label className="block text-sm text-slate-400 font-mono mb-1">每月几号</label>
+                              <Select
+                                value={editMonthDay}
+                                onChange={(val) => setEditMonthDay(val)}
+                                size="middle"
+                                style={{ width: 120 }}
+                                options={Array.from({ length: 31 }, (_, i) => ({
+                                  value: i + 1,
+                                  label: `${i + 1} 日`,
+                                }))}
+                              />
+                            </div>
+                          )}
+                          {editRecurringType === 'custom' && (
+                            <input
+                              type="text"
+                              value={editSchedule}
+                              onChange={(e) => setEditSchedule(e.target.value)}
+                              placeholder="cron 表达式"
+                              className="bg-slate-900 border border-slate-600 rounded px-3 py-2 text-slate-100 font-mono focus:border-amber-500 focus:outline-none"
+                            />
+                          )}
+                        </div>
                       )}
                       <div className="flex gap-2">
                         <button
