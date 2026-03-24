@@ -637,6 +637,7 @@ router.put('/config', async (req: Request, res: Response) => {
     const updatedLearningConfig = {
       ...config.learning,
       ...(updates.enabled !== undefined && { enabled: updates.enabled }),
+      ...(updates.extractObservations !== undefined && { extractObservations: updates.extractObservations }),
       ...(updates.capacity && {
         capacity: {
           ...config.learning.capacity,
