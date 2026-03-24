@@ -8,7 +8,7 @@
     "claude-evolution": "./dist/src/cli/index.js"
   },
   "scripts": {
-    "build": "tsc && npm run build:web",
+    "build": "tsc && npm run build:web && mkdir -p dist/web/client && cp -r web/client/dist dist/web/client/dist",
     "build:web": "cd web/client && npm run build",
     "dev": "tsx watch src/cli/index.ts",
     "dev:server": "tsx watch web/server/index.ts",
@@ -31,6 +31,11 @@
   ],
   "author": "",
   "license": "MIT",
+  "files": [
+    "dist",
+    "skills",
+    "README.md"
+  ],
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "@types/diff": "^7.0.2",
