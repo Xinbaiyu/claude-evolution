@@ -155,6 +155,7 @@ export interface Config {
   };
   learning?: {
     enabled: boolean;
+    extractObservations?: boolean;
     capacity: {
       active: {
         targetSize: number;

@@ -149,20 +149,18 @@ export async function runAnalysisPipeline(options?: {
         config
       );
 
-      if (observations.length === 0) {
-        logger.warn('没有新的会话数据需要分析');
-        await logStep(3, '采集会话数据', 'success', '没有新的会话数据');
-        await updateAfterAnalysis(true);
-        return;
+      if (observations.length > 0) {
+        const stats = getObservationStats(observations);
+        logger.info(`  总计: ${stats.total} 条记录`);
+        logger.info(`  类型分布:`);
+        for (const [type, count] of stats.byType) {
+          logger.info(`    ${type}: ${count} 条`);
+        }
+        await logStep(3, '采集会话数据', 'success', `找到 ${stats.total} 条观察`);
+      } else {
+        logger.info('  Observations 为空（可能已关闭提取）');
+        await logStep(3, '采集会话数据', 'success', 'Observations 为空');
       }
-
-      const stats = getObservationStats(observations);
-      logger.info(`  总计: ${stats.total} 条记录`);
-      logger.info(`  类型分布:`);
-      for (const [type, count] of stats.byType) {
-        logger.info(`    ${type}: ${count} 条`);
-      }
-      await logStep(3, '采集会话数据', 'success', `找到 ${stats.total} 条观察`);
 
       // 3.5. 采集用户 prompts (用于沟通偏好提取)
       logger.info('\n[3.5/8] 采集用户 prompts');
@@ -174,6 +172,13 @@ export async function runAnalysisPipeline(options?: {
 
       logger.info(`  采集到 ${prompts.length} 条用户 prompts`);
       await logStep(4, '采集用户 prompts', 'success', `采集到 ${prompts.length} 条 prompts`);
+
+      // 如果 observations 和 prompts 都为空，无需继续
+      if (observations.length === 0 && prompts.length === 0) {
+        logger.warn('没有新数据需要分析');
+        await updateAfterAnalysis(true);
+        return;
+      }
 
       // 4. 提取经验
       logger.info('\n[4/8] 提取经验和模式');

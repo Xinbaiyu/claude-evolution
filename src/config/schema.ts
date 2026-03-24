@@ -124,6 +124,7 @@ const MDGeneratorSchema = z.object({
  */
 const LearningConfigSchema = z.object({
   enabled: z.boolean().default(true),
+  extractObservations: z.boolean().default(false), // 是否从 Observations 中提取经验（默认关闭，仅提取 User Prompts）
   capacity: z.object({
     active: z.object({
       targetSize: z.number().min(10).max(200).default(50),
@@ -256,6 +257,7 @@ export const DEFAULT_CONFIG: Config = {
   },
   learning: {
     enabled: true,
+    extractObservations: false,
     capacity: {
       active: {
         targetSize: 50,

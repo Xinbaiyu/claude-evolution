@@ -17,6 +17,12 @@ export async function collectRecentSessions(
   lastAnalysisTime: Date | null,
   config: Config
 ): Promise<Observation[]> {
+  // 检查是否启用 Observations 提取
+  if (!config.learning?.extractObservations) {
+    logger.info('Observations 提取已关闭，跳过采集');
+    return [];
+  }
+
   logger.info('开始采集会话数据...');
 
   // 1. 确定时间范围

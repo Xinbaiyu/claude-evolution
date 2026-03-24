@@ -23,8 +23,8 @@ export async function extractExperience(
   config: Config,
   promptsContext?: string | null
 ): Promise<ExtractionResult> {
-  if (observations.length === 0) {
-    logger.warn('没有观察记录可供分析');
+  if (observations.length === 0 && !promptsContext) {
+    logger.warn('没有观察记录和用户 prompts 可供分析');
     return {
       preferences: [],
       patterns: [],
@@ -84,7 +84,10 @@ export async function extractExperience(
 
   // 分批处理观察记录
   const batchSize = 10; // 固定批次大小
-  const batches = chunkArray(observations, batchSize);
+  // 当 observations 为空但有 promptsContext 时，仍需至少一个批次来提取沟通偏好
+  const batches = observations.length > 0
+    ? chunkArray(observations, batchSize)
+    : [[] as Observation[]];
 
   logger.info(`经验提取: ${batches.length} 个批次, 并发数 3`);
 

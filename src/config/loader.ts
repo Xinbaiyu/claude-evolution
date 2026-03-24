@@ -98,6 +98,11 @@ function migrateConfig(oldConfig: any): any {
       migrated.learning.retention = DEFAULT_CONFIG.learning!.retention;
     }
 
+    // 迁移 10: 添加 extractObservations 字段（默认关闭）
+    if (migrated.learning.extractObservations === undefined) {
+      migrated.learning.extractObservations = DEFAULT_CONFIG.learning!.extractObservations;
+    }
+
     // 迁移 8: 确保 learning.capacity 结构正确(active/context 分离)
     if (migrated.learning.capacity) {
       // 如果 capacity 还是旧的扁平结构,转换为嵌套结构

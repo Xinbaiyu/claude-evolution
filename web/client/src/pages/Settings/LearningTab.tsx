@@ -74,6 +74,32 @@ export default function LearningTab({ config, onConfigChange }: LearningTabProps
 
   return (
     <div className="space-y-6">
+      {/* 数据提取配置 */}
+      <div className="border-4 border-slate-700 bg-slate-900 p-6">
+        <h3 className="text-xl font-black text-amber-500 mb-4 font-mono">数据提取</h3>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-bold text-slate-300">提取 Observations</div>
+            <div className="text-xs text-slate-500">
+              从 Claude 的工作记录中提取经验（关闭时仅分析用户 Prompts）
+            </div>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={learning.extractObservations ?? false}
+              onChange={(e) =>
+                updateLearning({
+                  extractObservations: e.target.checked,
+                })
+              }
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-500 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+          </label>
+        </div>
+      </div>
+
       {/* 池统计概览 */}
       {stats && (
         <div className="border-4 border-cyan-500/30 bg-cyan-500/5 p-6">
