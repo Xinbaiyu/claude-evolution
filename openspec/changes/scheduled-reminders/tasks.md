@@ -43,11 +43,11 @@
 
 ## 7. Web UI 展示
 
-- [ ] 7.1 创建 `web/client/src/pages/Reminders/` 页面组件，展示提醒列表
-- [ ] 7.2 实现提醒卡片组件（显示消息、时间、类型、删除按钮）
-- [ ] 7.3 实现手动创建提醒的表单（消息、时间选择）
-- [ ] 7.4 集成 WebSocket 监听 `reminder_triggered` 事件，实时更新 UI
-- [ ] 7.5 在路由中注册 Reminders 页面
+- [x] 7.1 创建 `web/client/src/pages/Reminders/` 页面组件，展示提醒列表
+- [x] 7.2 实现提醒卡片组件（显示消息、时间、类型、删除按钮）
+- [x] 7.3 实现手动创建提醒的表单（消息、时间选择）
+- [x] 7.4 集成 WebSocket 监听 `reminder_triggered` 事件，实时更新 UI
+- [x] 7.5 在路由中注册 Reminders 页面
 
 ## 8. 测试
 

@@ -29,6 +29,10 @@ export const router = createBrowserRouter([
         lazy: () => import('./pages/Settings').then(m => ({ Component: m.default })),
       },
       {
+        path: 'reminders',
+        lazy: () => import('./pages/Reminders').then(m => ({ Component: m.default })),
+      },
+      {
         path: '*',
         element: <NotFound />,
       },

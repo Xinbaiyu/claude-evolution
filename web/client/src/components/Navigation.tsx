@@ -6,6 +6,7 @@ const navItems = [
   { label: '分析日志', to: '/analysis-logs' },
   { label: '配置编辑', to: '/source-manager' },
   { label: '系统设置', to: '/settings' },
+  { label: '提醒', to: '/reminders' },
 ];
 
 export default function Navigation() {

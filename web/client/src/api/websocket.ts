@@ -27,7 +27,8 @@ export type WebSocketEventType =
   | 'observation:batch_unpinned'
   // Config and system events
   | 'config_changed'
-  | 'system_error';
+  | 'system_error'
+  | 'reminder_triggered';
 
 export interface WebSocketMessage {
   type: WebSocketEventType;

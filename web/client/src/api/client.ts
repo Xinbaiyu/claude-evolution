@@ -690,6 +690,47 @@ export const apiClient = {
     }
     return response.data;
   },
+
+  // ========== Reminders API ==========
+
+  async getReminders(): Promise<Reminder[]> {
+    const response = await request<Reminder[]>('/reminders');
+    if (!response.success || !response.data) {
+      throw new ApiError(response.error || '获取提醒列表失败');
+    }
+    return response.data;
+  },
+
+  async createReminder(input: { message: string; triggerAt?: string; schedule?: string }): Promise<Reminder> {
+    const response = await request<Reminder>('/reminders', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    if (!response.success || !response.data) {
+      throw new ApiError(response.error || '创建提醒失败');
+    }
+    return response.data;
+  },
+
+  async deleteReminder(id: string): Promise<void> {
+    const response = await request(`/reminders/${id}`, { method: 'DELETE' });
+    if (!response.success) {
+      throw new ApiError(response.error || '删除提醒失败');
+    }
+  },
 };
 
 export { ApiError };
+
+// ========== Reminder Types ==========
+
+export interface Reminder {
+  id: string;
+  message: string;
+  type: 'one-shot' | 'recurring';
+  createdAt: string;
+  triggerAt?: string;
+  schedule?: string;
+  cronExpression: string;
+  status: 'active' | 'triggered' | 'cancelled';
+}
