@@ -37,6 +37,7 @@ export class DingTalkBotAdapter implements BotAdapter {
       clientId: this.config.clientId,
       clientSecret: this.config.clientSecret,
       debug: false,
+      keepAlive: true,
     });
 
     // 注册机器人消息回调

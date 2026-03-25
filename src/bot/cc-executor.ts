@@ -69,6 +69,8 @@ export async function executeCC(options: CCExecuteOptions): Promise<CCExecuteRes
     let stderr = '';
     let killed = false;
 
+    console.log(`[CC Executor] 启动 claude -p (cwd: ${expandHome(cwd)}, timeout: ${timeoutMs}ms)`);
+
     const child = spawn('claude', args, {
       cwd: expandHome(cwd),
       env,
@@ -89,6 +91,7 @@ export async function executeCC(options: CCExecuteOptions): Promise<CCExecuteRes
 
     child.stderr.on('data', (chunk: Buffer) => {
       stderr += chunk.toString();
+      console.log(`[CC Executor] stderr: ${chunk.toString().slice(0, 200)}`);
     });
 
     child.on('error', (err) => {
@@ -105,6 +108,7 @@ export async function executeCC(options: CCExecuteOptions): Promise<CCExecuteRes
     child.on('close', (code) => {
       clearTimeout(timer);
       const durationMs = Date.now() - startTime;
+      console.log(`[CC Executor] 进程退出 code=${code} killed=${killed} duration=${durationMs}ms stdout=${stdout.length}bytes`);
 
       if (killed) {
         return resolve({

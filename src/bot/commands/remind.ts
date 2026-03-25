@@ -93,7 +93,7 @@ function parseRemindArgs(args: string): { message: string; triggerAt: Date | nul
     return { message, triggerAt: computeRelativeTime(num, unit) };
   }
 
-  // 匹配 "明天HH:MM <内容>"
+  // 匹配 "明天HH:MM <内容>" 或 "明天早上/下午N点 <内容>"
   const tomorrowMatch = args.match(/^明天\s*(\d{1,2})[:.:](\d{2})\s+(.+)$/);
   if (tomorrowMatch) {
     const h = parseInt(tomorrowMatch[1], 10);
@@ -101,6 +101,34 @@ function parseRemindArgs(args: string): { message: string; triggerAt: Date | nul
     const message = tomorrowMatch[3].trim();
     const d = new Date();
     d.setDate(d.getDate() + 1);
+    d.setHours(h, m, 0, 0);
+    return { message, triggerAt: d };
+  }
+
+  // 匹配 "明天早上/上午/下午/晚上N点(M分) <内容>"
+  const tomorrowCnMatch = args.match(/^明天\s*(早上|上午|中午|下午|晚上)?\s*(\d{1,2})\s*[点时]\s*(?:(\d{1,2})\s*分?)?\s*(提醒我?\s*)?(.+)$/);
+  if (tomorrowCnMatch) {
+    const period = tomorrowCnMatch[1] || '';
+    let h = parseInt(tomorrowCnMatch[2], 10);
+    const m = tomorrowCnMatch[3] ? parseInt(tomorrowCnMatch[3], 10) : 0;
+    const message = tomorrowCnMatch[5].trim();
+    if ((period === '下午' || period === '晚上') && h < 12) h += 12;
+    if (period === '中午' && h === 12) h = 12;
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(h, m, 0, 0);
+    return { message, triggerAt: d };
+  }
+
+  // 匹配 "今天下午/晚上N点 <内容>"
+  const todayCnMatch = args.match(/^今天\s*(早上|上午|中午|下午|晚上)?\s*(\d{1,2})\s*[点时]\s*(?:(\d{1,2})\s*分?)?\s*(提醒我?\s*)?(.+)$/);
+  if (todayCnMatch) {
+    const period = todayCnMatch[1] || '';
+    let h = parseInt(todayCnMatch[2], 10);
+    const m = todayCnMatch[3] ? parseInt(todayCnMatch[3], 10) : 0;
+    const message = todayCnMatch[5].trim();
+    if ((period === '下午' || period === '晚上') && h < 12) h += 12;
+    const d = new Date();
     d.setHours(h, m, 0, 0);
     return { message, triggerAt: d };
   }
