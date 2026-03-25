@@ -37,7 +37,12 @@ export class DingTalkBotAdapter implements BotAdapter {
       clientId: this.config.clientId,
       clientSecret: this.config.clientSecret,
       debug: false,
-      keepAlive: true,
+      keepAlive: false,
+    });
+
+    // 捕获 SDK 内部未处理的错误，防止进程崩溃
+    this.client.on('error', (err: Error) => {
+      console.error('[DingTalk Bot] Stream 错误:', err.message);
     });
 
     // 注册机器人消息回调
