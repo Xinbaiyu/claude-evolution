@@ -222,6 +222,29 @@ const RemindersConfigSchema = z.object({
 });
 
 /**
+ * 机器人配置
+ */
+const BotDingTalkSchema = z.object({
+  enabled: z.boolean().default(false),
+  clientId: z.string().default(''),
+  clientSecret: z.string().default(''),
+  /** 接收提醒推送的用户 ID 列表 */
+  userIds: z.array(z.string()).default([]),
+});
+
+const BotChatSchema = z.object({
+  enabled: z.boolean().default(true),
+  contextWindow: z.number().min(1).max(100).default(20),
+  contextTimeoutMinutes: z.number().min(1).max(1440).default(30),
+});
+
+const BotConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  dingtalk: BotDingTalkSchema.default({}),
+  chat: BotChatSchema.default({}),
+});
+
+/**
  * 完整配置 Schema
  */
 export const ConfigSchema = z.object({
@@ -231,6 +254,7 @@ export const ConfigSchema = z.object({
   webUI: WebUIConfigSchema.optional(), // 可选，用于向后兼容
   learning: LearningConfigSchema.optional(), // 可选，增量学习配置
   reminders: RemindersConfigSchema.optional(), // 可选，提醒系统配置
+  bot: BotConfigSchema.optional(), // 可选，机器人配置
   llm: LLMSchema,
   httpApi: HttpApiSchema,
   filters: FiltersSchema,

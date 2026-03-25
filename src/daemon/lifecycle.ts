@@ -19,6 +19,7 @@ import { AnalysisExecutor } from '../analyzers/analysis-executor.js';
 import { ReminderService } from '../reminders/service.js';
 import { NotificationDispatcher } from '../notifications/dispatcher.js';
 import { DesktopChannel } from '../notifications/desktop-channel.js';
+import type { BotSystem } from '../bot/index.js';
 import type { FSWatcher } from 'chokidar';
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,7 @@ export interface DaemonComponents {
   fileWatcher: FSWatcher | null;
   webServer: any | null;
   reminderService: ReminderService | null;
+  botSystem: BotSystem | null;
 }
 
 /** Options for startComponents — each mode fills in its own values */
@@ -157,6 +159,7 @@ export async function startComponents(
     fileWatcher: null,
     webServer: null,
     reminderService: null,
+    botSystem: null,
   };
 
   const analysisCallback = createAnalysisCallback(executor, log);
@@ -259,6 +262,20 @@ export async function startComponents(
           dispatcher.addChannel(new WebhookChannel(webhookConfig.webhooks));
           log.info(`Webhook 通知渠道已启用 (${webhookConfig.webhooks.length} 个端点)`);
         }
+        // Bot 私聊通知渠道
+        const botConfig = config.bot?.dingtalk;
+        if (config.bot?.enabled && botConfig?.enabled && botConfig.clientId && botConfig.clientSecret) {
+          const { BotChannel } = await import('../notifications/bot-channel.js');
+          const userIds = botConfig.userIds || [];
+          if (userIds.length > 0) {
+            dispatcher.addChannel(new BotChannel({
+              clientId: botConfig.clientId,
+              clientSecret: botConfig.clientSecret,
+              userIds,
+            }));
+            log.info(`钉钉机器人私聊通知已启用 (${userIds.length} 个用户)`);
+          }
+        }
 
         const reminderService = new ReminderService(dispatcher);
         await reminderService.recover();
@@ -267,6 +284,16 @@ export async function startComponents(
         // Inject reminderService into Express middleware
         webModule.setReminderService(reminderService);
         log.info('提醒服务已启动');
+      }
+
+      // 6. Bot system (after reminder service so it can be injected)
+      if (config.bot?.enabled && config.bot?.dingtalk?.enabled) {
+        log.info('启动机器人服务 (Stream 模式)...');
+        const { createBotSystem } = await import('../bot/index.js');
+        const botSystem = createBotSystem(config, executor, components.reminderService);
+        await botSystem.adapter.start();
+        components.botSystem = botSystem;
+        log.info('钉钉机器人已启用 (Stream 长连接)');
       }
     }
 
@@ -305,6 +332,12 @@ export async function stopComponents(
     components.reminderService.shutdown();
     components.reminderService = null;
     log.info('提醒服务已停止');
+  }
+
+  if (components.botSystem) {
+    components.botSystem.shutdown();
+    components.botSystem = null;
+    log.info('机器人服务已停止');
   }
 
   if (components.webServer) {
