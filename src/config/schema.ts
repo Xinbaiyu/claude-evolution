@@ -238,10 +238,21 @@ const BotChatSchema = z.object({
   contextTimeoutMinutes: z.number().min(1).max(1440).default(30),
 });
 
+const BotCCSchema = z.object({
+  enabled: z.boolean().default(false),
+  defaultCwd: z.string().default('~'),
+  allowedDirs: z.array(z.string()).default([]),
+  timeoutMs: z.number().min(5000).max(600_000).default(120_000),
+  maxBudgetUsd: z.number().min(0).max(10).default(0.5),
+  permissionMode: z.string().default('bypassPermissions'),
+  baseURL: z.string().optional(),
+});
+
 const BotConfigSchema = z.object({
   enabled: z.boolean().default(false),
   dingtalk: BotDingTalkSchema.default({}),
   chat: BotChatSchema.default({}),
+  cc: BotCCSchema.default({}),
 });
 
 /**

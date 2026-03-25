@@ -15,6 +15,7 @@ import { AnalyzeCommand } from './commands/analyze.js';
 import { RemindCommand } from './commands/remind.js';
 import { RemindersCommand } from './commands/reminders.js';
 import { MyIdCommand } from './commands/myid.js';
+import { CCBridgeHandler } from './commands/cc-bridge.js';
 import { ChatCommand } from './commands/chat.js';
 import type { CommandContext } from './types.js';
 
@@ -52,8 +53,10 @@ export function createBotSystem(
   // help 命令需要引用 router
   router.register(new HelpCommand(() => router.getHelpText()));
 
-  // LLM fallback
-  if (chatConfig?.enabled !== false) {
+  // Fallback: CC Bridge（优先）或 LLM 直调
+  if (config.bot?.cc?.enabled) {
+    router.setFallback(new CCBridgeHandler(contextManager));
+  } else if (chatConfig?.enabled !== false) {
     router.setFallback(new ChatCommand(contextManager));
   }
 

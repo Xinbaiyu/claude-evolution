@@ -105,7 +105,7 @@ describe('DingTalkBotAdapter (Stream)', () => {
 
     expect(mockClient.socketCallBackResponse).toHaveBeenCalledWith(
       'stream-msg-1',
-      { status: 'SUCCESS' },
+      { status: 'SUCCESS', message: 'OK' },
     );
   });
 
