@@ -636,6 +636,166 @@ export default function Settings() {
             </div>
           )}
 
+          {/* 机器人配置（通知通道 tab 内） */}
+          {activeTab === 'notifications' && (
+            <div className="border-4 border-slate-700 bg-slate-900 p-6">
+              <h2 className="text-xl font-black text-amber-500 mb-4 font-mono">钉钉机器人</h2>
+              <div className="text-xs text-slate-500 mb-6">
+                启用后可在钉钉群 @机器人 进行双向交互：查状态、触发分析、AI 对话等。
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-bold text-slate-300">启用机器人</div>
+                    <div className="text-xs text-slate-500">通过 Stream 长连接接收钉钉消息，无需公网 IP</div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={config?.bot?.enabled || false}
+                      onChange={(e) =>
+                        setConfig({
+                          ...config,
+                          bot: {
+                            ...config.bot,
+                            enabled: e.target.checked,
+                            dingtalk: {
+                              ...config.bot?.dingtalk,
+                              enabled: e.target.checked,
+                            },
+                            chat: config.bot?.chat || { enabled: true, contextWindow: 20, contextTimeoutMinutes: 30 },
+                          },
+                        })
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-500 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+                  </label>
+                </div>
+
+                {config?.bot?.enabled && (
+                  <>
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 block mb-1">
+                        ClientID <span className="text-slate-600 font-normal">(即 AppKey)</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="钉钉开发者后台 → 应用凭证 → AppKey"
+                        value={config.bot?.dingtalk?.clientId || ''}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            bot: {
+                              ...config.bot,
+                              dingtalk: {
+                                ...config.bot?.dingtalk,
+                                enabled: true,
+                                clientId: e.target.value,
+                              },
+                            },
+                          })
+                        }
+                        className="w-full border-2 border-slate-600 bg-slate-800 text-slate-100 font-mono py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 block mb-1">
+                        ClientSecret <span className="text-slate-600 font-normal">(即 AppSecret)</span>
+                      </label>
+                      <input
+                        type="password"
+                        placeholder="钉钉开发者后台 → 应用凭证 → AppSecret"
+                        value={config.bot?.dingtalk?.clientSecret || ''}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            bot: {
+                              ...config.bot,
+                              dingtalk: {
+                                ...config.bot?.dingtalk,
+                                enabled: true,
+                                clientSecret: e.target.value,
+                              },
+                            },
+                          })
+                        }
+                        className="w-full border-2 border-slate-600 bg-slate-800 text-slate-100 font-mono py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-bold text-slate-300">AI 对话</div>
+                        <div className="text-xs text-slate-500">无匹配命令时调用 Claude 进行开放式对话</div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={config.bot?.chat?.enabled !== false}
+                          onChange={(e) =>
+                            setConfig({
+                              ...config,
+                              bot: {
+                                ...config.bot,
+                                chat: {
+                                  ...config.bot?.chat,
+                                  enabled: e.target.checked,
+                                  contextWindow: config.bot?.chat?.contextWindow || 20,
+                                  contextTimeoutMinutes: config.bot?.chat?.contextTimeoutMinutes || 30,
+                                },
+                              },
+                            })
+                          }
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-500 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+                      </label>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 block mb-1">
+                        提醒推送用户 <span className="text-slate-600 font-normal">(私聊机器人发 /myid 获取)</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="钉钉 userId，多个用逗号分隔"
+                        value={(config.bot?.dingtalk?.userIds || []).join(',')}
+                        onChange={(e) => {
+                          const ids = e.target.value
+                            .split(',')
+                            .map((s: string) => s.trim())
+                            .filter(Boolean);
+                          setConfig({
+                            ...config,
+                            bot: {
+                              ...config.bot,
+                              dingtalk: {
+                                ...config.bot?.dingtalk,
+                                userIds: ids,
+                              },
+                            },
+                          });
+                        }}
+                        className="w-full border-2 border-slate-600 bg-slate-800 text-slate-100 font-mono py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                      />
+                      <div className="text-xs text-slate-600 mt-1">填入后，提醒会通过机器人私聊推送给这些用户</div>
+                    </div>
+
+                    <div className="border-2 border-cyan-500/30 bg-cyan-500/5 p-4">
+                      <div className="text-xs text-slate-400 space-y-1">
+                        <p>使用 <span className="text-cyan-400 font-mono">Stream 模式</span>，daemon 主动连接钉钉服务器，无需公网 IP 或内网穿透。</p>
+                        <p className="text-slate-500">在钉钉开发者后台创建企业内部应用 → 添加机器人能力 → 选择 Stream 模式 → 获取 AppKey/AppSecret。</p>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* 按钮 */}
           <div className="flex gap-4 justify-end">
             <button

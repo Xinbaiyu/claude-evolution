@@ -274,6 +274,20 @@ router.patch('/config', async (req, res) => {
             : currentConfig.reminders?.channels?.webhook,
         },
       },
+      bot: updates.bot !== undefined
+        ? {
+            ...currentConfig.bot,
+            ...updates.bot,
+            dingtalk: {
+              ...currentConfig.bot?.dingtalk,
+              ...updates.bot?.dingtalk,
+            },
+            chat: {
+              ...currentConfig.bot?.chat,
+              ...updates.bot?.chat,
+            },
+          }
+        : currentConfig.bot,
     };
 
     // 写入配置文件

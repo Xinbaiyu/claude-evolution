@@ -209,6 +209,20 @@ export interface Config {
       };
     };
   };
+  bot?: {
+    enabled: boolean;
+    dingtalk: {
+      enabled: boolean;
+      clientId: string;
+      clientSecret: string;
+      userIds?: string[];
+    };
+    chat: {
+      enabled: boolean;
+      contextWindow: number;
+      contextTimeoutMinutes: number;
+    };
+  };
 }
 
 export interface AnalysisStatus {
