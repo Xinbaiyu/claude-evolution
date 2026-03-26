@@ -11,17 +11,17 @@ import { OpenAIProvider } from '../providers/openai.js';
 
 describe('OpenAIProvider', () => {
   describe('Package Dependency', () => {
-    it('should throw helpful error when openai package is not installed', () => {
-      expect(() => {
-        new OpenAIProvider({
+    it('should throw helpful error when openai package is not installed', async () => {
+      await expect(
+        OpenAIProvider.create({
           apiKey: 'test-key',
-        });
-      }).toThrow('OpenAI provider requires "openai" package');
+        })
+      ).rejects.toThrow('OpenAI provider requires "openai" package');
     });
 
-    it('should include installation instructions in error', () => {
+    it('should include installation instructions in error', async () => {
       try {
-        new OpenAIProvider({ apiKey: 'test-key' });
+        await OpenAIProvider.create({ apiKey: 'test-key' });
         expect.fail('Should have thrown an error');
       } catch (error) {
         expect(error instanceof Error).toBe(true);
@@ -64,10 +64,11 @@ describe('OpenAIProvider', () => {
   });
 
   describe('Implementation Contract', () => {
-    it('should be a valid class constructor', () => {
-      // Verify OpenAIProvider is a proper class
+    it('should be a valid class with static factory method', () => {
+      // Verify OpenAIProvider is a proper class with create method
       expect(typeof OpenAIProvider).toBe('function');
       expect(OpenAIProvider.prototype).toBeDefined();
+      expect(typeof OpenAIProvider.create).toBe('function');
     });
 
     it('should have createCompletion method', () => {

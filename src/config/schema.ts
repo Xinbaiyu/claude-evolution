@@ -76,26 +76,42 @@ const WebUIConfigSchema = z.object({
  */
 const LLMSchema = z.object({
   // LLM 提供商类型（可选，未指定时自动检测）
+  // 自动检测规则：baseURL → CCR (Anthropic), env vars → provider
   provider: z.enum(['anthropic', 'openai']).optional(),
+
+  // 模型名称
+  // Claude 4.6/4.5 系列（最新推荐）
+  // OpenAI GPT 系列
   model: z.enum([
-    'claude-haiku-4-5',
+    // Claude 最新系列（推荐）
     'claude-sonnet-4-6',
     'claude-opus-4-6',
+    'claude-haiku-4-5',
+    // Claude 3.5 系列（旧版）
+    'claude-3-5-sonnet-20241022',
     'claude-3-5-haiku-20241022',
-    'claude-3-5-sonnet-20241022'
-  ]).default('claude-3-5-haiku-20241022'),
+    // OpenAI GPT 系列
+    'gpt-4-turbo',
+    'gpt-4',
+    'gpt-3.5-turbo',
+  ]).default('claude-sonnet-4-6'),
+
   maxTokens: z.number().default(4096),
   temperature: z.number().min(0).max(1).default(0.3),
+
+  // Prompt Caching（仅 Anthropic 支持）
   enablePromptCaching: z.boolean().default(true),
-  // 自定义 API 配置（用于代理/路由服务）
-  baseURL: z.string().nullish().transform(val => val === null ? undefined : val), // 自定义 API 端点（null 转为 undefined）
-  defaultHeaders: z.record(z.string()).optional(), // 自定义请求头
-  // Provider-specific 配置
+
+  // 自定义 API 配置
+  baseURL: z.string().nullish().transform(val => val === null ? undefined : val), // CCR 代理端点或自定义 API 地址
+  defaultHeaders: z.record(z.string()).optional(), // 自定义请求头（用于代理认证）
+
+  // Provider 特定配置
   anthropic: z.object({
-    apiVersion: z.string().optional(),
+    apiVersion: z.string().optional(), // Anthropic API 版本
   }).optional(),
   openai: z.object({
-    organization: z.string().optional(),
+    organization: z.string().optional(), // OpenAI 组织 ID
   }).optional(),
 });
 
@@ -378,7 +394,7 @@ export const DEFAULT_CONFIG: Config = {
     },
   },
   llm: {
-    model: 'claude-3-5-haiku-20241022',
+    model: 'claude-sonnet-4-6',
     maxTokens: 4096,
     temperature: 0.3,
     enablePromptCaching: true,

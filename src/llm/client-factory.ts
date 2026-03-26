@@ -90,9 +90,10 @@ async function createOpenAIProvider(config: Config): Promise<LLMProvider> {
     const { OpenAIProvider } = await import('./providers/openai.js');
     const llmConfig = config.llm;
 
-    return new OpenAIProvider({
+    return await OpenAIProvider.create({
       apiKey: process.env.OPENAI_API_KEY,
       baseURL: llmConfig.baseURL,
+      organization: llmConfig.openai?.organization,
     });
   } catch (error) {
     throw new Error(

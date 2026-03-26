@@ -26,69 +26,78 @@ export interface OpenAIProviderConfig {
 export class OpenAIProvider implements LLMProvider {
   readonly providerName = 'openai';
   private readonly client: any;
+  private static OpenAIConstructor: any = null;
 
-  constructor(config: OpenAIProviderConfig) {
-    // 动态导入 OpenAI SDK（如果已安装）
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const OpenAI = require('openai');
-      this.client = new OpenAI({
-        apiKey: config.apiKey || process.env.OPENAI_API_KEY,
-        ...(config.baseURL && { baseURL: config.baseURL }),
-        ...(config.organization && { organization: config.organization }),
-      });
-    } catch (error) {
-      throw new Error(
-        'OpenAI provider requires "openai" package. Install it with: npm install openai'
-      );
+  private constructor(config: OpenAIProviderConfig) {
+    // 使用已加载的 OpenAI 构造函数
+    this.client = new OpenAIProvider.OpenAIConstructor({
+      apiKey: config.apiKey || process.env.OPENAI_API_KEY,
+      ...(config.baseURL && { baseURL: config.baseURL }),
+      ...(config.organization && { organization: config.organization }),
+    });
+  }
+
+  /**
+   * 异步工厂方法 - 动态导入 OpenAI SDK
+   */
+  static async create(config: OpenAIProviderConfig): Promise<OpenAIProvider> {
+    // 如果尚未加载，尝试动态导入 OpenAI SDK
+    if (!OpenAIProvider.OpenAIConstructor) {
+      try {
+        // @ts-expect-error - openai is an optional dependency
+        const openaiModule = await import('openai');
+        OpenAIProvider.OpenAIConstructor = openaiModule.default || openaiModule;
+      } catch (error) {
+        throw new Error(
+          'OpenAI provider requires "openai" package. Install it with: npm install openai'
+        );
+      }
     }
+
+    return new OpenAIProvider(config);
   }
 
   async createCompletion(params: LLMCompletionParams): Promise<LLMCompletionResponse> {
     const { model, messages, maxTokens, temperature, systemPrompt } = params;
 
-    // Convert LLMMessage to OpenAI message format
-    const apiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
-
-    // Inject systemPrompt as first message if provided
-    if (systemPrompt) {
-      apiMessages.push({ role: 'system', content: systemPrompt });
-    }
-
-    // Add user and assistant messages
-    for (const msg of messages) {
-      if (msg.role === 'system') {
-        // System messages should be at the beginning
-        // If systemPrompt wasn't provided, add it here
-        if (!systemPrompt) {
-          apiMessages.unshift({ role: 'system', content: msg.content });
-        }
-      } else {
-        apiMessages.push({
+    // Build OpenAI message array - system prompt first, then conversation messages
+    const apiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+      // System prompt from params (if provided)
+      ...(systemPrompt ? [{ role: 'system' as const, content: systemPrompt }] : []),
+      // Convert conversation messages (filter out system messages to avoid duplicates)
+      ...messages
+        .filter((msg) => msg.role !== 'system')
+        .map((msg) => ({
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
-        });
-      }
+        })),
+    ];
+
+    try {
+      // Call OpenAI API
+      const response = await this.client.chat.completions.create({
+        model,
+        messages: apiMessages,
+        ...(maxTokens && { max_tokens: maxTokens }),
+        ...(temperature !== undefined && { temperature }),
+      });
+
+      // Extract content from response
+      const content = response.choices[0]?.message?.content ?? '';
+
+      // Convert usage format to unified interface
+      return {
+        content,
+        usage: {
+          inputTokens: response.usage?.prompt_tokens ?? 0,
+          outputTokens: response.usage?.completion_tokens ?? 0,
+        },
+      };
+    } catch (error) {
+      // Enhance error message with provider context
+      throw new Error(
+        `OpenAI API error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
-
-    // Call OpenAI API
-    const response = await this.client.chat.completions.create({
-      model,
-      messages: apiMessages,
-      ...(maxTokens && { max_tokens: maxTokens }),
-      ...(temperature !== undefined && { temperature }),
-    });
-
-    // Extract content from response
-    const content = response.choices[0]?.message?.content ?? '';
-
-    // Convert usage format
-    return {
-      content,
-      usage: {
-        inputTokens: response.usage?.prompt_tokens ?? 0,
-        outputTokens: response.usage?.completion_tokens ?? 0,
-      },
-    };
   }
 }

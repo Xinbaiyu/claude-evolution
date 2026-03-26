@@ -147,11 +147,19 @@ export interface Config {
     interval: string;
   };
   llm: {
+    provider?: 'anthropic' | 'openai';
     model: string;
     maxTokens: number;
     temperature: number;
     enablePromptCaching?: boolean;
     baseURL?: string;
+    defaultHeaders?: Record<string, string>;
+    anthropic?: {
+      apiVersion?: string;
+    };
+    openai?: {
+      organization?: string;
+    };
   };
   learning?: {
     enabled: boolean;
