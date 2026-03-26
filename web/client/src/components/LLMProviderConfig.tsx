@@ -22,11 +22,11 @@ const PROVIDER_META = {
     description: '使用 Anthropic 官方 Claude API',
   },
   openai: {
-    title: 'OpenAI',
-    subtitle: 'API',
+    title: 'OpenAI-Compatible API',
+    subtitle: 'Compatible API',
     icon: '🟢',
     color: 'green',
-    description: '使用 OpenAI GPT 系列模型',
+    description: '支持 OpenAI、Azure OpenAI、本地 Ollama 等所有 OpenAI 兼容 API',
   },
   ccr: {
     title: 'CCR',
@@ -291,7 +291,7 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
                     {PROVIDER_META.openai.description}
                   </p>
                   <p className="text-green-400/80">
-                    需要在环境变量中设置 <code className="px-1.5 py-0.5 bg-green-500/20 rounded font-mono text-xs text-green-300">OPENAI_API_KEY</code>
+                    支持 OpenAI 官方、Azure OpenAI、MatrixLLM、本地 Ollama 等所有兼容 OpenAI 格式的 API 服务
                   </p>
                 </div>
               </div>
@@ -311,6 +311,44 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
                   ]}
                   className="w-full"
                 />
+              </div>
+
+              {/* Base URL (可选) */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Base URL <span className="text-slate-400">(可选)</span>
+                </label>
+                <Input
+                  value={config.llm?.baseURL || ''}
+                  onChange={(e) => setConfig({ ...config, llm: { ...config.llm, baseURL: e.target.value || null } })}
+                  placeholder="https://api.openai.com"
+                  className="font-mono"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  自定义 API 端点（可选）。支持 Azure OpenAI、本地 Ollama 等
+                </p>
+              </div>
+
+              {/* API Key (可选) */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  API Key <span className="text-slate-400">(可选)</span>
+                </label>
+                <Input.Password
+                  value={config.llm?.openai?.apiKey || ''}
+                  onChange={(e) => setConfig({
+                    ...config,
+                    llm: {
+                      ...config.llm,
+                      openai: { ...config.llm?.openai, apiKey: e.target.value || null }
+                    }
+                  })}
+                  placeholder="sk-..."
+                  className="font-mono"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  留空则使用环境变量 OPENAI_API_KEY。⚠️ API Key 将以明文存储在配置文件中
+                </p>
               </div>
 
               {/* Organization (可选) */}

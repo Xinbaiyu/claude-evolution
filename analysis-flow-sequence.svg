@@ -1,0 +1,425 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 2800" font-family="'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace" font-size="12">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333"/>
+    </marker>
+    <marker id="arrowhead-blue" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#2563eb"/>
+    </marker>
+    <marker id="arrowhead-green" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#16a34a"/>
+    </marker>
+    <marker id="arrowhead-purple" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#7c3aed"/>
+    </marker>
+    <marker id="arrowhead-orange" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#ea580c"/>
+    </marker>
+    <marker id="arrowhead-red" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626"/>
+    </marker>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" style="stop-color:#fafbfc"/>
+      <stop offset="100%" style="stop-color:#f0f1f3"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1400" height="2800" fill="url(#bg)" rx="8"/>
+
+  <!-- Title -->
+  <text x="700" y="40" text-anchor="middle" font-size="20" font-weight="bold" fill="#1a1a2e">Claude-Evolution 分析流程 时序图</text>
+  <text x="700" y="60" text-anchor="middle" font-size="13" fill="#666">点击 "运行分析" 按钮后的完整执行路径</text>
+
+  <!-- ==================== PARTICIPANT HEADERS ==================== -->
+  <!-- Frontend -->
+  <rect x="40" y="85" width="130" height="40" rx="6" fill="#3b82f6" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="105" y="110" text-anchor="middle" fill="white" font-weight="bold" font-size="13">Frontend</text>
+
+  <!-- API Route -->
+  <rect x="265" y="85" width="130" height="40" rx="6" fill="#8b5cf6" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="330" y="110" text-anchor="middle" fill="white" font-weight="bold" font-size="13">API Route</text>
+
+  <!-- Pipeline -->
+  <rect x="490" y="85" width="130" height="40" rx="6" fill="#f59e0b" stroke="#d97706" stroke-width="1.5"/>
+  <text x="555" y="110" text-anchor="middle" fill="white" font-weight="bold" font-size="13">Pipeline</text>
+
+  <!-- LLM (Claude) -->
+  <rect x="715" y="85" width="130" height="40" rx="6" fill="#ef4444" stroke="#dc2626" stroke-width="1.5"/>
+  <text x="780" y="110" text-anchor="middle" fill="white" font-weight="bold" font-size="13">LLM (Claude)</text>
+
+  <!-- Learning Cycle -->
+  <rect x="940" y="85" width="140" height="40" rx="6" fill="#10b981" stroke="#059669" stroke-width="1.5"/>
+  <text x="1010" y="110" text-anchor="middle" fill="white" font-weight="bold" font-size="13">Learning Cycle</text>
+
+  <!-- Storage -->
+  <rect x="1175" y="85" width="130" height="40" rx="6" fill="#6b7280" stroke="#4b5563" stroke-width="1.5"/>
+  <text x="1240" y="110" text-anchor="middle" fill="white" font-weight="bold" font-size="13">Storage</text>
+
+  <!-- ==================== LIFELINES ==================== -->
+  <line x1="105" y1="125" x2="105" y2="2740" stroke="#3b82f6" stroke-width="1" stroke-dasharray="6,4" opacity="0.4"/>
+  <line x1="330" y1="125" x2="330" y2="2740" stroke="#8b5cf6" stroke-width="1" stroke-dasharray="6,4" opacity="0.4"/>
+  <line x1="555" y1="125" x2="555" y2="2740" stroke="#f59e0b" stroke-width="1" stroke-dasharray="6,4" opacity="0.4"/>
+  <line x1="780" y1="125" x2="780" y2="2740" stroke="#ef4444" stroke-width="1" stroke-dasharray="6,4" opacity="0.4"/>
+  <line x1="1010" y1="125" x2="1010" y2="2740" stroke="#10b981" stroke-width="1" stroke-dasharray="6,4" opacity="0.4"/>
+  <line x1="1240" y1="125" x2="1240" y2="2740" stroke="#6b7280" stroke-width="1" stroke-dasharray="6,4" opacity="0.4"/>
+
+  <!-- File labels under participants -->
+  <text x="105" y="142" text-anchor="middle" font-size="9" fill="#666">ManualAnalysisTrigger.tsx</text>
+  <text x="330" y="142" text-anchor="middle" font-size="9" fill="#666">system.ts (routes)</text>
+  <text x="555" y="142" text-anchor="middle" font-size="9" fill="#666">pipeline.ts</text>
+  <text x="780" y="142" text-anchor="middle" font-size="9" fill="#666">Anthropic API</text>
+  <text x="1010" y="142" text-anchor="middle" font-size="9" fill="#666">learning-orchestrator.ts</text>
+  <text x="1240" y="142" text-anchor="middle" font-size="9" fill="#666">JSON/SQLite/CLAUDE.md</text>
+
+  <!-- ==================== PHASE 1: TRIGGER ==================== -->
+  <rect x="20" y="160" width="1360" height="185" rx="4" fill="#dbeafe" fill-opacity="0.4" stroke="#3b82f6" stroke-width="0.5"/>
+  <text x="35" y="178" font-size="12" font-weight="bold" fill="#1e40af">Phase 1: 触发分析 (Trigger)</text>
+
+  <!-- Step 1: User Click -->
+  <rect x="60" y="195" width="90" height="22" rx="3" fill="#3b82f6" fill-opacity="0.15"/>
+  <text x="105" y="210" text-anchor="middle" font-size="10" fill="#1e40af">Click 运行分析</text>
+
+  <!-- Step 2: setState + POST -->
+  <line x1="105" y1="225" x2="320" y2="225" stroke="#333" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <text x="212" y="220" text-anchor="middle" font-size="10" fill="#333">POST /api/analyze</text>
+  <text x="212" y="240" text-anchor="middle" font-size="9" fill="#888">apiClient.triggerAnalysis()</text>
+
+  <!-- Step 3: Concurrency Check -->
+  <rect x="290" y="250" width="80" height="20" rx="3" fill="#7c3aed" fill-opacity="0.1"/>
+  <text x="330" y="264" text-anchor="middle" font-size="9" fill="#7c3aed">isAnalyzing?</text>
+
+  <!-- Step 4: Immediate 202 Response -->
+  <line x1="320" y1="280" x2="115" y2="280" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrowhead-green)"/>
+  <text x="212" y="275" text-anchor="middle" font-size="10" fill="#16a34a">HTTP 202 Accepted</text>
+  <text x="212" y="295" text-anchor="middle" font-size="9" fill="#888">立即返回, 异步执行分析</text>
+
+  <!-- Step 5: Start Timer -->
+  <rect x="55" y="305" width="100" height="28" rx="3" fill="#3b82f6" fill-opacity="0.1"/>
+  <text x="105" y="318" text-anchor="middle" font-size="9" fill="#1e40af">setIsRunning(true)</text>
+  <text x="105" y="330" text-anchor="middle" font-size="9" fill="#1e40af">启动计时器</text>
+
+  <!-- ==================== PHASE 2: INIT ==================== -->
+  <rect x="20" y="350" width="1360" height="200" rx="4" fill="#f3e8ff" fill-opacity="0.4" stroke="#7c3aed" stroke-width="0.5"/>
+  <text x="35" y="368" font-size="12" font-weight="bold" fill="#6d28d9">Phase 2: 初始化 (Initialize Pipeline)</text>
+
+  <!-- Start async analysis -->
+  <rect x="290" y="385" width="80" height="20" rx="3" fill="#7c3aed" fill-opacity="0.1"/>
+  <text x="330" y="399" text-anchor="middle" font-size="9" fill="#7c3aed">isAnalyzing=true</text>
+
+  <!-- Create logger -->
+  <line x1="330" y1="415" x2="1230" y2="415" stroke="#333" stroke-width="1" marker-end="url(#arrowhead)"/>
+  <text x="780" y="410" text-anchor="middle" font-size="10" fill="#333">new AnalysisLogger() → logAnalysisStart(runId)</text>
+  <text x="780" y="430" text-anchor="middle" font-size="9" fill="#888">写入 analysis.db (analysis_runs 表)</text>
+
+  <!-- Delegate to pipeline -->
+  <line x1="330" y1="448" x2="545" y2="448" stroke="#333" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <text x="437" y="443" text-anchor="middle" font-size="10" fill="#333">runAnalysisPipeline()</text>
+
+  <!-- Load config -->
+  <line x1="555" y1="468" x2="1230" y2="468" stroke="#6b7280" stroke-width="1" marker-end="url(#arrowhead)"/>
+  <text x="892" y="463" text-anchor="middle" font-size="10" fill="#6b7280">loadConfig() + getLastAnalysisTime()</text>
+  <line x1="1230" y1="478" x2="565" y2="478" stroke="#6b7280" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#arrowhead)"/>
+  <text x="892" y="492" text-anchor="middle" font-size="9" fill="#888">config.json + lastAnalysis timestamp</text>
+
+  <!-- Connect HTTP API -->
+  <line x1="555" y1="510" x2="1230" y2="510" stroke="#6b7280" stroke-width="1" marker-end="url(#arrowhead)"/>
+  <text x="892" y="505" text-anchor="middle" font-size="10" fill="#6b7280">createHTTPClient() → 连接 claude-mem HTTP API</text>
+  <line x1="1230" y1="520" x2="565" y2="520" stroke="#6b7280" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#arrowhead)"/>
+  <text x="892" y="535" text-anchor="middle" font-size="9" fill="#888">httpClient (ready)</text>
+
+  <!-- ==================== PHASE 3: DATA COLLECTION ==================== -->
+  <rect x="20" y="555" width="1360" height="175" rx="4" fill="#fef3c7" fill-opacity="0.4" stroke="#d97706" stroke-width="0.5"/>
+  <text x="35" y="573" font-size="12" font-weight="bold" fill="#92400e">Phase 3: 数据收集 (Collect Sessions &amp; Prompts)</text>
+
+  <!-- Collect sessions -->
+  <line x1="555" y1="595" x2="1230" y2="595" stroke="#ea580c" stroke-width="1" marker-end="url(#arrowhead-orange)"/>
+  <text x="892" y="590" text-anchor="middle" font-size="10" fill="#ea580c">collectRecentSessions(httpClient, lastAnalysisTime)</text>
+  <text x="892" y="610" text-anchor="middle" font-size="9" fill="#888">从 claude-mem 获取最近的会话数据</text>
+  <line x1="1230" y1="620" x2="565" y2="620" stroke="#ea580c" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#arrowhead-orange)"/>
+  <text x="892" y="635" text-anchor="middle" font-size="9" fill="#888">observations[] (会话观察数据)</text>
+
+  <!-- Collect prompts -->
+  <line x1="555" y1="660" x2="1230" y2="660" stroke="#ea580c" stroke-width="1" marker-end="url(#arrowhead-orange)"/>
+  <text x="892" y="655" text-anchor="middle" font-size="10" fill="#ea580c">collectRecentPrompts(httpClient, lastAnalysisTime)</text>
+  <text x="892" y="675" text-anchor="middle" font-size="9" fill="#888">从 claude-mem 获取用户提示词</text>
+  <line x1="1230" y1="685" x2="565" y2="685" stroke="#ea580c" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#arrowhead-orange)"/>
+  <text x="892" y="700" text-anchor="middle" font-size="9" fill="#888">prompts[] (用户交互偏好数据)</text>
+
+  <!-- ==================== PHASE 4: LLM EXTRACTION ==================== -->
+  <rect x="20" y="735" width="1360" height="215" rx="4" fill="#fee2e2" fill-opacity="0.4" stroke="#dc2626" stroke-width="0.5"/>
+  <text x="35" y="753" font-size="12" font-weight="bold" fill="#991b1b">Phase 4: LLM 经验提取 (Experience Extraction) — LLM Call #1</text>
+
+  <line x1="555" y1="775" x2="770" y2="775" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+  <text x="662" y="770" text-anchor="middle" font-size="10" fill="#dc2626">extractExperience()</text>
+
+  <!-- Batch loop -->
+  <rect x="590" y="790" width="350" height="145" rx="4" fill="white" stroke="#dc2626" stroke-width="1" stroke-dasharray="4,2"/>
+  <text x="605" y="805" font-size="10" font-weight="bold" fill="#dc2626">loop [每 10 条观察为一批]</text>
+
+  <!-- Format batch -->
+  <rect x="610" y="815" width="140" height="18" rx="2" fill="#fef2f2"/>
+  <text x="680" y="828" text-anchor="middle" font-size="9" fill="#991b1b">格式化观察数据为文本</text>
+
+  <!-- Call Claude -->
+  <line x1="660" y1="845" x2="770" y2="845" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+  <text x="715" y="840" text-anchor="middle" font-size="9" fill="#dc2626">messages.create()</text>
+
+  <!-- LLM Processing -->
+  <rect x="740" y="855" width="80" height="30" rx="3" fill="#dc2626" fill-opacity="0.1"/>
+  <text x="780" y="868" text-anchor="middle" font-size="9" fill="#dc2626">Claude 分析</text>
+  <text x="780" y="880" text-anchor="middle" font-size="8" fill="#999">偏好+模式+工作流</text>
+
+  <!-- Return results -->
+  <line x1="770" y1="895" x2="660" y2="895" stroke="#dc2626" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#arrowhead-red)"/>
+  <text x="715" y="910" text-anchor="middle" font-size="9" fill="#888">ExtractionResult{preferences, patterns, workflows}</text>
+
+  <!-- Merge batch results -->
+  <rect x="510" y="925" width="90" height="18" rx="2" fill="#fef2f2"/>
+  <text x="555" y="937" text-anchor="middle" font-size="9" fill="#991b1b">合并所有批次结果</text>
+
+  <!-- ==================== PHASE 5: LEARNING CYCLE ==================== -->
+  <rect x="20" y="955" width="1360" height="1080" rx="4" fill="#d1fae5" fill-opacity="0.3" stroke="#059669" stroke-width="0.5"/>
+  <text x="35" y="973" font-size="12" font-weight="bold" fill="#065f46">Phase 5: 增量学习循环 (executeLearningCycle)</text>
+
+  <!-- Convert to observations -->
+  <line x1="555" y1="995" x2="1000" y2="995" stroke="#16a34a" stroke-width="1.5" marker-end="url(#arrowhead-green)"/>
+  <text x="777" y="990" text-anchor="middle" font-size="10" fill="#16a34a">convertToObservations() → executeLearningCycle()</text>
+
+  <!-- Step 5.0: Load pools -->
+  <rect x="940" y="1015" width="220" height="55" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="0.5"/>
+  <text x="950" y="1030" font-size="10" font-weight="bold" fill="#065f46">Step 5.0: 加载观察池</text>
+  <text x="950" y="1045" font-size="9" fill="#065f46">Promise.all([</text>
+  <text x="960" y="1058" font-size="9" fill="#065f46">loadActive, loadContext, loadArchived])</text>
+
+  <line x1="1160" y1="1040" x2="1230" y2="1040" stroke="#6b7280" stroke-width="1" marker-end="url(#arrowhead)"/>
+  <text x="1280" y="1035" text-anchor="middle" font-size="9" fill="#6b7280">并行读取</text>
+  <line x1="1230" y1="1055" x2="1160" y2="1055" stroke="#6b7280" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#arrowhead)"/>
+  <text x="1280" y="1065" text-anchor="middle" font-size="9" fill="#888">3 个 JSON 文件</text>
+
+  <!-- Step 5.1: LLM Merge -->
+  <rect x="940" y="1085" width="220" height="85" rx="4" fill="#fef2f2" stroke="#dc2626" stroke-width="1"/>
+  <text x="950" y="1100" font-size="10" font-weight="bold" fill="#dc2626">Step 5.1: LLM 合并 — Call #2</text>
+  <text x="950" y="1115" font-size="9" fill="#991b1b">mergeLLM(activeObs, newObs)</text>
+  <text x="950" y="1130" font-size="8" fill="#999">Stage 1: 初步合并 (max 32000 tokens)</text>
+  <text x="950" y="1143" font-size="8" fill="#999">Stage 2: 精化合并 (max 40000 tokens)</text>
+  <text x="950" y="1158" font-size="8" fill="#16a34a">fallback: fallbackNoMerge() on error</text>
+
+  <line x1="1050" y1="1110" x2="770" y2="1110" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+  <line x1="770" y1="1130" x2="1050" y2="1130" stroke="#dc2626" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#arrowhead-red)"/>
+
+  <!-- Step 5.2: Decay -->
+  <rect x="940" y="1185" width="220" height="40" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="0.5"/>
+  <text x="950" y="1200" font-size="10" font-weight="bold" fill="#065f46">Step 5.2: 时间衰减</text>
+  <text x="950" y="1215" font-size="9" fill="#065f46">applyDecayToObservations()</text>
+
+  <!-- Decay annotation -->
+  <text x="1180" y="1200" font-size="8" fill="#888">半衰期衰减</text>
+  <text x="1180" y="1212" font-size="8" fill="#888">旧观察降低置信度</text>
+
+  <!-- Step 5.3: Delete -->
+  <rect x="940" y="1240" width="220" height="40" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="0.5"/>
+  <text x="950" y="1255" font-size="10" font-weight="bold" fill="#065f46">Step 5.3: 删除低置信度</text>
+  <text x="950" y="1270" font-size="9" fill="#065f46">getObservationsToDelete()</text>
+
+  <text x="1180" y="1255" font-size="8" fill="#888">confidence &lt; threshold</text>
+  <text x="1180" y="1267" font-size="8" fill="#888">→ 移除</text>
+
+  <!-- Step 5.4: Capacity -->
+  <rect x="940" y="1295" width="220" height="55" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="0.5"/>
+  <text x="950" y="1310" font-size="10" font-weight="bold" fill="#065f46">Step 5.4: 容量控制 (Active)</text>
+  <text x="950" y="1325" font-size="9" fill="#065f46">enforceCapacity()</text>
+  <text x="950" y="1340" font-size="8" fill="#888">超出 → 归档到 archived pool</text>
+
+  <!-- Step 5.5: Promote -->
+  <rect x="940" y="1365" width="220" height="55" rx="4" fill="#fefce8" stroke="#ca8a04" stroke-width="1"/>
+  <text x="950" y="1380" font-size="10" font-weight="bold" fill="#854d0e">Step 5.5: 自动晋升</text>
+  <text x="950" y="1395" font-size="9" fill="#854d0e">getObservationsToPromote()</text>
+  <text x="950" y="1410" font-size="8" fill="#888">金牌观察 → context pool</text>
+
+  <!-- Arrow from active to context (conceptual) -->
+  <text x="1180" y="1387" font-size="8" fill="#ca8a04">confidence ≥ gold</text>
+  <text x="1180" y="1399" font-size="8" fill="#ca8a04">age ≥ threshold</text>
+  <text x="1180" y="1411" font-size="8" fill="#ca8a04">→ 晋升到 context</text>
+
+  <!-- Step 5.6: Context Merge -->
+  <rect x="940" y="1435" width="220" height="75" rx="4" fill="#fef2f2" stroke="#dc2626" stroke-width="1"/>
+  <text x="950" y="1450" font-size="10" font-weight="bold" fill="#dc2626">Step 5.6: Context Pool 合并 — Call #3</text>
+  <text x="950" y="1465" font-size="9" fill="#991b1b">mergeContextPool()</text>
+  <text x="950" y="1480" font-size="8" fill="#999">合并 context pool 中的重复/相似观察</text>
+  <text x="950" y="1498" font-size="8" fill="#16a34a">truncation → recoverTruncatedJsonObject()</text>
+
+  <line x1="1050" y1="1460" x2="770" y2="1460" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+  <line x1="770" y1="1480" x2="1050" y2="1480" stroke="#dc2626" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#arrowhead-red)"/>
+
+  <!-- Step 5.7: Context Capacity -->
+  <rect x="940" y="1525" width="220" height="40" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="0.5"/>
+  <text x="950" y="1540" font-size="10" font-weight="bold" fill="#065f46">Step 5.7: Context 容量控制</text>
+  <text x="950" y="1555" font-size="9" fill="#065f46">enforceContextCapacity()</text>
+
+  <!-- Step 5.8: Archive Cleanup -->
+  <rect x="940" y="1580" width="220" height="40" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="0.5"/>
+  <text x="950" y="1595" font-size="10" font-weight="bold" fill="#065f46">Step 5.8: 归档清理</text>
+  <text x="950" y="1610" font-size="9" fill="#065f46">pruneOldArchivedObservations()</text>
+
+  <!-- Step 5.9: Save -->
+  <rect x="940" y="1635" width="220" height="60" rx="4" fill="#ecfdf5" stroke="#059669" stroke-width="0.5"/>
+  <text x="950" y="1650" font-size="10" font-weight="bold" fill="#065f46">Step 5.9: 并行保存</text>
+  <text x="950" y="1665" font-size="9" fill="#065f46">Promise.all([</text>
+  <text x="960" y="1680" font-size="9" fill="#065f46">saveActive, saveContext, saveArchived])</text>
+
+  <line x1="1160" y1="1660" x2="1230" y2="1660" stroke="#6b7280" stroke-width="1" marker-end="url(#arrowhead)"/>
+  <text x="1290" y="1648" text-anchor="middle" font-size="9" fill="#6b7280">并行写入</text>
+  <text x="1290" y="1660" text-anchor="middle" font-size="9" fill="#6b7280">active.json</text>
+  <text x="1290" y="1672" text-anchor="middle" font-size="9" fill="#6b7280">context.json</text>
+  <text x="1290" y="1684" text-anchor="middle" font-size="9" fill="#6b7280">archived.json</text>
+
+  <!-- Step 5.10: Regenerate CLAUDE.md -->
+  <rect x="940" y="1710" width="220" height="40" rx="4" fill="#fefce8" stroke="#ca8a04" stroke-width="1"/>
+  <text x="950" y="1725" font-size="10" font-weight="bold" fill="#854d0e">Step 5.10: 重新生成 CLAUDE.md</text>
+  <text x="950" y="1740" font-size="9" fill="#854d0e">regenerateClaudeMd(contextObs)</text>
+
+  <line x1="1160" y1="1730" x2="1230" y2="1730" stroke="#6b7280" stroke-width="1" marker-end="url(#arrowhead)"/>
+  <text x="1290" y="1730" text-anchor="middle" font-size="9" fill="#6b7280">写入 CLAUDE.md</text>
+
+  <!-- Return learning cycle stats -->
+  <line x1="1000" y1="1770" x2="565" y2="1770" stroke="#16a34a" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#arrowhead-green)"/>
+  <text x="782" y="1765" text-anchor="middle" font-size="9" fill="#16a34a">CycleStats{merged, promoted, decayed, deleted, archived}</text>
+
+  <!-- Divider note -->
+  <rect x="550" y="1800" width="260" height="60" rx="4" fill="white" stroke="#d97706" stroke-width="1"/>
+  <text x="560" y="1818" font-size="9" font-weight="bold" fill="#92400e">三层观察池数据流:</text>
+  <text x="560" y="1833" font-size="9" fill="#d97706">Active Pool → (晋升) → Context Pool</text>
+  <text x="560" y="1848" font-size="9" fill="#d97706">Active Pool → (溢出) → Archived Pool</text>
+
+  <!-- Learning cycle annotation: 3 pools -->
+  <rect x="1175" y="1770" width="180" height="85" rx="4" fill="white" stroke="#4b5563" stroke-width="0.5"/>
+  <text x="1185" y="1788" font-size="9" font-weight="bold" fill="#374151">存储文件:</text>
+  <text x="1185" y="1803" font-size="9" fill="#6b7280">active.json (候选池)</text>
+  <text x="1185" y="1818" font-size="9" fill="#6b7280">context.json (上下文池)</text>
+  <text x="1185" y="1833" font-size="9" fill="#6b7280">archived.json (归档池)</text>
+  <text x="1185" y="1848" font-size="9" fill="#6b7280">CLAUDE.md (生效配置)</text>
+
+  <!-- ==================== PHASE 6: COMPLETION ==================== -->
+  <rect x="20" y="1875" width="1360" height="280" rx="4" fill="#ede9fe" fill-opacity="0.4" stroke="#7c3aed" stroke-width="0.5"/>
+  <text x="35" y="1893" font-size="12" font-weight="bold" fill="#5b21b6">Phase 6: 完成 &amp; 通知 (Completion &amp; Notification)</text>
+
+  <!-- Pipeline returns -->
+  <line x1="555" y1="1920" x2="340" y2="1920" stroke="#8b5cf6" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#arrowhead-purple)"/>
+  <text x="447" y="1915" text-anchor="middle" font-size="10" fill="#8b5cf6">Pipeline 完成, 返回结果</text>
+
+  <!-- Update analysis status -->
+  <line x1="555" y1="1945" x2="1230" y2="1945" stroke="#6b7280" stroke-width="1" marker-end="url(#arrowhead)"/>
+  <text x="892" y="1940" text-anchor="middle" font-size="10" fill="#6b7280">updateAfterAnalysis(true)</text>
+
+  <!-- Log to DB -->
+  <line x1="330" y1="1970" x2="1230" y2="1970" stroke="#6b7280" stroke-width="1" marker-end="url(#arrowhead)"/>
+  <text x="780" y="1965" text-anchor="middle" font-size="10" fill="#6b7280">analysisLogger.logAnalysisEnd(runId, {status: 'completed', stats})</text>
+  <text x="780" y="1985" text-anchor="middle" font-size="9" fill="#888">写入 analysis.db (更新 analysis_runs 记录)</text>
+
+  <!-- Set isAnalyzing = false -->
+  <rect x="290" y="2000" width="80" height="20" rx="3" fill="#7c3aed" fill-opacity="0.1"/>
+  <text x="330" y="2014" text-anchor="middle" font-size="9" fill="#7c3aed">isAnalyzing=false</text>
+
+  <!-- WebSocket broadcast -->
+  <line x1="330" y1="2035" x2="115" y2="2035" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrowhead-blue)"/>
+  <text x="222" y="2030" text-anchor="middle" font-size="10" fill="#2563eb">WebSocket: 'analysis_complete'</text>
+  <text x="222" y="2050" text-anchor="middle" font-size="9" fill="#888">{observationsCount, duration, timestamp}</text>
+
+  <!-- Desktop notification -->
+  <rect x="280" y="2065" width="100" height="22" rx="3" fill="#ede9fe"/>
+  <text x="330" y="2080" text-anchor="middle" font-size="9" fill="#5b21b6">桌面通知推送</text>
+
+  <!-- Frontend receives WS event -->
+  <rect x="42" y="2100" width="126" height="45" rx="3" fill="#dbeafe"/>
+  <text x="105" y="2115" text-anchor="middle" font-size="9" fill="#1e40af">setIsRunning(false)</text>
+  <text x="105" y="2128" text-anchor="middle" font-size="9" fill="#1e40af">停止计时器</text>
+  <text x="105" y="2141" text-anchor="middle" font-size="9" fill="#1e40af">显示 "分析完成" toast</text>
+
+  <!-- ==================== PHASE 7: ERROR PATH ==================== -->
+  <rect x="20" y="2170" width="1360" height="175" rx="4" fill="#fef2f2" fill-opacity="0.3" stroke="#dc2626" stroke-width="0.5" stroke-dasharray="6,3"/>
+  <text x="35" y="2188" font-size="12" font-weight="bold" fill="#991b1b">Phase 7: 错误处理路径 (Error Path — 任意阶段失败时)</text>
+
+  <rect x="290" y="2210" width="240" height="60" rx="4" fill="white" stroke="#dc2626" stroke-width="0.5"/>
+  <text x="300" y="2228" font-size="9" fill="#dc2626">catch (error) {</text>
+  <text x="310" y="2243" font-size="9" fill="#dc2626">  analysisLogger.logAnalysisEnd(runId, 'failed')</text>
+  <text x="310" y="2258" font-size="9" fill="#dc2626">  isAnalyzing = false</text>
+
+  <line x1="330" y1="2285" x2="1230" y2="2285" stroke="#dc2626" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#arrowhead-red)"/>
+  <text x="780" y="2280" text-anchor="middle" font-size="10" fill="#dc2626">logAnalysisEnd(runId, {status: 'failed', error})</text>
+
+  <line x1="330" y1="2310" x2="115" y2="2310" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+  <text x="222" y="2305" text-anchor="middle" font-size="10" fill="#dc2626">WebSocket: 'analysis_failed'</text>
+  <text x="222" y="2325" text-anchor="middle" font-size="9" fill="#888">{error, timestamp}</text>
+
+  <!-- ==================== LEGEND ==================== -->
+  <rect x="20" y="2370" width="1360" height="180" rx="6" fill="white" stroke="#e5e7eb" stroke-width="1"/>
+  <text x="40" y="2395" font-size="14" font-weight="bold" fill="#1a1a2e">图例 (Legend)</text>
+
+  <!-- Arrow types -->
+  <line x1="40" y1="2420" x2="100" y2="2420" stroke="#333" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <text x="110" y="2424" font-size="10" fill="#333">同步调用 (Sync Call)</text>
+
+  <line x1="40" y1="2445" x2="100" y2="2445" stroke="#333" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#arrowhead)"/>
+  <text x="110" y="2449" font-size="10" fill="#333">返回响应 (Return)</text>
+
+  <line x1="40" y1="2470" x2="100" y2="2470" stroke="#dc2626" stroke-width="1.5" marker-end="url(#arrowhead-red)"/>
+  <text x="110" y="2474" font-size="10" fill="#dc2626">LLM 调用 (共 3 次)</text>
+
+  <line x1="40" y1="2495" x2="100" y2="2495" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrowhead-blue)"/>
+  <text x="110" y="2499" font-size="10" fill="#3b82f6">WebSocket 事件推送</text>
+
+  <!-- Phase colors -->
+  <rect x="350" y="2410" width="16" height="16" rx="2" fill="#dbeafe" stroke="#3b82f6" stroke-width="0.5"/>
+  <text x="375" y="2423" font-size="10" fill="#333">Phase 1: 触发</text>
+
+  <rect x="350" y="2435" width="16" height="16" rx="2" fill="#f3e8ff" stroke="#7c3aed" stroke-width="0.5"/>
+  <text x="375" y="2448" font-size="10" fill="#333">Phase 2: 初始化</text>
+
+  <rect x="350" y="2460" width="16" height="16" rx="2" fill="#fef3c7" stroke="#d97706" stroke-width="0.5"/>
+  <text x="375" y="2473" font-size="10" fill="#333">Phase 3: 数据收集</text>
+
+  <rect x="350" y="2485" width="16" height="16" rx="2" fill="#fee2e2" stroke="#dc2626" stroke-width="0.5"/>
+  <text x="375" y="2498" font-size="10" fill="#333">Phase 4: LLM 经验提取</text>
+
+  <rect x="600" y="2410" width="16" height="16" rx="2" fill="#d1fae5" stroke="#059669" stroke-width="0.5"/>
+  <text x="625" y="2423" font-size="10" fill="#333">Phase 5: 增量学习循环 (10 子步骤)</text>
+
+  <rect x="600" y="2435" width="16" height="16" rx="2" fill="#ede9fe" stroke="#7c3aed" stroke-width="0.5"/>
+  <text x="625" y="2448" font-size="10" fill="#333">Phase 6: 完成通知</text>
+
+  <rect x="600" y="2460" width="16" height="16" rx="2" fill="#fef2f2" stroke="#dc2626" stroke-width="0.5" stroke-dasharray="4,2"/>
+  <text x="625" y="2473" font-size="10" fill="#333">Phase 7: 错误处理</text>
+
+  <!-- Stats -->
+  <rect x="900" y="2405" width="460" height="130" rx="4" fill="#f9fafb" stroke="#e5e7eb" stroke-width="0.5"/>
+  <text x="920" y="2425" font-size="11" font-weight="bold" fill="#1a1a2e">关键数据</text>
+  <text x="920" y="2445" font-size="10" fill="#555">LLM 调用次数: 3 (提取 + Active合并 + Context合并)</text>
+  <text x="920" y="2462" font-size="10" fill="#555">并行操作: 2 (加载3池 / 保存3池)</text>
+  <text x="920" y="2479" font-size="10" fill="#555">存储目标: 4 文件 (active/context/archived.json + CLAUDE.md)</text>
+  <text x="920" y="2496" font-size="10" fill="#555">日志存储: SQLite (analysis.db)</text>
+  <text x="920" y="2513" font-size="10" fill="#555">通信方式: HTTP 202 (异步) + WebSocket (实时推送)</text>
+  <text x="920" y="2530" font-size="10" fill="#555">错误恢复: 4层防御 (partial recovery → fallback → catch)</text>
+
+  <!-- Footer -->
+  <text x="700" y="2580" text-anchor="middle" font-size="11" fill="#9ca3af">claude-evolution analysis flow — generated 2026-03-21</text>
+
+  <!-- ==================== PARTICIPANT FOOTERS ==================== -->
+  <rect x="40" y="2600" width="130" height="30" rx="6" fill="#3b82f6" stroke="#2563eb" stroke-width="1.5"/>
+  <text x="105" y="2620" text-anchor="middle" fill="white" font-weight="bold" font-size="11">Frontend</text>
+
+  <rect x="265" y="2600" width="130" height="30" rx="6" fill="#8b5cf6" stroke="#7c3aed" stroke-width="1.5"/>
+  <text x="330" y="2620" text-anchor="middle" fill="white" font-weight="bold" font-size="11">API Route</text>
+
+  <rect x="490" y="2600" width="130" height="30" rx="6" fill="#f59e0b" stroke="#d97706" stroke-width="1.5"/>
+  <text x="555" y="2620" text-anchor="middle" fill="white" font-weight="bold" font-size="11">Pipeline</text>
+
+  <rect x="715" y="2600" width="130" height="30" rx="6" fill="#ef4444" stroke="#dc2626" stroke-width="1.5"/>
+  <text x="780" y="2620" text-anchor="middle" fill="white" font-weight="bold" font-size="11">LLM (Claude)</text>
+
+  <rect x="940" y="2600" width="140" height="30" rx="6" fill="#10b981" stroke="#059669" stroke-width="1.5"/>
+  <text x="1010" y="2620" text-anchor="middle" fill="white" font-weight="bold" font-size="11">Learning Cycle</text>
+
+  <rect x="1175" y="2600" width="130" height="30" rx="6" fill="#6b7280" stroke="#4b5563" stroke-width="1.5"/>
+  <text x="1240" y="2620" text-anchor="middle" fill="white" font-weight="bold" font-size="11">Storage</text>
+</svg>

@@ -111,6 +111,7 @@ const LLMSchema = z.object({
     apiVersion: z.string().optional(), // Anthropic API 版本
   }).optional(),
   openai: z.object({
+    apiKey: z.string().optional(), // OpenAI API Key (优先级高于环境变量)
     organization: z.string().optional(), // OpenAI 组织 ID
   }).optional(),
 });

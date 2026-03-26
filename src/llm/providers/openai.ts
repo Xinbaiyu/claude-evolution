@@ -29,9 +29,17 @@ export class OpenAIProvider implements LLMProvider {
   private static OpenAIConstructor: any = null;
 
   private constructor(config: OpenAIProviderConfig) {
+    // API Key 优先级：config.apiKey > 环境变量 OPENAI_API_KEY
+    const apiKey = config.apiKey || process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        'OpenAI API Key not configured. Set it in UI (Settings → LLM Provider) or environment variable OPENAI_API_KEY.'
+      );
+    }
+
     // 使用已加载的 OpenAI 构造函数
     this.client = new OpenAIProvider.OpenAIConstructor({
-      apiKey: config.apiKey || process.env.OPENAI_API_KEY,
+      apiKey,
       ...(config.baseURL && { baseURL: config.baseURL }),
       ...(config.organization && { organization: config.organization }),
     });

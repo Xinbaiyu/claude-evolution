@@ -158,6 +158,7 @@ export interface Config {
       apiVersion?: string;
     };
     openai?: {
+      apiKey?: string;
       organization?: string;
     };
   };
