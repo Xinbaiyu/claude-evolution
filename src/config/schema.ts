@@ -75,6 +75,8 @@ const WebUIConfigSchema = z.object({
  * LLM 配置
  */
 const LLMSchema = z.object({
+  // LLM 提供商类型（可选，未指定时自动检测）
+  provider: z.enum(['anthropic', 'openai']).optional(),
   model: z.enum([
     'claude-haiku-4-5',
     'claude-sonnet-4-6',
@@ -86,8 +88,15 @@ const LLMSchema = z.object({
   temperature: z.number().min(0).max(1).default(0.3),
   enablePromptCaching: z.boolean().default(true),
   // 自定义 API 配置（用于代理/路由服务）
-  baseURL: z.string().optional(), // 自定义 API 端点
+  baseURL: z.string().nullish().transform(val => val === null ? undefined : val), // 自定义 API 端点（null 转为 undefined）
   defaultHeaders: z.record(z.string()).optional(), // 自定义请求头
+  // Provider-specific 配置
+  anthropic: z.object({
+    apiVersion: z.string().optional(),
+  }).optional(),
+  openai: z.object({
+    organization: z.string().optional(),
+  }).optional(),
 });
 
 /**
@@ -245,7 +254,7 @@ const BotCCSchema = z.object({
   timeoutMs: z.number().min(5000).max(600_000).default(120_000),
   maxBudgetUsd: z.number().min(0).max(10).default(0.5),
   permissionMode: z.string().default('bypassPermissions'),
-  baseURL: z.string().optional(),
+  baseURL: z.string().nullish().transform(val => val === null ? undefined : val),
 });
 
 const BotConfigSchema = z.object({

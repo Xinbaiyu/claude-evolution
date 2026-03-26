@@ -462,7 +462,7 @@ export default function Settings() {
                   onChange={(e) =>
                     setConfig({
                       ...config,
-                      llm: { ...config.llm, baseURL: e.target.value || undefined },
+                      llm: { ...config.llm, baseURL: e.target.value || null },
                     })
                   }
                   className="w-full border-2 border-slate-600 bg-slate-800 text-slate-100 font-mono py-2 px-4 focus:outline-none focus:ring-2 focus:ring-cyan-500"
@@ -922,7 +922,7 @@ export default function Settings() {
                         onChange={(e) =>
                           setConfig({
                             ...config,
-                            bot: { ...config.bot, cc: { ...config.bot?.cc, baseURL: e.target.value || undefined } },
+                            bot: { ...config.bot, cc: { ...config.bot?.cc, baseURL: e.target.value || null } },
                           })
                         }
                         className="w-full border-2 border-slate-600 bg-slate-800 text-slate-100 font-mono py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"

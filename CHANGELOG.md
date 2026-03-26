@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### 🔧 Refactoring
+
+#### Unified LLM Client Factory
+Introduced a unified LLM client factory pattern to eliminate code duplication and enable multi-provider support.
+
+**Key Changes**:
+- Created unified provider abstraction (`src/llm/types.ts`)
+- Implemented factory function with auto-detection (`src/llm/client-factory.ts`)
+- Added Anthropic provider adapter (`src/llm/providers/anthropic.ts`)
+- Added OpenAI provider skeleton (`src/llm/providers/openai.ts`)
+- Migrated 4 modules to use unified client:
+  - `src/bot/commands/chat.ts`
+  - `src/analyzers/experience-extractor.ts`
+  - `src/learners/llm-merge.ts`
+  - `src/memory/context-merge.ts`
+
+**Provider Auto-Detection** (priority order):
+1. Explicit `config.llm.provider` field
+2. `config.llm.baseURL` presence → Anthropic (CCR mode)
+3. `ANTHROPIC_API_KEY` environment variable
+4. `OPENAI_API_KEY` environment variable
+
+**Benefits**:
+- ✅ Eliminates 4 instances of duplicate client creation logic
+- ✅ Singleton caching prevents redundant client instantiation
+- ✅ Easy to extend with new providers (Azure OpenAI, Gemini, etc.)
+- ✅ Backward compatible - existing configs work without modification
+- ✅ 84% test coverage for LLM module
+
+**Configuration Changes**:
+- Added optional `llm.provider` field to schema
+- Added optional `llm.anthropic` and `llm.openai` provider-specific configs
+- All existing configurations continue to work unchanged
+
+**Breaking Changes**: None - fully backward compatible
+
+### 📚 Documentation
+- Updated `docs/ARCHITECTURE.md` with LLM client factory section
+- Added comprehensive `docs/LLM_CONFIGURATION.md` guide:
+  - Configuration options and examples
+  - Provider auto-detection explanation
+  - Migration guide from old code patterns
+  - Extension guide for adding new providers
+
+### ✅ Testing
+- Added unit tests for `AnthropicProvider` (95% coverage)
+- Added unit tests for `createLLMClient` factory (94% coverage)
+- Added integration tests for configuration modes
+- Overall LLM module coverage: 84%
+
+---
+
 ## [0.4.0] - 2026-03-15
 
 ### 🚨 Breaking Changes

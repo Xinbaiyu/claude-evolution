@@ -105,9 +105,7 @@ export async function executeLearningCycle(
     let mergedObs: ObservationWithMetadata[];
     try {
       mergedObs = await mergeLLM(activeObs, newObservations, {
-        apiKey: process.env.ANTHROPIC_API_KEY || '',
-        baseURL: config.llm.baseURL,
-        model: config.llm.model,
+        config,
         maxOldObservations: 50,
         maxNewObservations: 20,
         contextPoolObservations: contextObs,
@@ -174,9 +172,7 @@ export async function executeLearningCycle(
     // Step 5.1: Context Pool LLM Merge
     logger.info('Step 5.1: Context Pool LLM Merge');
     const contextMergeResult = await mergeContextPool(updatedContext, {
-      apiKey: process.env.ANTHROPIC_API_KEY || '',
-      baseURL: config.llm.baseURL,
-      model: config.llm.model,
+      config,
     });
     updatedContext = contextMergeResult.observations;
 

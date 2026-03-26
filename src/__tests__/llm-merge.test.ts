@@ -9,8 +9,37 @@ import {
   fallbackNoMerge,
 } from '../learners/llm-merge.js';
 import type { ObservationWithMetadata } from '../types/learning.js';
+import type { Config } from '../config/schema.js';
 
 describe('LLM Merge', () => {
+  // Mock config for tests
+  const mockConfig: Config = {
+    llm: {
+      apiKey: 'test-key',
+      model: 'claude-3-5-haiku-20241022',
+      maxTokens: 8000,
+      temperature: 1.0,
+      enableCache: false,
+    },
+    storage: {
+      baseDir: '/tmp/test',
+    },
+    scheduler: {
+      enabled: false,
+      cron: '0 3 * * *',
+    },
+    webUI: {
+      port: 10010,
+      cors: {
+        origin: '*',
+      },
+    },
+    daemon: {
+      pidFile: '/tmp/test.pid',
+      logFile: '/tmp/test.log',
+      logLevel: 'info',
+    },
+  };
   const mockOldObservations: ObservationWithMetadata[] = [
     {
       id: 'old-1',
@@ -71,6 +100,10 @@ describe('LLM Merge', () => {
     },
   ];
 
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   describe('fallbackNoMerge', () => {
     it('should concatenate old and new observations', () => {
       const result = fallbackNoMerge(mockOldObservations, mockNewObservations);
@@ -94,11 +127,11 @@ describe('LLM Merge', () => {
       vi.mock('@anthropic-ai/sdk');
     });
 
-    it('should throw error when ANTHROPIC_API_KEY not set', async () => {
-      delete process.env.ANTHROPIC_API_KEY;
+    it('should throw error when config.llm is missing', async () => {
+      const invalidConfig = { ...mockConfig, llm: undefined } as any;
       await expect(
-        mergeLLM(mockOldObservations, mockNewObservations)
-      ).rejects.toThrow('ANTHROPIC_API_KEY not configured');
+        mergeLLM(mockOldObservations, mockNewObservations, { config: invalidConfig })
+      ).rejects.toThrow();
     });
 
     it('should call Anthropic API with correct model', async () => {
@@ -136,7 +169,7 @@ describe('LLM Merge', () => {
       vi.mocked(Anthropic).mockImplementation(() => mockAnthropicInstance as any);
 
       const result = await mergeLLM(mockOldObservations, mockNewObservations, {
-        apiKey: 'test-key',
+        config: mockConfig,
       });
 
       // With hybrid tokenization: old-1 (preference: async/await) and new-1 (preference: async/await)
@@ -177,8 +210,11 @@ describe('LLM Merge', () => {
         () => ({ messages: { create: mockCreate } } as any)
       );
 
+      // Use different model to avoid cache
+      const testConfig = { ...mockConfig, llm: { ...mockConfig.llm, model: 'claude-3-opus-20240229' } };
+
       await mergeLLM(manyOldObservations, mockNewObservations, {
-        apiKey: 'test-key',
+        config: testConfig,
         maxOldObservations: 10,
       });
 
@@ -233,7 +269,7 @@ describe('LLM Merge', () => {
 
       // Should not throw error
       const result = await mergeLLM(mockOldObservations, mockNewObservations, {
-        apiKey: 'test-key',
+        config: mockConfig,
       });
 
       expect(result).toHaveLength(1);

@@ -4,11 +4,14 @@
  * Implements two-stage LLM merge for deduplicating and consolidating observations
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import type Anthropic from '@anthropic-ai/sdk';
 import { logger, withLLMRetry, groupBySimilarity, pMapLimited, getFulfilledValues } from '../utils/index.js';
 import type { ObservationWithMetadata, MergeResult, SimilarityWarning } from '../types/learning.js';
 import { loadArchivedObservations, saveArchivedObservations } from '../memory/observation-manager.js';
 import { deduplicateAgainstContextPool } from './cross-pool-dedup.js';
+import type { Config } from '../config/index.js';
+import { createLLMClient } from '../llm/client-factory.js';
+import { AnthropicProvider } from '../llm/providers/anthropic.js';
 
 /**
  * Stage 1: Merge and Deduplicate Prompt Template
@@ -681,36 +684,31 @@ export async function mergeLLM(
   oldObservations: ObservationWithMetadata[],
   newObservations: ObservationWithMetadata[],
   options: {
-    apiKey?: string;
-    baseURL?: string;
-    model?: string;
+    config: Config;
     maxOldObservations?: number;
     maxNewObservations?: number;
     checkDeletedSimilarity?: boolean;
     contextPoolObservations?: ObservationWithMetadata[];
-  } = {}
+  }
 ): Promise<ObservationWithMetadata[]> {
   const {
-    apiKey = process.env.ANTHROPIC_API_KEY,
-    baseURL,
-    model = 'claude-3-5-haiku-20241022',
+    config,
     maxOldObservations = 50,
     maxNewObservations = 20,
     checkDeletedSimilarity = true,
     contextPoolObservations: contextPoolObs = [],
   } = options;
 
-  // When using a custom baseURL (e.g., local proxy), allow empty API key
-  if (!apiKey && !baseURL) {
-    throw new Error('ANTHROPIC_API_KEY not configured');
-  }
+  // Use unified LLM client factory
+  const llmProvider = await createLLMClient(config);
 
-  // Initialize Anthropic client
-  // Use a dummy key for local proxies
-  const anthropic = new Anthropic({
-    apiKey: apiKey || 'dummy-key-for-local-proxy',
-    ...(baseURL && { baseURL }),
-  });
+  // Get underlying Anthropic client (needed for direct API calls)
+  if (!(llmProvider instanceof AnthropicProvider)) {
+    throw new Error('LLM merge currently requires Anthropic provider');
+  }
+  const anthropic = llmProvider.getClient();
+  const model = config.llm.model;
+  const baseURL = config.llm.baseURL;
 
   // Load archived observations for similarity checking
   let archivedObservations: ObservationWithMetadata[] = [];

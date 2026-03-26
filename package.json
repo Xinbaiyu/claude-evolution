@@ -55,6 +55,9 @@
     "ws": "^8.16.0",
     "zod": "^3.23.8"
   },
+  "optionalDependencies": {
+    "openai": "^4.28.0"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.58.2",

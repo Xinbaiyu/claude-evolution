@@ -246,6 +246,29 @@ router.patch('/config', async (req, res) => {
       ? await fs.readJson(CONFIG_FILE)
       : {};
 
+    // 辅助函数：深度清理对象中的 null 值（表示删除字段）
+    const cleanNullValues = (obj: any): any => {
+      if (obj === null || obj === undefined) return undefined;
+      if (typeof obj !== 'object') return obj;
+      if (Array.isArray(obj)) {
+        return obj.map(item => cleanNullValues(item));
+      }
+
+      const result: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (value === null) {
+          // null 表示删除字段，直接跳过
+          continue;
+        }
+        // 递归清理嵌套对象
+        const cleaned = cleanNullValues(value);
+        if (cleaned !== undefined) {
+          result[key] = cleaned;
+        }
+      }
+      return result;
+    };
+
     // 合并配置（深度合并）
     const newConfig = {
       ...currentConfig,
@@ -286,13 +309,24 @@ router.patch('/config', async (req, res) => {
               ...currentConfig.bot?.chat,
               ...updates.bot?.chat,
             },
+            cc: {
+              ...currentConfig.bot?.cc,
+              ...updates.bot?.cc,
+            },
           }
         : currentConfig.bot,
     };
 
+    // 深度清理所有 null 值后再写入
+    const cleanedConfig = cleanNullValues(newConfig);
+
+    // Debug: 检查清理效果
+    console.log('[Config Update] Before clean:', JSON.stringify(newConfig.llm, null, 2));
+    console.log('[Config Update] After clean:', JSON.stringify(cleanedConfig.llm, null, 2));
+
     // 写入配置文件
     await fs.ensureDir(CONFIG_DIR);
-    await fs.writeJson(CONFIG_FILE, newConfig, { spaces: 2 });
+    await fs.writeJson(CONFIG_FILE, cleanedConfig, { spaces: 2 });
 
     // 检测调度器配置变更并触发热重载
     const schedulerChanged = updates.scheduler !== undefined;
@@ -309,7 +343,7 @@ router.patch('/config', async (req, res) => {
 
     res.json({
       success: true,
-      data: newConfig,
+      data: cleanedConfig,
       schedulerReloaded: schedulerChanged,
     });
   } catch (error) {

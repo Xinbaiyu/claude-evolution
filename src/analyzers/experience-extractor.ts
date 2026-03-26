@@ -1,10 +1,12 @@
-import Anthropic from '@anthropic-ai/sdk';
+import type Anthropic from '@anthropic-ai/sdk';
 import { Observation, ExtractionResult } from '../types/index.js';
 import { Config } from '../config/index.js';
 import { logger, withLLMRetry, pMapLimited, getFulfilledValues } from '../utils/index.js';
 import { buildAnalysisPrompt, SYSTEM_MESSAGE } from './prompts.js';
 import { formatObservationsAsText } from './session-collector.js';
 import { loadExistingObservationsSummary } from './existing-observations-loader.js';
+import { createLLMClient } from '../llm/client-factory.js';
+import { AnthropicProvider } from '../llm/providers/anthropic.js';
 
 /**
  * 经验提取器
@@ -32,19 +34,11 @@ export async function extractExperience(
     };
   }
 
-  // 检查 API Key - 允许使用本地代理时使用dummy key
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  const hasCustomBaseURL = !!config.llm.baseURL;
-
-  if (!apiKey && !hasCustomBaseURL) {
-    throw new Error('缺少 ANTHROPIC_API_KEY 环境变量,或未配置 llm.baseURL 使用本地代理');
-  }
-
   logger.info('开始使用 LLM 提取经验...');
   logger.debug(`模型: ${config.llm.model}`);
   logger.debug(`温度: ${config.llm.temperature}`);
   logger.debug(`最大 tokens: ${config.llm.maxTokens}`);
-  if (hasCustomBaseURL) {
+  if (config.llm.baseURL) {
     logger.debug(`使用自定义 baseURL: ${config.llm.baseURL}`);
   }
 
@@ -52,24 +46,14 @@ export async function extractExperience(
     logger.info('  包含用户 prompts 上下文用于沟通偏好提取');
   }
 
-  // 初始化 Anthropic 客户端
-  const clientOptions: any = {
-    apiKey: apiKey || 'dummy-key-for-local-proxy',
-  };
+  // 使用统一的 LLM 客户端工厂
+  const llmProvider = await createLLMClient(config);
 
-  // 支持自定义 API 端点（用于代理服务）
-  if (config.llm.baseURL) {
-    clientOptions.baseURL = config.llm.baseURL;
-    logger.debug(`使用自定义 API 端点: ${config.llm.baseURL}`);
+  // 获取底层 Anthropic 客户端（用于 prompt caching 等特有功能）
+  if (!(llmProvider instanceof AnthropicProvider)) {
+    throw new Error('Experience extraction currently requires Anthropic provider');
   }
-
-  // 支持自定义请求头
-  if (config.llm.defaultHeaders) {
-    clientOptions.defaultHeaders = config.llm.defaultHeaders;
-    logger.debug('使用自定义请求头');
-  }
-
-  const anthropic = new Anthropic(clientOptions);
+  const anthropic = llmProvider.getClient();
 
   // 加载已有观察摘要，注入到提取 prompt 中防止重复提取
   let existingObsSummary: string | null = null;

@@ -691,67 +691,199 @@ await fs.writeFile(
 );
 ```
 
-### 7.2 集成新的 LLM 提供商
+### 7.2 LLM 客户端工厂 (统一提供商抽象)
 
-**场景**: 支持 OpenAI GPT-4 作为备用 LLM
+**架构**: 系统使用统一的 LLM 客户端工厂模式,支持多个 LLM 提供商
 
-**步骤**:
+**目录结构**:
 
-1. **更新配置 Schema** (`src/config/schema.ts`):
+```
+src/llm/
+├── types.ts                # 统一接口定义
+├── client-factory.ts       # 工厂函数和自动检测
+└── providers/
+    ├── anthropic.ts        # Anthropic 提供商实现
+    └── openai.ts           # OpenAI 提供商实现
+```
+
+**核心接口**:
 
 ```typescript
-export const configSchema = z.object({
-  llm: z.object({
-    provider: z.enum(['anthropic', 'openai']),  // 新增
-    model: z.string(),
-    apiKey: z.string().optional(),
-    ...
-  })
+// src/llm/types.ts
+export interface LLMProvider {
+  readonly providerName: string;
+  createCompletion(params: LLMCompletionParams): Promise<LLMCompletionResponse>;
+}
+
+export interface LLMCompletionParams {
+  model: string;
+  messages: LLMMessage[];
+  maxTokens?: number;
+  temperature?: number;
+  systemPrompt?: string;
+}
+
+export interface LLMCompletionResponse {
+  content: string;
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+  };
+}
+```
+
+**工厂函数**:
+
+```typescript
+// src/llm/client-factory.ts
+import { createLLMClient } from './llm/client-factory.js';
+
+// 自动检测提供商 (优先级顺序):
+// 1. 显式配置 config.llm.provider
+// 2. baseURL 存在 → Anthropic (CCR 模式)
+// 3. ANTHROPIC_API_KEY 环境变量 → Anthropic
+// 4. OPENAI_API_KEY 环境变量 → OpenAI
+
+const llmClient = await createLLMClient(config);
+
+// 统一的 API 调用
+const response = await llmClient.createCompletion({
+  model: 'claude-3-5-haiku-20241022',
+  messages: [{ role: 'user', content: '...' }],
+  systemPrompt: 'You are a helpful assistant',
+  maxTokens: 4096,
+  temperature: 0.3
 });
 ```
 
-2. **创建抽象层** (`src/analyzers/llm-client.ts`):
+**单例缓存**:
+
+工厂函数自动缓存已创建的客户端,相同配置返回同一实例:
 
 ```typescript
-interface LLMClient {
-  extract(prompt: string, observations: Observation[]): Promise<ExtractionResult>;
-}
+// 相同 provider + baseURL + model → 返回缓存实例
+const client1 = await createLLMClient(config);  // 创建新实例
+const client2 = await createLLMClient(config);  // 返回缓存实例
+console.log(client1 === client2);  // true
+```
 
-class AnthropicClient implements LLMClient {
-  async extract(prompt, observations) {
-    // 现有实现
+**添加新提供商**:
+
+1. **创建提供商类** (`src/llm/providers/custom.ts`):
+
+```typescript
+import type { LLMProvider, LLMCompletionParams, LLMCompletionResponse } from '../types.js';
+
+export class CustomProvider implements LLMProvider {
+  readonly providerName = 'custom';
+  private readonly client: any;
+
+  constructor(config: CustomProviderConfig) {
+    this.client = new CustomSDK(config);
   }
-}
 
-class OpenAIClient implements LLMClient {
-  async extract(prompt, observations) {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [{ role: 'user', content: prompt }]
+  async createCompletion(params: LLMCompletionParams): Promise<LLMCompletionResponse> {
+    // 转换参数格式到 Custom SDK
+    const response = await this.client.generate({
+      prompt: params.systemPrompt + '\n' + params.messages.map(m => m.content).join('\n'),
+      max_tokens: params.maxTokens,
     });
-    return parseResponse(response);
-  }
-}
 
-export function createLLMClient(config: Config): LLMClient {
-  if (config.llm.provider === 'openai') {
-    return new OpenAIClient(config);
+    // 转换响应格式到统一接口
+    return {
+      content: response.text,
+      usage: {
+        inputTokens: response.usage.input,
+        outputTokens: response.usage.output,
+      },
+    };
   }
-  return new AnthropicClient(config);
 }
 ```
 
-3. **更新 ExperienceExtractor** (`src/analyzers/experience-extractor.ts`):
+2. **注册到工厂函数** (`src/llm/client-factory.ts`):
 
 ```typescript
-import { createLLMClient } from './llm-client.js';
-
-export async function extractExperience(
-  observations: Observation[],
+async function createProviderInstance(
+  providerType: LLMProviderType,
   config: Config
-): Promise<ExtractionResult> {
-  const client = createLLMClient(config);
-  return await client.extract(buildPrompt(), observations);
+): Promise<LLMProvider> {
+  switch (providerType) {
+    case 'anthropic':
+      return new AnthropicProvider({ ... });
+    case 'openai':
+      return new OpenAIProvider({ ... });
+    case 'custom':  // 新增
+      return new CustomProvider({ ... });
+    default:
+      throw new Error(`Unsupported provider: ${providerType}`);
+  }
+}
+```
+
+3. **更新配置 Schema** (`src/config/schema.ts`):
+
+```typescript
+const LLMSchema = z.object({
+  provider: z.enum(['anthropic', 'openai', 'custom']).optional(),  // 添加 'custom'
+  // ... 其他字段
+});
+```
+
+**迁移现有代码**:
+
+旧代码:
+```typescript
+const anthropic = new Anthropic({
+  apiKey: config.llm.apiKey || process.env.ANTHROPIC_API_KEY,
+  ...(config.llm.baseURL && { baseURL: config.llm.baseURL }),
+});
+
+const response = await anthropic.messages.create({
+  model: config.llm.model,
+  max_tokens: config.llm.maxTokens,
+  messages: [{ role: 'user', content: prompt }],
+});
+
+const content = response.content[0].type === 'text' ? response.content[0].text : '';
+```
+
+新代码:
+```typescript
+const llmClient = await createLLMClient(config);
+
+const response = await llmClient.createCompletion({
+  model: config.llm.model,
+  messages: [{ role: 'user', content: prompt }],
+  maxTokens: config.llm.maxTokens,
+});
+
+const content = response.content;  // 已转换为统一格式
+```
+
+**访问特定提供商功能**:
+
+某些提供商有独特功能 (如 Anthropic Prompt Caching),可通过 `getClient()` 访问底层客户端:
+
+```typescript
+const llmProvider = await createLLMClient(config);
+
+if (llmProvider instanceof AnthropicProvider) {
+  const anthropic = llmProvider.getClient();  // 获取原生 Anthropic 客户端
+
+  // 使用 Anthropic 特有功能 (Prompt Caching)
+  const response = await anthropic.messages.create({
+    model: 'claude-3-5-haiku-20241022',
+    max_tokens: 4096,
+    system: [
+      {
+        type: 'text',
+        text: systemPrompt,
+        cache_control: { type: 'ephemeral' }  // Anthropic 特有
+      }
+    ],
+    messages: messages,
+  });
 }
 ```
 

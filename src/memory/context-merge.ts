@@ -6,9 +6,12 @@
  * Pinned observations are excluded from merge processing.
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import type Anthropic from '@anthropic-ai/sdk';
 import { logger, withLLMRetry, groupBySimilarity, pMapLimited, getFulfilledValues } from '../utils/index.js';
 import type { ObservationWithMetadata, MergeResult } from '../types/learning.js';
+import type { Config } from '../config/index.js';
+import { createLLMClient } from '../llm/client-factory.js';
+import { AnthropicProvider } from '../llm/providers/anthropic.js';
 
 /**
  * Context merge result with statistics
@@ -296,16 +299,10 @@ async function mergeContextGroup(
 export async function mergeContextPool(
   contextObservations: ObservationWithMetadata[],
   options: {
-    apiKey?: string;
-    baseURL?: string;
-    model?: string;
-  } = {}
+    config: Config;
+  }
 ): Promise<ContextMergeResult> {
-  const {
-    apiKey = process.env.ANTHROPIC_API_KEY,
-    baseURL,
-    model = 'claude-3-5-haiku-20241022',
-  } = options;
+  const { config } = options;
 
   // Split pinned and unpinned
   const { pinned, unpinned } = splitByPinned(contextObservations);
@@ -323,20 +320,17 @@ export async function mergeContextPool(
     };
   }
 
-  if (!apiKey && !baseURL) {
-    logger.warn('Context merge skipped: no API key configured');
-    return {
-      observations: contextObservations,
-      merged: 0,
-      conflicts: 0,
-    };
-  }
-
   try {
-    const anthropic = new Anthropic({
-      apiKey: apiKey || 'dummy-key-for-local-proxy',
-      ...(baseURL && { baseURL }),
-    });
+    // Use unified LLM client factory
+    const llmProvider = await createLLMClient(config);
+
+    // Get underlying Anthropic client
+    if (!(llmProvider instanceof AnthropicProvider)) {
+      throw new Error('Context merge currently requires Anthropic provider');
+    }
+    const anthropic = llmProvider.getClient();
+    const model = config.llm.model;
+    const baseURL = config.llm.baseURL;
 
     // Pre-group by similarity
     const groups = groupBySimilarity(unpinned);

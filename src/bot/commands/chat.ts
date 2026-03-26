@@ -2,11 +2,11 @@
  * LLM 对话 fallback handler — 调用 Claude API，异步回复
  */
 
-import Anthropic from '@anthropic-ai/sdk';
 import type { CommandHandler, CommandContext, BotReply, BotMessage } from '../types.js';
 import { ChatContextManager } from '../chat-context.js';
 import { sendAsyncReply } from '../async-reply.js';
 import { loadConfig } from '../../config/index.js';
+import { createLLMClient } from '../../llm/client-factory.js';
 
 const SYSTEM_PROMPT = `你是一个友好的编程助手，通过钉钉群聊与用户交互。
 回复要简洁清晰，适合在手机上阅读。
@@ -55,10 +55,8 @@ export class ChatCommand implements CommandHandler {
     const config = await loadConfig();
     const llmConfig = config.llm;
 
-    const client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY || 'placeholder',
-      ...(llmConfig.baseURL ? { baseURL: llmConfig.baseURL } : {}),
-    });
+    // 使用统一的 LLM 客户端工厂
+    const llmClient = await createLLMClient(config);
 
     // 构建消息历史
     const history = this.contextManager.getHistory(message.chatId);
@@ -67,17 +65,16 @@ export class ChatCommand implements CommandHandler {
       content: m.content,
     }));
 
-    const response = await client.messages.create({
+    // 调用统一接口
+    const response = await llmClient.createCompletion({
       model: llmConfig.model,
-      max_tokens: llmConfig.maxTokens,
-      temperature: llmConfig.temperature,
-      system: SYSTEM_PROMPT,
       messages,
+      maxTokens: llmConfig.maxTokens,
+      temperature: llmConfig.temperature,
+      systemPrompt: SYSTEM_PROMPT,
     });
 
-    // 提取文本回复
-    const textBlocks = response.content.filter((b) => b.type === 'text');
-    const replyText = textBlocks.map((b) => b.text).join('\n') || '（无回复内容）';
+    const replyText = response.content || '（无回复内容）';
 
     // 记录 assistant 回复
     this.contextManager.addMessage(message.chatId, 'assistant', replyText);
