@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { toast } from '../components/Toast';
@@ -42,13 +42,24 @@ export default function Settings() {
     }
   };
 
+  // 使用 useCallback 包装 LLM 配置更新回调，避免每次渲染创建新函数
+  const handleLLMConfigChange = useCallback((newConfig: any) => {
+    console.log('[Settings] handleLLMConfigChange called with:', JSON.stringify(newConfig.llm, null, 2));
+    setConfig(newConfig);
+  }, []);
+
   const handleSave = async () => {
+    console.log('[Settings] handleSave called, activeTab:', activeTab);
+    console.log('[Settings] config:', JSON.stringify(config, null, 2));
+
     setSaving(true);
     try {
       // 根据当前 Tab 保存不同的配置
       if (activeTab === 'learning' && config.learning) {
+        console.log('[Settings] Saving learning config');
         await apiClient.updateLearningConfig(config.learning);
       } else {
+        console.log('[Settings] Saving full config');
         await apiClient.updateConfig(config);
       }
 
@@ -63,6 +74,7 @@ export default function Settings() {
         toast.success('配置已保存');
       }
     } catch (error: any) {
+      console.error('[Settings] Save failed:', error);
       toast.error(error.message || '保存失败');
     } finally {
       setSaving(false);
@@ -355,7 +367,7 @@ export default function Settings() {
             <div className="border-4 border-slate-700 bg-slate-900 p-6">
               <LLMProviderConfig
                 config={config}
-                onSave={(newConfig) => setConfig(newConfig)}
+                onSave={handleLLMConfigChange}
               />
             </div>
           )}

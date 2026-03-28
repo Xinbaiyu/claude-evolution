@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ConfigProvider, theme, Select, Slider, InputNumber, Checkbox, Input, AutoComplete } from 'antd';
 import { getModelHistory } from '../utils/modelHistory';
@@ -111,13 +111,22 @@ interface LLMProviderConfigProps {
 export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: initialConfig, onSave }) => {
   // 检测当前模式
   const detectMode = (cfg: any): ProviderMode => {
+    // 明确指定 openai provider
     if (cfg.llm?.provider === 'openai') return 'openai';
-    if (cfg.llm?.baseURL) return 'ccr';
+
+    // 明确指定 anthropic provider 或完全没有配置时，默认为 claude
+    if (cfg.llm?.provider === 'anthropic') return 'claude';
+
+    // 有 baseURL 且 provider 未明确指定为 openai/anthropic，视为 CCR
+    if (cfg.llm?.baseURL && !cfg.llm?.provider) return 'ccr';
+
+    // 默认为 claude
     return 'claude';
   };
 
   const [selectedMode, setSelectedMode] = useState<ProviderMode>(detectMode(initialConfig));
   const [config, setConfig] = useState(initialConfig);
+  const isFirstRender = useRef(true);
 
   // 同步外部 config 变化
   useEffect(() => {
@@ -156,6 +165,8 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
       newConfig.llm = {
         ...newConfig.llm,
         provider: undefined,
+        // 保留现有 baseURL，如果没有则设置默认值
+        baseURL: config.llm?.baseURL || 'http://localhost:3456',
         model: config.llm?.model || 'claude-sonnet-4-6'  // 保留用户已输入的值
       };
       // CCR 模式不设置 provider，通过 baseURL 自动检测
@@ -165,11 +176,26 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
 
   // 当配置变化时通知父组件（但不立即保存）
   useEffect(() => {
+    console.log('[LLMProviderConfig] useEffect triggered, isFirstRender:', isFirstRender.current);
+
+    // 跳过首次渲染
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      console.log('[LLMProviderConfig] Skipping first render');
+      return;
+    }
+
+    const configChanged = JSON.stringify(config) !== JSON.stringify(initialConfig);
+    console.log('[LLMProviderConfig] Config changed:', configChanged);
+    console.log('[LLMProviderConfig] Current config.llm:', config.llm);
+    console.log('[LLMProviderConfig] Initial config.llm:', initialConfig.llm);
+
     // 只在配置实际变化时才更新
-    if (JSON.stringify(config) !== JSON.stringify(initialConfig)) {
+    if (configChanged) {
+      console.log('[LLMProviderConfig] Calling onSave');
       onSave(config);
     }
-  }, [config]); // 移除 onSave 和 initialConfig 避免循环依赖
+  }, [config, onSave]); // 移除 initialConfig 依赖，避免循环
 
   return (
     <ConfigProvider
