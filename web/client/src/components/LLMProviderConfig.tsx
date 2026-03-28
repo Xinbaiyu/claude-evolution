@@ -131,7 +131,8 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
   // 同步外部 config 变化
   useEffect(() => {
     setConfig(initialConfig);
-    setSelectedMode(detectMode(initialConfig));
+    // 保留用户的 selectedMode 选择，不从 initialConfig 重新推导
+    // 这样避免了 handleModeChange 设置的 mode 被覆盖
   }, [initialConfig]);
 
   // 检查是否已配置（基于 config 数据判断）
