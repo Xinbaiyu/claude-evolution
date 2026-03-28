@@ -52,7 +52,6 @@ export class OpenAIProvider implements LLMProvider {
     // 如果尚未加载，尝试动态导入 OpenAI SDK
     if (!OpenAIProvider.OpenAIConstructor) {
       try {
-        // @ts-expect-error - openai is an optional dependency
         const openaiModule = await import('openai');
         OpenAIProvider.OpenAIConstructor = openaiModule.default || openaiModule;
       } catch (error) {

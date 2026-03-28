@@ -56,7 +56,7 @@
     "zod": "^3.23.8"
   },
   "optionalDependencies": {
-    "openai": "^4.28.0"
+    "openai": "^4.104.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -4,6 +4,7 @@ import { apiClient } from '../api/client';
 import { toast } from '../components/Toast';
 import LearningTab from './Settings/LearningTab';
 import { LLMProviderConfig } from '../components/LLMProviderConfig';
+import { addModelToHistory } from '../utils/modelHistory';
 import { TimePicker, Tag, ConfigProvider, theme } from 'antd';
 
 type TabType = 'scheduler' | 'llm' | 'learning' | 'notifications';
@@ -50,6 +51,12 @@ export default function Settings() {
       } else {
         await apiClient.updateConfig(config);
       }
+
+      // 保存 OpenAI 模型名称到历史记录
+      if (config.llm?.provider === 'openai' && config.llm?.model) {
+        addModelToHistory('openai', config.llm.model);
+      }
+
       if (activeTab === 'scheduler') {
         toast.success('配置已保存，调度器已自动重载');
       } else {
