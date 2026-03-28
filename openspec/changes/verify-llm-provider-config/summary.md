@@ -7,7 +7,7 @@
 
 ## 验证进度
 
-**完成度**: 28/70 任务完成 (40%)
+**完成度**: 33/70 任务完成 (47%)
 
 ### 已完成的验证项
 
@@ -15,11 +15,11 @@
 - 备份配置文件 `~/.claude-evolution/config.json`
 - 确认 daemon 运行正常（http://localhost:10010 可访问）
 
-#### ✅ Section 2: UI 交互验证 - Provider 卡片 (4/5)
+#### ✅ Section 2: UI 交互验证 - Provider 卡片 (5/5)
 - 显示三个 provider 卡片（Claude、OpenAI-Compatible API、CCR）✅
 - Claude 卡片蓝色高亮 ✅
 - OpenAI 卡片绿色高亮 ✅
-- CCR 卡片选择 ❌ **Bug 1: 点击后显示 Claude 表单**
+- CCR 卡片选择 ✅ **Bug 1 已修复: 点击后正确显示 CCR 表单**
 - "✓ 已配置"标记显示正常 ✅
 
 #### ✅ Section 3: Claude 配置表单 (5/5)
@@ -36,6 +36,12 @@
 - Base URL 字段可用 ✅
 - API Key 密码输入 ✅
 - Organization ID 可选字段 ✅
+
+#### ✅ Section 5: CCR 配置表单 (4/4)
+- Proxy Endpoint 必填字段显示 ✅ **Bug 1 修复后验证**
+- Model 下拉选择器（Claude 系列）✅
+- Temperature 滑块 (0-1) ✅
+- Max Tokens 输入框 (1024-16384) ✅
 
 #### ✅ Section 6: Model 字段自由输入验证 (4/4)
 - 接受 "deepseek-chat" ✅
@@ -62,9 +68,9 @@
 
 ## 发现的问题
 
-### 🔴 Bug 1: CCR Provider 卡片选择失效（高优先级 - 阻塞功能）
+### ✅ Bug 1: CCR Provider 卡片选择失效（已修复 - 2026-03-28 22:08）
 
-**症状**:
+**原症状**:
 - 点击 CCR Provider 卡片后，UI 切换到 Claude 表单，而不是 CCR 表单
 - CCR 卡片无法正确选中
 
@@ -94,16 +100,48 @@
 - 用户无法通过 UI 配置 CCR 代理模式
 - 只能手动编辑 config.json 文件
 
-**修复方案**:
-1. **方案 A（推荐）**: 修改 `detectMode` 逻辑，增加对 `provider === undefined && baseURL !== null` 的判断
-2. **方案 B**: 修改 `handleModeChange`，CCR 模式时保留现有 baseURL 或提供默认值
-3. **方案 C**: 使用独立的 `selectedMode` 状态，不依赖 config 推导模式
+**修复详情**:
+修改 `LLMProviderConfig.tsx` lines 132-136，移除 useEffect 中的 `setSelectedMode(detectMode(initialConfig))` 调用:
 
-**阻塞任务**:
-- Task 2.4: 验证 CCR 卡片高亮
-- Task 5.1-5.4: CCR 表单字段验证
-- Task 14.1: CCR Proxy Endpoint 必填验证
-- Task 11.1-11.4: CCR 配置持久化验证
+```typescript
+// 修复前
+useEffect(() => {
+  setConfig(initialConfig);
+  setSelectedMode(detectMode(initialConfig));  // ❌ 覆盖用户选择
+}, [initialConfig]);
+
+// 修复后
+useEffect(() => {
+  setConfig(initialConfig);
+  // 保留用户的 selectedMode 选择，不从 initialConfig 重新推导
+  // 这样避免了 handleModeChange 设置的 mode 被覆盖
+}, [initialConfig]);
+```
+
+**问题流程**:
+1. 用户点击 CCR 卡片 → `handleModeChange('ccr')` 设置 `selectedMode='ccr'`
+2. `handleModeChange` 设置 `config.llm.baseURL`
+3. `setConfig` 触发 → Settings 组件的 `handleLLMConfigChange` 被调用
+4. Settings 重新渲染 → LLMProviderConfig 的 `initialConfig` prop 更新
+5. useEffect 触发 → 调用 `setSelectedMode(detectMode(initialConfig))`
+6. `detectMode` 重新推导模式，可能返回错误的模式
+7. UI 显示错误的表单
+
+**修复验证** (2026-03-28 22:08):
+- ✅ 点击 CCR Proxy 卡片
+- ✅ UI 正确显示 CCR 表单（Proxy Endpoint 字段）
+- ✅ CCR 卡片显示 "✓ 已配置" 标记
+- ✅ 不再显示 OpenAI 表单字段
+- ✅ 截图保存至 `/tmp/ccr-bug-fixed.png`
+
+**提交记录**:
+- Commit: `9c65bcb` - "fix: CCR Provider 卡片选择失效 — 移除 detectMode 自动推导逻辑"
+
+**解除阻塞任务**:
+- Task 2.4: 验证 CCR 卡片高亮 ✅ 可继续
+- Task 5.1-5.4: CCR 表单字段验证 ✅ 可继续
+- Task 14.1: CCR Proxy Endpoint 必填验证 ✅ 可继续
+- Task 11.1-11.4: CCR 配置持久化验证 ✅ 可继续
 
 ---
 
@@ -194,38 +232,28 @@ useEffect(() => {
 4. **Provider 切换保留 model 值** - 切换 provider 时正确保留用户输入
 5. **表单范围验证** - antd 组件自动限制 Temperature (0-1) 和 Max Tokens (1024-16384)
 
-### ❌ 功能异常的部分
+### ✅ 功能异常的部分（已全部修复）
 
-1. **CCR Provider 选择** - 完全失效，无法通过 UI 配置 CCR 模式
-2. **配置保存** - 核心功能失效，所有配置修改无法持久化
+1. **CCR Provider 选择** - ✅ 已修复 (2026-03-28 22:08)，可以正常选择 CCR 模式
+2. **配置保存** - ✅ 已修复 (2026-03-28 21:52)，配置修改可以正常持久化
 
-### ⏸️ 无法完成的验证
+### ✅ 之前被阻塞的验证（现已解除阻塞）
 
-**由于 Bug 2（配置保存失效）阻塞**:
+**之前由于 Bug 2（配置保存失效）阻塞，现已可以继续**:
 - Model 历史记录 localStorage 验证（Section 7）
 - 配置持久化验证（Section 9-11）
-- 运行时 LLM 调用验证（Section 12-13）- 需要先保存配置才能测试
+- 运行时 LLM 调用验证（Section 12-13）
 
-**由于 Bug 1（CCR 选择失效）阻塞**:
+**之前由于 Bug 1（CCR 选择失效）阻塞，现已可以继续**:
 - CCR 表单字段验证（Section 5）
 - CCR Proxy Endpoint 必填验证（Task 14.1）
+- CCR 配置持久化验证（Section 11）
 
 ---
 
 ## 下一步行动
 
-### 立即修复（高优先级）
-
-1. **修复 Bug 2（配置保存）**
-   - 修改 `web/client/src/components/LLMProviderConfig.tsx` lines 167-172
-   - 修改 `web/client/src/pages/Settings.tsx` lines 356-359（确保 useCallback）
-   - 验证修复后配置可正常保存
-
-2. **修复 Bug 1（CCR 选择）**
-   - 修改 `web/client/src/components/LLMProviderConfig.tsx` lines 113-117 或 136-164
-   - 验证 CCR 卡片选择后显示正确表单
-
-### 修复后继续验证
+### 继续验证（所有 bug 已修复）
 
 1. **Section 5**: CCR 配置表单字段验证
 2. **Section 7**: Model 历史记录功能
@@ -244,10 +272,10 @@ useEffect(() => {
 | 类别 | 完成 | 总计 | 百分比 |
 |------|------|------|--------|
 | 准备工作 | 3 | 3 | 100% |
-| UI 交互 - Provider 卡片 | 4 | 5 | 80% |
+| UI 交互 - Provider 卡片 | 5 | 5 | 100% |
 | UI 交互 - Claude 表单 | 5 | 5 | 100% |
 | UI 交互 - OpenAI 表单 | 6 | 6 | 100% |
-| UI 交互 - CCR 表单 | 0 | 4 | 0% |
+| UI 交互 - CCR 表单 | 4 | 4 | 100% |
 | Model 字段自由输入 | 4 | 4 | 100% |
 | Model 历史记录 | 0 | 4 | 0% |
 | Provider 切换保留 model | 4 | 4 | 100% |
@@ -260,7 +288,7 @@ useEffect(() => {
 | 浏览器自动化 | 3 | 3 | 100% |
 | 清理和恢复 | 1 | 3 | 33% |
 | 文档和总结 | 0 | 3 | 0% |
-| **总计** | **28** | **70** | **40%** |
+| **总计** | **33** | **70** | **47%** |
 
 ---
 
@@ -274,4 +302,4 @@ useEffect(() => {
 
 ---
 
-**总结**: LLM Provider 配置功能的 UI 交互和表单字段基本正常，但存在两个严重 bug 阻塞了核心功能。修复这两个 bug 后，需要继续验证配置持久化和运行时行为。
+**总结**: LLM Provider 配置功能的 UI 交互和表单字段全部正常，两个严重 bug（配置保存失效、CCR Provider 选择失效）已全部修复。UI 部分验证完成，接下来需要验证配置持久化和运行时行为。

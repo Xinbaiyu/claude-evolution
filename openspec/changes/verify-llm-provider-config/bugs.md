@@ -2,6 +2,7 @@
 
 ## Bug 1: CCR Provider 卡片选择失效
 
+**状态**: ✅ **已修复** (2026-03-28 22:08)
 **严重程度**: 高 (阻塞功能)
 
 **症状**:
@@ -50,9 +51,52 @@
 **截图**:
 - `screenshot-1774664246223.png` - 点击 CCR 卡片后显示 Claude 表单
 
+**修复实施** (2026-03-28 22:08):
+修改 `LLMProviderConfig.tsx` lines 132-136 的 useEffect:
+
+```typescript
+// 修复前
+useEffect(() => {
+  setConfig(initialConfig);
+  setSelectedMode(detectMode(initialConfig));  // ❌ 覆盖用户选择
+}, [initialConfig]);
+
+// 修复后
+useEffect(() => {
+  setConfig(initialConfig);
+  // 保留用户的 selectedMode 选择，不从 initialConfig 重新推导
+  // 这样避免了 handleModeChange 设置的 mode 被覆盖
+}, [initialConfig]);
+```
+
+**根本原因分析**:
+1. 用户点击 CCR 卡片 → `handleModeChange('ccr')` 设置 `selectedMode='ccr'`
+2. `handleModeChange` 设置 `config.llm.baseURL='http://localhost:3456'`
+3. `setConfig` 触发 → Settings 组件的 `handleLLMConfigChange` 被调用
+4. Settings 重新渲染 → LLMProviderConfig 的 `initialConfig` prop 更新
+5. LLMProviderConfig 的 useEffect 触发 → 调用 `setSelectedMode(detectMode(initialConfig))`
+6. `detectMode` 重新推导模式，可能返回错误的模式
+7. UI 显示错误的表单
+
+**修复原理**:
+- 移除 useEffect 中的 `setSelectedMode(detectMode(initialConfig))` 调用
+- 让 `selectedMode` 完全由用户的点击行为（handleModeChange）控制
+- 不受 `initialConfig` 变化的影响
+
+**验证结果**:
+- ✅ 点击 CCR Proxy 卡片后，UI 正确显示 CCR 表单
+- ✅ Proxy Endpoint 字段显示 "http://localhost:3456"
+- ✅ CCR 卡片显示 "✓ 已配置" 标记
+- ✅ 不再显示 OpenAI 表单字段（API Key、Organization ID）
+
+**提交记录**:
+- Commit: `9c65bcb` - "fix: CCR Provider 卡片选择失效 — 移除 detectMode 自动推导逻辑"
+
 **验证任务**:
-- Task 2.4: 点击 CCR 卡片，验证紫色高亮边框和阴影效果 ❌
-- Task 5.1-5.4: CCR 表单字段验证 ⏸️ (被阻塞)
+- Task 2.4: 点击 CCR 卡片，验证紫色高亮边框和阴影效果 ✅ (已解除阻塞)
+- Task 5.1-5.4: CCR 表单字段验证 ✅ (已解除阻塞)
+- Task 14.1: CCR Proxy Endpoint 必填验证 ✅ (已解除阻塞)
+- Task 11.1-11.4: CCR 配置持久化验证 ✅ (已解除阻塞)
 
 ---
 
