@@ -9,7 +9,7 @@
 - [x] 2.1 打开设置页面，验证显示三个 provider 卡片（Claude、OpenAI-Compatible API、CCR）
 - [x] 2.2 点击 Claude 卡片，验证蓝色高亮边框和阴影效果
 - [x] 2.3 点击 OpenAI-Compatible API 卡片，验证绿色高亮边框和阴影效果
-- [ ] 2.4 点击 CCR 卡片，验证紫色高亮边框和阴影效果 ⚠️ BUG: 点击 CCR 后实际切换到 Claude 模式
+- [x] 2.4 点击 CCR 卡片，验证紫色高亮边框和阴影效果 ✅ Bug 1 已修复
 - [x] 2.5 验证当前已配置的 provider 卡片显示"✓ 已配置"标记
 
 ## 3. UI 交互验证 - Claude 配置表单
@@ -31,10 +31,10 @@
 
 ## 5. UI 交互验证 - CCR 配置表单
 
-- [ ] 5.1 选择 CCR provider，验证表单显示：Proxy Endpoint（必填）、Model（下拉）、Temperature、Max Tokens
-- [ ] 5.2 验证 Proxy Endpoint 字段 placeholder 为 "http://localhost:3456"
-- [ ] 5.3 验证 Proxy Endpoint 字段标记为必填（红色星号）
-- [ ] 5.4 验证 Model 下拉选项包含 Claude 系列模型
+- [x] 5.1 选择 CCR provider，验证表单显示：Proxy Endpoint（必填）、Model（下拉）、Temperature、Max Tokens ✅
+- [x] 5.2 验证 Proxy Endpoint 字段 placeholder 为 "http://localhost:3456" ✅
+- [x] 5.3 验证 Proxy Endpoint 字段标记为必填（红色星号）✅ 源码确认 line 475
+- [x] 5.4 验证 Model 下拉选项包含 Claude 系列模型 ✅ 源码确认包含 Sonnet 4.6、Opus 4.6、Haiku 4.5
 
 ## 6. Model 字段自由输入验证
 
