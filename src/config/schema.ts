@@ -80,21 +80,13 @@ const LLMSchema = z.object({
   provider: z.enum(['anthropic', 'openai']).optional(),
 
   // 模型名称
-  // Claude 4.6/4.5 系列（最新推荐）
-  // OpenAI GPT 系列
-  model: z.enum([
-    // Claude 最新系列（推荐）
-    'claude-sonnet-4-6',
-    'claude-opus-4-6',
-    'claude-haiku-4-5',
-    // Claude 3.5 系列（旧版）
-    'claude-3-5-sonnet-20241022',
-    'claude-3-5-haiku-20241022',
-    // OpenAI GPT 系列
-    'gpt-4-turbo',
-    'gpt-4',
-    'gpt-3.5-turbo',
-  ]).default('claude-sonnet-4-6'),
+  // 支持任意模型名称，包括：
+  // - Claude 系列: claude-sonnet-4-6, claude-opus-4-6, claude-haiku-4-5, etc.
+  // - OpenAI 系列: gpt-4-turbo, gpt-4, gpt-3.5-turbo, etc.
+  // - 国产模型: qwen-turbo, deepseek-chat, etc.
+  // - Azure OpenAI: 自定义部署名
+  // - Ollama: 自定义模型名 (llama2:13b, etc.)
+  model: z.string().min(1).default('claude-sonnet-4-6'),
 
   maxTokens: z.number().default(4096),
   temperature: z.number().min(0).max(1).default(0.3),

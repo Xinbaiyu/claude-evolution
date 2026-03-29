@@ -314,6 +314,130 @@ const modelInputRef = useRef<any>(null);
 
 ---
 
+## Bug 4: 后端 Schema 不支持自定义 Model 名称
+
+**状态**: ⏸️ **待修复**
+**严重程度**: 高 (功能受限)
+**发现时间**: 2026-03-29 19:06
+
+**症状**:
+- 前端 UI（LLMProviderConfig.tsx）允许用户在 OpenAI-Compatible API 模式下输入任意 model 名称
+- 用户输入 `qwen-turbo`、`deepseek-chat` 等自定义模型名后保存配置
+- Daemon 重启时加载配置失败，报错：
+  ```
+  Invalid enum value. Expected 'claude-sonnet-4-6' | ... | 'gpt-3.5-turbo', received 'qwen-turbo'
+  ```
+- Daemon 被迫使用默认配置，用户的自定义模型名称被忽略
+
+**复现步骤**:
+1. 打开 http://localhost:10010/settings → Claude 模型 tab
+2. 选择 OpenAI-Compatible API provider
+3. 在 Model 字段输入 `qwen-turbo`（或任何不在枚举值中的模型名）
+4. 点击"保存配置"
+5. 重启 daemon: `claude-evolution restart`
+6. 观察启动日志：提示配置解析失败，使用默认配置
+7. 检查 `~/.claude-evolution/config.json`：model 值为 `qwen-turbo`
+8. 但 daemon 实际使用默认的 `claude-sonnet-4-6` 模型
+
+**根本原因**:
+
+`src/config/schema.ts` 中的 model 字段使用固定枚举值：
+
+```typescript
+export const ConfigSchema = z.object({
+  // ...
+  llm: z.object({
+    provider: z.enum(['anthropic', 'openai']).optional(),
+    model: z.enum([
+      'claude-sonnet-4-6',
+      'claude-opus-4-6',
+      'claude-haiku-4-5',
+      'claude-3-5-sonnet-20241022',
+      'claude-3-5-haiku-20241022',
+      'gpt-4-turbo',
+      'gpt-4',
+      'gpt-3.5-turbo'
+    ]),  // ⚠️ 硬编码枚举值，不支持自定义模型
+    // ...
+  })
+});
+```
+
+**前后端不一致**:
+- **前端** (LLMProviderConfig.tsx lines 345-354): 使用 `<Input>` 组件，接受任意字符串
+- **后端** (src/config/schema.ts): 使用 `z.enum([...])`，只接受预定义的模型名
+
+**影响范围**:
+- 用户无法使用 DeepSeek、Qianwen、Azure 部署名、Ollama 自定义模型等非预定义模型
+- 配置文件中保存了自定义模型名，但 daemon 无法加载（silent failure）
+- 影响所有使用 OpenAI-Compatible API 的用户（MatrixLLM、自建 Ollama 等）
+
+**修复方案**:
+
+**方案 A（推荐）**: 将 model 字段改为接受任意字符串
+
+```typescript
+// src/config/schema.ts
+export const ConfigSchema = z.object({
+  // ...
+  llm: z.object({
+    provider: z.enum(['anthropic', 'openai']).optional(),
+    model: z.string().min(1),  // ✅ 接受任意非空字符串
+    baseURL: z.string().url().optional().nullable(),
+    maxTokens: z.number().int().min(1024).max(16384),
+    temperature: z.number().min(0).max(1),
+    enablePromptCaching: z.boolean().optional(),
+    openai: z.object({
+      apiKey: z.string().optional(),
+      organization: z.string().optional(),
+    }).optional(),
+  }),
+  // ...
+});
+```
+
+**优点**:
+- ✅ 支持任意自定义模型名称
+- ✅ 与前端 UI 行为一致
+- ✅ 符合"OpenAI-Compatible API"的设计初衷（兼容性）
+
+**缺点**:
+- ❌ 失去了拼写错误检查（用户可能输入错误的模型名）
+
+**方案 B**: 保留枚举，但添加 fallback 逻辑
+
+```typescript
+// src/config/schema.ts
+model: z.union([
+  z.enum([...predefinedModels]),
+  z.string().min(1)  // fallback for custom models
+])
+```
+
+**方案 C**: 使用默认值 + 自定义覆盖
+
+```typescript
+llm: z.object({
+  model: z.string().min(1).default('claude-sonnet-4-6'),
+  customModel: z.string().optional(),  // 用于自定义模型
+  // ...
+})
+```
+
+**相关文件**:
+- `src/config/schema.ts` - 配置 schema 定义
+- `src/config/loader.ts` - 配置加载逻辑
+- `web/client/src/components/LLMProviderConfig.tsx` lines 345-354 - Model 输入字段
+
+**验证任务**:
+- Task 12.2-12.6: Section 12 运行时 LLM 调用验证 ⏸️ (被此 bug 阻塞)
+- Task 6.1-6.4: Model 字段自由输入验证 ⚠️ (前端通过，后端失败)
+- Task 7.1: 保存 "deepseek-chat" 配置 ⚠️ (保存成功，但加载失败)
+
+**优先级建议**: **高** - 这是核心功能缺陷，影响所有希望使用自定义模型的用户
+
+---
+
 ## Bug 记录说明
 
 - 每个 bug 包含：症状、复现步骤、根本原因、影响范围、修复方案

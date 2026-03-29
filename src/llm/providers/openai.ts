@@ -55,8 +55,10 @@ export class OpenAIProvider implements LLMProvider {
         const openaiModule = await import('openai');
         OpenAIProvider.OpenAIConstructor = openaiModule.default || openaiModule;
       } catch (error) {
+        // Log the actual error for debugging
+        console.error('[OpenAI Provider] Failed to import openai package:', error);
         throw new Error(
-          'OpenAI provider requires "openai" package. Install it with: npm install openai'
+          `OpenAI provider requires "openai" package. Install it with: npm install openai\nActual error: ${error instanceof Error ? error.message : String(error)}`
         );
       }
     }

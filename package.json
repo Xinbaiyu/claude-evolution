@@ -51,12 +51,10 @@
     "fs-extra": "^11.2.0",
     "node-cron": "^3.0.3",
     "node-notifier": "^10.0.1",
+    "openai": "^4.104.0",
     "uuid": "^13.0.0",
     "ws": "^8.16.0",
     "zod": "^3.23.8"
-  },
-  "optionalDependencies": {
-    "openai": "^4.104.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
