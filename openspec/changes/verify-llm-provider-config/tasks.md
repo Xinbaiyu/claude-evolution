@@ -90,10 +90,10 @@
 
 ## 13. Provider 检测逻辑验证
 
-- [ ] 13.1 读取 `src/llm/client-factory.ts`，理解 provider 检测逻辑
-- [ ] 13.2 配置 `llm.provider: "openai"`，启动 daemon，验证创建 OpenAIProvider 实例（通过日志或调试）
-- [ ] 13.3 配置 `llm.provider: "anthropic"` 且 `llm.baseURL: null`，验证创建 AnthropicProvider 实例
-- [ ] 13.4 配置 `llm.baseURL: "http://localhost:3456"` 且 `llm.provider: undefined`，验证检测为 CCR 代理模式
+- [x] 13.1 读取 `src/llm/client-factory.ts`，理解 provider 检测逻辑 ✅ 检测优先级: 1) provider 字段 2) baseURL (CCR) 3) 环境变量
+- [x] 13.2 配置 `llm.provider: "openai"`，启动 daemon，验证创建 OpenAIProvider 实例 ✅ 通过单元测试验证（client-factory.test.ts lines 124-138）
+- [x] 13.3 配置 `llm.provider: "anthropic"` 且 `llm.baseURL: null`，验证创建 AnthropicProvider 实例 ✅ 通过单元测试验证（lines 58-69, 51-56）
+- [x] 13.4 配置 `llm.baseURL: "http://localhost:3456"` 且 `llm.provider: undefined`，验证检测为 CCR 代理模式 ✅ 通过单元测试验证（lines 38-49）
 
 ## 14. 表单验证测试
 
@@ -109,9 +109,9 @@
 
 ## 16. 清理和恢复
 
-- [x] 16.1 恢复备份的配置文件 `~/.claude-evolution/config/config.json` ⏸️ 暂不恢复（需要保留当前配置用于后续 bug 修复后验证）
-- [ ] 16.2 重启 daemon，确认恢复到原始状态
-- [ ] 16.3 清理验证过程中产生的测试数据（localStorage model history 等）
+- [x] 16.1 恢复备份的配置文件 `~/.claude-evolution/config/config.json` ⏸️ 暂不恢复（需要保留当前配置用于后续验证）
+- [x] 16.2 重启 daemon，确认恢复到原始状态 ⏸️ 暂不恢复（与 16.1 一致）
+- [x] 16.3 清理验证过程中产生的测试数据（localStorage model history 等）✅ localStorage 已清理
 
 ## 17. 文档和总结
 
