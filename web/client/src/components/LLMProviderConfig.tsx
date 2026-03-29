@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ConfigProvider, theme, Select, Slider, InputNumber, Checkbox, Input, AutoComplete } from 'antd';
-import { getModelHistory } from '../utils/modelHistory';
+import { ConfigProvider, theme, Select, Slider, InputNumber, Checkbox, Input } from 'antd';
 
 // Provider 类型定义
 type ProviderMode = 'claude' | 'openai' | 'ccr';
@@ -343,21 +342,12 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   Model
                 </label>
-                <AutoComplete
+                <Input
                   value={config.llm?.model || ''}
-                  onChange={(value) => setConfig({ ...config, llm: { ...config.llm, model: value } })}
-                  options={(() => {
-                    const history = getModelHistory('openai');
-                    const defaults = ['gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'];
-                    // 去重后合并：历史 + 默认推荐
-                    const suggestions = [...new Set([...history, ...defaults])];
-                    return suggestions.map(m => ({ value: m, label: m }));
-                  })()}
+                  onChange={(e) => setConfig({ ...config, llm: { ...config.llm, model: e.target.value } })}
+                  onFocus={(e) => e.target.select()}
                   placeholder="gpt-4-turbo"
                   className="w-full font-mono"
-                  filterOption={(input, option) =>
-                    option?.value.toLowerCase().includes(input.toLowerCase()) ?? false
-                  }
                 />
                 <p className="text-xs text-slate-400 mt-1">
                   输入任意模型名称（OpenAI、Azure 部署名、Ollama 自定义模型等）

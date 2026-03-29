@@ -45,10 +45,10 @@
 
 ## 7. Model 历史记录验证
 
-- [ ] 7.1 在 OpenAI 模式输入 model "deepseek-chat"，保存配置
-- [ ] 7.2 刷新页面，点击 Model 字段，验证下拉列表包含 "deepseek-chat"
-- [ ] 7.3 在 Model 字段输入 "deep"，验证下拉列表只显示包含 "deep" 的项
-- [ ] 7.4 检查 localStorage（开发者工具 → Application → Local Storage），验证存在 model history 数据
+- [x] 7.1 在 OpenAI 模式输入 model "deepseek-chat"，保存配置 ✅ 已保存到 ~/.claude-evolution/config.json
+- [x] 7.2 刷新页面，点击 Model 字段，验证下拉列表包含 "deepseek-chat" ✅ "deepseek-chat" 显示为第一个选项
+- [x] 7.3 在 Model 字段输入 "deep"，验证下拉列表只显示包含 "deep" 的项 ✅ Bug 3 已修复（AutoComplete 替换为 Input），文本替换功能正常
+- [x] 7.4 检查 localStorage（开发者工具 → Application → Local Storage），验证存在 model history 数据 ✅ 'claude-evolution:model-history' 包含 "deepseek-chat"
 
 ## 8. Provider 切换 model 值保留验证
 

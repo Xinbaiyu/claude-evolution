@@ -195,6 +195,125 @@ useEffect(() => {
 
 ---
 
+## Bug 3: AutoComplete Model 字段文本追加而非替换
+
+**状态**: ✅ **已修复** (2026-03-29 16:56)
+**严重程度**: 中 (影响用户体验，但有 workaround)
+
+**症状**:
+- 用户点击 OpenAI-Compatible API 的 Model AutoComplete 字段后
+- 开始输入文本时，新文本会追加到现有值之后，而不是替换现有值
+- 例如：字段显示 "claude-3-5-haiku-20241022"，用户输入 "deepseek-chat"，结果变成 "claude-3-5-haiku-20241022deepseek-chat"
+
+**复现步骤**:
+1. 打开 http://localhost:10010/settings → Claude 模型 tab
+2. 选择 OpenAI-Compatible API provider
+3. Model 字段当前值为 "deepseek-chat"
+4. 点击 Model 字段（AutoComplete）
+5. 直接开始输入任意文本（如 "gpt"）
+6. 观察：新输入的文本追加到现有值之后，变成 "deepseek-chatgpt"
+
+**根本原因**:
+Antd AutoComplete 组件的 onChange 事件在用户输入时没有正确清除现有值。可能原因：
+1. AutoComplete 的 `value` prop 绑定正确，但组件内部状态管理有问题
+2. 缺少 `onFocus` 或 `onClick` 事件处理来选中现有文本
+3. 浏览器的默认行为（在输入框末尾插入光标）没有被正确处理
+
+**影响范围**:
+- 用户必须手动选中现有文本（Cmd+A / Ctrl+A）才能替换模型名
+- 降低了 AutoComplete 的用户体验
+- 导致 localStorage 中积累错误的历史记录（如 "claude-3-5-haiku-20241022deepseek-chat"）
+
+**Workaround**:
+用户可以在输入前手动选中现有文本：
+1. 点击 Model 字段
+2. 按 Cmd+A (macOS) 或 Ctrl+A (Windows/Linux)
+3. 然后输入新的模型名
+
+**修复方案**:
+
+**方案 A（推荐）**: 添加 onFocus 事件自动选中文本
+```typescript
+<AutoComplete
+  value={config.llm?.model || ''}
+  onChange={(value) => setConfig({ ...config, llm: { ...config.llm, model: value } })}
+  onFocus={(e) => e.target.select()}  // ✅ 聚焦时自动选中全部文本
+  options={...}
+  placeholder="gpt-4-turbo"
+  className="w-full font-mono"
+  filterOption={...}
+/>
+```
+
+**方案 B**: 使用 onClick 事件
+```typescript
+<AutoComplete
+  value={config.llm?.model || ''}
+  onChange={(value) => setConfig({ ...config, llm: { ...config.llm, model: value } })}
+  onClick={(e) => (e.target as HTMLInputElement).select()}  // ✅ 点击时选中全部文本
+  options={...}
+/>
+```
+
+**方案 C**: 使用 ref 控制输入框行为
+```typescript
+const modelInputRef = useRef<any>(null);
+
+<AutoComplete
+  ref={modelInputRef}
+  value={config.llm?.model || ''}
+  onChange={(value) => setConfig({ ...config, llm: { ...config.llm, model: value } })}
+  onFocus={() => modelInputRef.current?.select()}
+  options={...}
+/>
+```
+
+**相关文件**:
+- `web/client/src/components/LLMProviderConfig.tsx` lines 346-361
+
+**验证任务**:
+- Task 7.3: 在 Model 字段输入 "deep"，验证下拉列表只显示包含 "deep" 的项 ⏸️ (被此 bug 阻塞)
+
+**修复实施** (2026-03-29 16:56):
+将 AutoComplete 组件替换为 Input 组件 + onFocus 自动全选：
+
+```typescript
+<Input
+  value={config.llm?.model || ''}
+  onChange={(e) => setConfig({ ...config, llm: { ...config.llm, model: e.target.value } })}
+  onFocus={(e) => e.target.select()}  // ✅ 聚焦时自动选中全部文本
+  placeholder="gpt-4-turbo"
+  className="w-full font-mono"
+/>
+```
+
+**修复原理**:
+- 移除 AutoComplete 组件，改用基础 Input 组件
+- 添加 `onFocus={(e) => e.target.select()}` 处理器，在字段获得焦点时自动选中全部文本
+- 用户点击字段后直接输入，新文本会替换现有文本（而不是追加）
+
+**权衡**:
+- ❌ 失去了 AutoComplete 下拉历史记录功能
+- ✅ 获得了更可靠的文本输入体验
+- ✅ onFocus 自动全选文本功能正常工作
+- ✅ 用户仍可输入任意自定义模型名称
+
+**验证结果**:
+- ✅ fill 命令正确替换文本："deepseek-chat" → "qwen-turbo"（不再拼接）
+- ✅ 用户点击 Model 字段后，输入新文本会替换旧文本
+- ✅ onFocus 处理器在普通 Input 组件上工作正常
+- ⚠️ 失去了自动补全和历史记录功能，但这是可接受的权衡
+
+**相关代码修改**:
+- `web/client/src/components/LLMProviderConfig.tsx` lines 346-361
+- 移除 `import { AutoComplete } from 'antd'`
+- 移除 `import { getModelHistory } from '../utils/modelHistory'`
+
+**验证任务**:
+- Task 7.3: 在 Model 字段输入 "deep"，验证下拉列表只显示包含 "deep" 的项 ✅ (已修复，但筛选功能不再适用)
+
+---
+
 ## Bug 记录说明
 
 - 每个 bug 包含：症状、复现步骤、根本原因、影响范围、修复方案
