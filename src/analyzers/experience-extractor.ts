@@ -1,4 +1,3 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import { Observation, ExtractionResult } from '../types/index.js';
 import { Config } from '../config/index.js';
 import { logger, withLLMRetry, pMapLimited, getFulfilledValues } from '../utils/index.js';
@@ -6,7 +5,7 @@ import { buildAnalysisPrompt, SYSTEM_MESSAGE } from './prompts.js';
 import { formatObservationsAsText } from './session-collector.js';
 import { loadExistingObservationsSummary } from './existing-observations-loader.js';
 import { createLLMClient } from '../llm/client-factory.js';
-import { AnthropicProvider } from '../llm/providers/anthropic.js';
+import type { LLMProvider } from '../llm/types.js';
 
 /**
  * 经验提取器
@@ -68,11 +67,16 @@ export async function extractExperience(
   // 使用统一的 LLM 客户端工厂
   const llmProvider = await createLLMClient(config);
 
-  // 获取底层 Anthropic 客户端（用于 prompt caching 等特有功能）
-  if (!(llmProvider instanceof AnthropicProvider)) {
-    throw new Error('Experience extraction currently requires Anthropic provider');
+  // 记录当前使用的 provider 类型
+  logger.info(`  提供商: ${config.llm.activeProvider}`);
+
+  // 检查 prompt caching 支持
+  if (llmProvider.supportsPromptCaching()) {
+    logger.debug('  ✓ 支持 Prompt Caching，可降低重复内容的 token 成本');
+  } else {
+    logger.warn('  ⚠ 当前 LLM provider 不支持 prompt caching，token 成本可能较高');
+    logger.warn('  💡 建议切换到 Claude provider 以获得最佳性价比');
   }
-  const anthropic = llmProvider.getClient();
 
   // 加载已有观察摘要，注入到提取 prompt 中防止重复提取
   let existingObsSummary: string | null = null;
@@ -99,7 +103,7 @@ export async function extractExperience(
     batches,
     async (batch, i) => {
       logger.debug(`处理批次 ${i + 1}/${batches.length} (${batch.length} 条记录)...`);
-      const result = await extractFromBatch(batch, config, anthropic, promptsContext, existingObsSummary);
+      const result = await extractFromBatch(batch, config, llmProvider, promptsContext, existingObsSummary);
       logger.success(`✓ 批次 ${i + 1} 提取完成`);
       return result;
     },
@@ -131,7 +135,7 @@ export async function extractExperience(
 async function extractFromBatch(
   observations: Observation[],
   config: Config,
-  anthropic: Anthropic,
+  llmProvider: LLMProvider,
   promptsContext?: string | null,
   existingObsSummary?: string | null
 ): Promise<ExtractionResult> {
@@ -140,29 +144,6 @@ async function extractFromBatch(
 
   // 构建提示词
   const userPrompt = buildAnalysisPrompt(sessionsText, promptsContext, existingObsSummary);
-
-  // 准备消息
-  const messages: Anthropic.MessageParam[] = [
-    {
-      role: 'user',
-      content: userPrompt,
-    },
-  ];
-
-  // 构建系统消息 (支持 prompt caching - 仅 Claude 提供商)
-  const enablePromptCaching = config.llm.activeProvider === 'claude'
-    ? config.llm.claude.enablePromptCaching
-    : false;
-
-  const system: any = enablePromptCaching
-    ? [
-        {
-          type: 'text',
-          text: SYSTEM_MESSAGE,
-          cache_control: { type: 'ephemeral' },
-        },
-      ]
-    : SYSTEM_MESSAGE;
 
   // 根据 activeProvider 获取配置
   const activeConfig = (() => {
@@ -178,14 +159,12 @@ async function extractFromBatch(
     }
   })();
 
-  // 调用 API (使用重试机制)
-  const response = await withLLMRetry(
-    () => anthropic.messages.create({
+  // 调用统一的 extractExperience 接口 (使用重试机制)
+  const responseText = await withLLMRetry(
+    () => llmProvider.extractExperience(userPrompt, SYSTEM_MESSAGE, {
       model: activeConfig.model,
-      max_tokens: activeConfig.maxTokens,
+      maxTokens: activeConfig.maxTokens,
       temperature: activeConfig.temperature,
-      system,
-      messages,
     }),
     {
       context: 'Experience Extraction',
@@ -193,14 +172,8 @@ async function extractFromBatch(
     }
   );
 
-  // 解析响应
-  const content = response.content[0];
-  if (content.type !== 'text') {
-    throw new Error('意外的响应类型');
-  }
-
   // 提取 JSON (支持 markdown 代码块)
-  const jsonText = extractJSON(content.text);
+  const jsonText = extractJSON(responseText);
   const result = JSON.parse(jsonText) as ExtractionResult;
 
   // 验证结果

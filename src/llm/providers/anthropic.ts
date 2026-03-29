@@ -31,14 +31,6 @@ export class AnthropicProvider implements LLMProvider {
   private readonly client: Anthropic;
   private readonly enablePromptCaching: boolean;
 
-  /**
-   * 获取底层 Anthropic 客户端
-   * 用于访问 Anthropic 特有功能（如 prompt caching）
-   */
-  getClient(): Anthropic {
-    return this.client;
-  }
-
   constructor(config: AnthropicProviderConfig) {
     const { apiKey, baseURL, defaultHeaders, enablePromptCaching = false } = config;
 
@@ -82,5 +74,63 @@ export class AnthropicProvider implements LLMProvider {
         outputTokens: response.usage.output_tokens,
       },
     };
+  }
+
+  async extractExperience(
+    prompt: string,
+    systemMessage: string,
+    options: {
+      model: string;
+      maxTokens: number;
+      temperature: number;
+    }
+  ): Promise<string> {
+    // 准备消息
+    const messages: Anthropic.MessageParam[] = [
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ];
+
+    // 构建系统消息（支持 prompt caching）
+    const system: any = this.enablePromptCaching
+      ? [
+          {
+            type: 'text',
+            text: systemMessage,
+            cache_control: { type: 'ephemeral' },
+          },
+        ]
+      : systemMessage;
+
+    // 调用 Anthropic SDK
+    const response = await this.client.messages.create({
+      model: options.model,
+      max_tokens: options.maxTokens,
+      temperature: options.temperature,
+      system,
+      messages,
+    });
+
+    // 提取响应文本
+    const content = response.content[0];
+    if (content.type !== 'text') {
+      throw new Error('意外的响应类型');
+    }
+
+    return content.text;
+  }
+
+  supportsPromptCaching(): boolean {
+    return this.enablePromptCaching;
+  }
+
+  /**
+   * 获取底层 Anthropic 客户端
+   * 用于访问 Anthropic 特有功能（如 prompt caching）
+   */
+  getClient(): Anthropic {
+    return this.client;
   }
 }

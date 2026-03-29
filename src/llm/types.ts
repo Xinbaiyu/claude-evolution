@@ -50,6 +50,29 @@ export interface LLMProvider {
    * @returns 完成响应
    */
   createCompletion(params: LLMCompletionParams): Promise<LLMCompletionResponse>;
+
+  /**
+   * 执行 experience extraction
+   * @param prompt 用户提示词
+   * @param systemMessage 系统消息
+   * @param options 调用选项（model, maxTokens, temperature）
+   * @returns LLM 响应的 JSON 文本
+   */
+  extractExperience(
+    prompt: string,
+    systemMessage: string,
+    options: {
+      model: string;
+      maxTokens: number;
+      temperature: number;
+    }
+  ): Promise<string>;
+
+  /**
+   * 是否支持 prompt caching
+   * @returns true 表示支持，false 表示不支持
+   */
+  supportsPromptCaching(): boolean;
 }
 
 /** 支持的 LLM 提供商类型 */

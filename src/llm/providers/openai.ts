@@ -95,4 +95,39 @@ export class OpenAIProvider implements LLMProvider {
       );
     }
   }
+
+  async extractExperience(
+    prompt: string,
+    systemMessage: string,
+    options: {
+      model: string;
+      maxTokens: number;
+      temperature: number;
+    }
+  ): Promise<string> {
+    try {
+      // 转换为 Chat Completions 格式
+      const response = await this.client.chat.completions.create({
+        model: options.model,
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: prompt },
+        ],
+        temperature: options.temperature,
+        max_tokens: options.maxTokens,
+      });
+
+      return response.choices[0]?.message?.content || '';
+    } catch (error) {
+      throw new Error(
+        `OpenAI API error during experience extraction: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
+    }
+  }
+
+  supportsPromptCaching(): boolean {
+    return false;
+  }
 }

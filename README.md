@@ -519,10 +519,25 @@ interface Workflow {
     }
   },
   "llm": {
-    "model": "claude-3-5-haiku-20241022",
-    "maxTokens": 4096,
-    "temperature": 0.3,
-    "enablePromptCaching": false
+    "activeProvider": "claude",
+    "claude": {
+      "model": "claude-sonnet-4-6",
+      "maxTokens": 4096,
+      "temperature": 0.3,
+      "enablePromptCaching": true
+    },
+    "openai": {
+      "baseURL": "https://api.openai.com",
+      "model": "gpt-4-turbo",
+      "maxTokens": 4096,
+      "temperature": 0.3
+    },
+    "ccr": {
+      "baseURL": "http://localhost:3456",
+      "model": "claude-sonnet-4-6",
+      "maxTokens": 4096,
+      "temperature": 0.3
+    }
   },
   "scheduler": {
     "enabled": false,
@@ -538,11 +553,35 @@ interface Workflow {
 | `learningPhases.observation.durationDays` | 观察期天数 | 3 |
 | `learningPhases.suggestion.durationDays` | 建议期天数 | 4 |
 | `learningPhases.automatic.confidenceThreshold` | 自动批准阈值 | 0.8 |
-| `llm.model` | LLM 模型 | claude-3-5-haiku-20241022 |
-| `llm.maxTokens` | 最大 token 数 | 4096 |
-| `llm.temperature` | 温度参数 | 0.3 |
+| `llm.activeProvider` | 当前使用的 LLM 提供商 | claude |
+| `llm.claude.model` | Claude 模型名称 | claude-sonnet-4-6 |
+| `llm.claude.enablePromptCaching` | 是否启用 Prompt Caching | true |
+| `llm.openai.baseURL` | OpenAI-Compatible API 端点 | https://api.openai.com |
+| `llm.openai.model` | OpenAI 模型名称 | gpt-4-turbo |
+| `llm.ccr.baseURL` | CCR Proxy 地址 | http://localhost:3456 |
 | `scheduler.enabled` | 是否启用定时分析 | false |
 | `scheduler.analysisInterval` | 分析间隔 | 12h |
+
+### LLM Provider 支持
+
+claude-evolution 支持三种 LLM 提供商，可通过 Web UI (Settings → LLM Provider) 或编辑 `config.json` 配置：
+
+#### 1. Claude Official API (推荐)
+- **优势**: 支持 Prompt Caching，显著降低重复内容的 token 成本
+- **配置**: 设置环境变量 `ANTHROPIC_API_KEY`
+- **适用场景**: 使用 Anthropic 官方 API
+
+#### 2. OpenAI-Compatible API
+- **优势**: 支持任意 OpenAI 格式的 API（OpenAI、Azure OpenAI、DeepSeek、Qwen、Ollama 等）
+- **配置**: 在 `llm.openai` 中设置 `baseURL`、`apiKey`、`model`
+- **成本说明**: 不支持 Prompt Caching，token 成本可能较高（但 DeepSeek、Qwen 等第三方 API 价格可能更低）
+- **适用场景**: 使用第三方 OpenAI 兼容服务
+
+#### 3. CCR Proxy
+- **优势**: 通过本地代理访问 Claude API，支持自定义路由
+- **配置**: 在 `llm.ccr` 中设置 `baseURL` 指向 CCR 服务地址
+- **本质**: CCR 是 Anthropic Messages API 的代理，使用相同的 API 格式
+- **适用场景**: 需要通过代理访问 Claude API
 
 ---
 

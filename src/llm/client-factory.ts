@@ -98,16 +98,23 @@ async function createOpenAIProvider(config: Config): Promise<LLMProvider> {
 
 /**
  * 创建 CCR 提供商（CCR Proxy）
+ *
+ * CCR (Claude Code Router) 本质是 Anthropic Messages API 的代理服务，
+ * 因此复用 AnthropicProvider 实现，仅通过 baseURL 指向 CCR 代理地址。
+ *
  * @param config 系统配置
- * @returns CCR 提供商实例
+ * @returns CCR 提供商实例（底层使用 AnthropicProvider）
  */
 function createCCRProvider(config: Config): LLMProvider {
   const ccrConfig = config.llm.ccr;
 
+  // CCR 使用 Anthropic API 格式，通过 baseURL 路由到 CCR 代理
   return new AnthropicProvider({
-    apiKey: process.env.ANTHROPIC_API_KEY,
+    apiKey: process.env.ANTHROPIC_API_KEY || 'dummy-key-for-ccr-proxy',
     baseURL: ccrConfig.baseURL,
-    enablePromptCaching: false, // CCR 模式通常不支持 prompt caching
+    // CCR 是否支持 prompt caching 取决于上游 Anthropic API
+    // 默认禁用，如果 CCR 透传则可以启用
+    enablePromptCaching: false,
   });
 }
 
