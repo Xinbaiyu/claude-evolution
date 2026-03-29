@@ -3,6 +3,7 @@
  * 适配 OpenAI SDK 到统一的 LLMProvider 接口
  */
 
+import { OpenAI } from 'openai';
 import type {
   LLMProvider,
   LLMCompletionParams,
@@ -25,8 +26,7 @@ export interface OpenAIProviderConfig {
  */
 export class OpenAIProvider implements LLMProvider {
   readonly providerName = 'openai';
-  private readonly client: any;
-  private static OpenAIConstructor: any = null;
+  private readonly client: OpenAI;
 
   private constructor(config: OpenAIProviderConfig) {
     // API Key 优先级：config.apiKey > 环境变量 OPENAI_API_KEY
@@ -37,8 +37,8 @@ export class OpenAIProvider implements LLMProvider {
       );
     }
 
-    // 使用已加载的 OpenAI 构造函数
-    this.client = new OpenAIProvider.OpenAIConstructor({
+    // 直接使用 OpenAI 类
+    this.client = new OpenAI({
       apiKey,
       ...(config.baseURL && { baseURL: config.baseURL }),
       ...(config.organization && { organization: config.organization }),
@@ -46,23 +46,9 @@ export class OpenAIProvider implements LLMProvider {
   }
 
   /**
-   * 异步工厂方法 - 动态导入 OpenAI SDK
+   * 静态工厂方法 - 创建 OpenAI Provider 实例
    */
   static async create(config: OpenAIProviderConfig): Promise<OpenAIProvider> {
-    // 如果尚未加载，尝试动态导入 OpenAI SDK
-    if (!OpenAIProvider.OpenAIConstructor) {
-      try {
-        const openaiModule = await import('openai');
-        OpenAIProvider.OpenAIConstructor = openaiModule.default || openaiModule;
-      } catch (error) {
-        // Log the actual error for debugging
-        console.error('[OpenAI Provider] Failed to import openai package:', error);
-        throw new Error(
-          `OpenAI provider requires "openai" package. Install it with: npm install openai\nActual error: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    }
-
     return new OpenAIProvider(config);
   }
 

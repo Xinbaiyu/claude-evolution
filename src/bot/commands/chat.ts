@@ -53,7 +53,21 @@ export class ChatCommand implements CommandHandler {
 
   private async callLLMAndReply(message: BotMessage): Promise<void> {
     const config = await loadConfig();
-    const llmConfig = config.llm;
+
+    // 获取当前激活提供商的配置
+    const { activeProvider } = config.llm;
+    const activeConfig = (() => {
+      switch (activeProvider) {
+        case 'claude':
+          return config.llm.claude;
+        case 'openai':
+          return config.llm.openai;
+        case 'ccr':
+          return config.llm.ccr;
+        default:
+          throw new Error(`Unknown activeProvider: ${activeProvider}`);
+      }
+    })();
 
     // 使用统一的 LLM 客户端工厂
     const llmClient = await createLLMClient(config);
@@ -67,10 +81,10 @@ export class ChatCommand implements CommandHandler {
 
     // 调用统一接口
     const response = await llmClient.createCompletion({
-      model: llmConfig.model,
+      model: activeConfig.model,
       messages,
-      maxTokens: llmConfig.maxTokens,
-      temperature: llmConfig.temperature,
+      maxTokens: activeConfig.maxTokens,
+      temperature: activeConfig.temperature,
       systemPrompt: SYSTEM_PROMPT,
     });
 

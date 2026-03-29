@@ -707,8 +707,26 @@ export async function mergeLLM(
     throw new Error('LLM merge currently requires Anthropic provider');
   }
   const anthropic = llmProvider.getClient();
-  const model = config.llm.model;
-  const baseURL = config.llm.baseURL;
+
+  // 根据 activeProvider 获取模型和 baseURL
+  const { activeProvider } = config.llm;
+  const model = (() => {
+    switch (activeProvider) {
+      case 'claude':
+        return config.llm.claude.model;
+      case 'openai':
+        return config.llm.openai.model;
+      case 'ccr':
+        return config.llm.ccr.model;
+      default:
+        throw new Error(`Unknown activeProvider: ${activeProvider}`);
+    }
+  })();
+  const baseURL = activeProvider === 'ccr'
+    ? config.llm.ccr.baseURL
+    : activeProvider === 'openai'
+    ? config.llm.openai.baseURL
+    : undefined;
 
   // Load archived observations for similarity checking
   let archivedObservations: ObservationWithMetadata[] = [];

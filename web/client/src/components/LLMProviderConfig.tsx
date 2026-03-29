@@ -79,22 +79,32 @@ const ProviderCard: React.FC<ProviderCardProps> = ({
         borderColor: colors.border,
         backgroundColor: colors.bg,
         boxShadow: colors.shadow,
-      } : undefined}
+      } : {}}
     >
+      {/* 选中指示器 */}
+      {selected && (
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className="absolute -top-2 -right-2 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-full w-6 h-6 flex items-center justify-center shadow-lg"
+        >
+          <span className="text-white text-xs">✓</span>
+        </motion.div>
+      )}
+
       {/* 图标 */}
-      <div className="text-4xl">{meta.icon}</div>
+      <span className="text-4xl">{meta.icon}</span>
 
       {/* 标题 */}
       <div className="text-center">
-        <div className="font-semibold text-slate-100">{meta.title}</div>
-        <div className="text-sm text-slate-400">{meta.subtitle}</div>
+        <h4 className="font-bold text-slate-100">{meta.title}</h4>
+        <p className="text-xs text-slate-400 mt-0.5">{meta.subtitle}</p>
       </div>
 
-      {/* 状态指示器 */}
-      {configured && (
-        <div className="absolute top-2 right-2 flex items-center gap-1 text-xs text-green-400">
-          <span>✓</span>
-          <span>已配置</span>
+      {/* 状态指示 */}
+      {configured && !selected && (
+        <div className="absolute bottom-2 right-2">
+          <span className="text-xs text-emerald-400">✓ 已配置</span>
         </div>
       )}
     </button>
@@ -108,94 +118,68 @@ interface LLMProviderConfigProps {
 }
 
 export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: initialConfig, onSave }) => {
-  // 检测当前模式
-  const detectMode = (cfg: any): ProviderMode => {
-    // 明确指定 openai provider
-    if (cfg.llm?.provider === 'openai') return 'openai';
-
-    // 明确指定 anthropic provider 或完全没有配置时，默认为 claude
-    if (cfg.llm?.provider === 'anthropic') return 'claude';
-
-    // 有 baseURL 且 provider 未明确指定为 openai/anthropic，视为 CCR
-    if (cfg.llm?.baseURL && !cfg.llm?.provider) return 'ccr';
-
-    // 默认为 claude
-    return 'claude';
-  };
-
-  const [selectedMode, setSelectedMode] = useState<ProviderMode>(detectMode(initialConfig));
+  // 从配置读取当前激活提供商（不再使用 detectMode）
+  const [selectedMode, setSelectedMode] = useState<ProviderMode>(
+    initialConfig.llm?.activeProvider || 'claude'
+  );
   const [config, setConfig] = useState(initialConfig);
   const isFirstRender = useRef(true);
 
   // 同步外部 config 变化
   useEffect(() => {
     setConfig(initialConfig);
-    // 保留用户的 selectedMode 选择，不从 initialConfig 重新推导
-    // 这样避免了 handleModeChange 设置的 mode 被覆盖
+    // 同步 activeProvider 到 selectedMode
+    if (initialConfig.llm?.activeProvider) {
+      setSelectedMode(initialConfig.llm.activeProvider);
+    }
   }, [initialConfig]);
 
-  // 检查是否已配置（基于 config 数据判断）
+  // 检查是否已配置（基于嵌套配置对象是否存在）
   const isConfigured = {
-    claude: config.llm?.provider === 'anthropic' || (!config.llm?.provider && !config.llm?.baseURL),
-    openai: config.llm?.provider === 'openai',
-    ccr: !!config.llm?.baseURL,
+    claude: !!config.llm?.claude?.model,
+    openai: !!config.llm?.openai?.model,
+    ccr: !!config.llm?.ccr?.model && !!config.llm?.ccr?.baseURL,
   };
 
-  // 模式切换处理
-  const handleModeChange = (mode: ProviderMode) => {
+  // 辅助函数：更新指定提供商的配置
+  const updateProviderConfig = (provider: ProviderMode, updates: any) => {
+    setConfig({
+      ...config,
+      llm: {
+        ...config.llm,
+        [provider]: {
+          ...config.llm[provider],
+          ...updates,
+        },
+      },
+    });
+  };
+
+  // 提供商切换处理（只修改 activeProvider 字段）
+  const handleProviderChange = (mode: ProviderMode) => {
     setSelectedMode(mode);
-
-    // 更新 config 中的 provider 和相关字段
-    const newConfig = { ...config };
-    if (mode === 'claude') {
-      newConfig.llm = {
-        ...newConfig.llm,
-        provider: 'anthropic',
-        baseURL: null,
-        model: config.llm?.model || 'claude-sonnet-4-6'  // 保留用户已输入的值
-      };
-    } else if (mode === 'openai') {
-      newConfig.llm = {
-        ...newConfig.llm,
-        provider: 'openai',
-        baseURL: null,
-        model: config.llm?.model || 'gpt-4-turbo'  // 保留用户已输入的值
-      };
-    } else if (mode === 'ccr') {
-      newConfig.llm = {
-        ...newConfig.llm,
-        provider: undefined,
-        // 保留现有 baseURL，如果没有则设置默认值
-        baseURL: config.llm?.baseURL || 'http://localhost:3456',
-        model: config.llm?.model || 'claude-sonnet-4-6'  // 保留用户已输入的值
-      };
-      // CCR 模式不设置 provider，通过 baseURL 自动检测
-    }
-    setConfig(newConfig);
+    setConfig({
+      ...config,
+      llm: {
+        ...config.llm,
+        activeProvider: mode,
+      },
+    });
   };
 
-  // 当配置变化时通知父组件（但不立即保存）
+  // 当配置变化时通知父组件
   useEffect(() => {
-    console.log('[LLMProviderConfig] useEffect triggered, isFirstRender:', isFirstRender.current);
-
     // 跳过首次渲染
     if (isFirstRender.current) {
       isFirstRender.current = false;
-      console.log('[LLMProviderConfig] Skipping first render');
       return;
     }
 
     const configChanged = JSON.stringify(config) !== JSON.stringify(initialConfig);
-    console.log('[LLMProviderConfig] Config changed:', configChanged);
-    console.log('[LLMProviderConfig] Current config.llm:', config.llm);
-    console.log('[LLMProviderConfig] Initial config.llm:', initialConfig.llm);
-
-    // 只在配置实际变化时才更新
     if (configChanged) {
-      console.log('[LLMProviderConfig] Calling onSave');
       onSave(config);
     }
-  }, [config, onSave]); // 移除 initialConfig 依赖，避免循环
+  }, [config, onSave]);
 
   return (
     <ConfigProvider
@@ -217,7 +201,7 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
       <div>
         <h3 className="text-lg font-semibold text-slate-100">LLM Provider 配置</h3>
         <p className="text-sm text-slate-400 mt-1">
-          选择 LLM 服务提供商并配置相关参数
+          选择 LLM 服务提供商并配置相关参数。每个提供商的配置独立保存，互不干扰。
         </p>
       </div>
 
@@ -229,7 +213,7 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
             mode={mode}
             selected={selectedMode === mode}
             configured={isConfigured[mode]}
-            onSelect={() => handleModeChange(mode)}
+            onSelect={() => handleProviderChange(mode)}
           />
         ))}
       </div>
@@ -265,8 +249,8 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
                   Model
                 </label>
                 <Select
-                  value={config.llm?.model || 'claude-sonnet-4-6'}
-                  onChange={(value) => setConfig({ ...config, llm: { ...config.llm, model: value } })}
+                  value={config.llm?.claude?.model || 'claude-sonnet-4-6'}
+                  onChange={(value) => updateProviderConfig('claude', { model: value })}
                   options={[
                     { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (推荐)' },
                     { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
@@ -281,14 +265,14 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
               {/* Temperature */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Temperature <span className="text-slate-400">({config.llm?.temperature ?? 0.3})</span>
+                  Temperature <span className="text-slate-400">({config.llm?.claude?.temperature ?? 0.3})</span>
                 </label>
                 <Slider
                   min={0}
                   max={1}
                   step={0.1}
-                  value={config.llm?.temperature ?? 0.3}
-                  onChange={(value) => setConfig({ ...config, llm: { ...config.llm, temperature: value } })}
+                  value={config.llm?.claude?.temperature ?? 0.3}
+                  onChange={(value) => updateProviderConfig('claude', { temperature: value })}
                   marks={{ 0: '精确 (0)', 1: '随机 (1)' }}
                 />
               </div>
@@ -301,8 +285,8 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
                 <InputNumber
                   min={1024}
                   max={16384}
-                  value={config.llm?.maxTokens ?? 4096}
-                  onChange={(value) => setConfig({ ...config, llm: { ...config.llm, maxTokens: value || 4096 } })}
+                  value={config.llm?.claude?.maxTokens ?? 4096}
+                  onChange={(value) => updateProviderConfig('claude', { maxTokens: value || 4096 })}
                   className="w-full"
                 />
               </div>
@@ -310,8 +294,8 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
               {/* Prompt Caching */}
               <div className="flex flex-col gap-2">
                 <Checkbox
-                  checked={config.llm?.enablePromptCaching ?? true}
-                  onChange={(e) => setConfig({ ...config, llm: { ...config.llm, enablePromptCaching: e.target.checked } })}
+                  checked={config.llm?.claude?.enablePromptCaching ?? true}
+                  onChange={(e) => updateProviderConfig('claude', { enablePromptCaching: e.target.checked })}
                 >
                   <span className="text-sm font-medium">启用 Prompt Caching</span>
                 </Checkbox>
@@ -337,98 +321,87 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
                 </div>
               </div>
 
-              {/* Model 选择 */}
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Model
-                </label>
-                <Input
-                  value={config.llm?.model || ''}
-                  onChange={(e) => setConfig({ ...config, llm: { ...config.llm, model: e.target.value } })}
-                  onFocus={(e) => e.target.select()}
-                  placeholder="gpt-4-turbo"
-                  className="w-full font-mono"
-                />
-                <p className="text-xs text-slate-400 mt-1">
-                  输入任意模型名称（OpenAI、Azure 部署名、Ollama 自定义模型等）
-                </p>
-              </div>
-
-              {/* Base URL (可选) */}
+              {/* Base URL */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   Base URL <span className="text-slate-400">(可选)</span>
                 </label>
                 <Input
-                  value={config.llm?.baseURL || ''}
-                  onChange={(e) => setConfig({ ...config, llm: { ...config.llm, baseURL: e.target.value || null } })}
-                  placeholder="https://api.openai.com"
-                  className="font-mono"
+                  value={config.llm?.openai?.baseURL || ''}
+                  onChange={(e) => updateProviderConfig('openai', { baseURL: e.target.value || undefined })}
+                  placeholder="https://api.openai.com (默认)"
+                  className="w-full font-mono text-sm"
                 />
                 <p className="text-xs text-slate-400 mt-1">
-                  自定义 API 端点（可选）。支持 Azure OpenAI、本地 Ollama 等
+                  留空使用 OpenAI 官方 API；填写自定义 URL 用于 Azure、本地 Ollama 等
                 </p>
               </div>
 
-              {/* API Key (可选) */}
+              {/* API Key */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   API Key <span className="text-slate-400">(可选)</span>
                 </label>
                 <Input.Password
                   value={config.llm?.openai?.apiKey || ''}
-                  onChange={(e) => setConfig({
-                    ...config,
-                    llm: {
-                      ...config.llm,
-                      openai: { ...config.llm?.openai, apiKey: e.target.value || null }
-                    }
-                  })}
-                  placeholder="sk-..."
-                  className="font-mono"
+                  onChange={(e) => updateProviderConfig('openai', { apiKey: e.target.value || undefined })}
+                  placeholder="sk-... (留空从环境变量读取)"
+                  className="w-full font-mono text-sm"
                 />
                 <p className="text-xs text-slate-400 mt-1">
-                  留空则使用环境变量 OPENAI_API_KEY。⚠️ API Key 将以明文存储在配置文件中
+                  💡 留空则从环境变量 OPENAI_API_KEY 读取；填写后优先使用此处配置
                 </p>
               </div>
 
-              {/* Organization (可选) */}
+              {/* Organization ID */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   Organization ID <span className="text-slate-400">(可选)</span>
                 </label>
                 <Input
                   value={config.llm?.openai?.organization || ''}
-                  onChange={(e) => setConfig({
-                    ...config,
-                    llm: {
-                      ...config.llm,
-                      openai: { ...config.llm?.openai, organization: e.target.value || null }
-                    }
-                  })}
-                  placeholder="org-xxxxx"
-                  className="font-mono"
+                  onChange={(e) => updateProviderConfig('openai', { organization: e.target.value || undefined })}
+                  placeholder="org-..."
+                  className="w-full font-mono text-sm"
                 />
                 <p className="text-xs text-slate-400 mt-1">
-                  如果你的 API key 属于多个组织，需要指定组织 ID
+                  仅在使用 OpenAI 官方 API 且有多个组织时需要
                 </p>
               </div>
 
-              {/* Temperature & Max Tokens */}
+              {/* Model 输入 */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Temperature <span className="text-slate-400">({config.llm?.temperature ?? 0.3})</span>
+                  Model
+                </label>
+                <Input
+                  value={config.llm?.openai?.model || ''}
+                  onChange={(e) => updateProviderConfig('openai', { model: e.target.value })}
+                  onFocus={(e) => e.target.select()}
+                  placeholder="gpt-4-turbo, deepseek-chat, qwen-turbo..."
+                  className="w-full font-mono"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  💡 支持任意模型名称：gpt-4-turbo, deepseek-chat, qwen-turbo, Azure 部署名等
+                </p>
+              </div>
+
+              {/* Temperature */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Temperature <span className="text-slate-400">({config.llm?.openai?.temperature ?? 0.3})</span>
                 </label>
                 <Slider
                   min={0}
                   max={1}
                   step={0.1}
-                  value={config.llm?.temperature ?? 0.3}
-                  onChange={(value) => setConfig({ ...config, llm: { ...config.llm, temperature: value } })}
+                  value={config.llm?.openai?.temperature ?? 0.3}
+                  onChange={(value) => updateProviderConfig('openai', { temperature: value })}
                   marks={{ 0: '精确 (0)', 1: '随机 (1)' }}
                 />
               </div>
 
+              {/* Max Tokens */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   Max Tokens
@@ -436,8 +409,8 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
                 <InputNumber
                   min={1024}
                   max={16384}
-                  value={config.llm?.maxTokens ?? 4096}
-                  onChange={(value) => setConfig({ ...config, llm: { ...config.llm, maxTokens: value || 4096 } })}
+                  value={config.llm?.openai?.maxTokens ?? 4096}
+                  onChange={(value) => updateProviderConfig('openai', { maxTokens: value || 4096 })}
                   className="w-full"
                 />
               </div>
@@ -454,7 +427,7 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
                     {PROVIDER_META.ccr.description}
                   </p>
                   <p className="text-purple-400/80">
-                    通过本地代理服务访问 Claude API，支持自定义路由和缓存
+                    通过本地代理服务访问 Claude API，支持自定义端点
                   </p>
                 </div>
               </div>
@@ -462,51 +435,52 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
               {/* Base URL */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Proxy Endpoint <span className="text-red-500">*</span>
+                  Base URL <span className="text-red-400">*</span>
                 </label>
                 <Input
-                  value={config.llm?.baseURL || ''}
-                  onChange={(e) => setConfig({ ...config, llm: { ...config.llm, baseURL: e.target.value || null } })}
+                  value={config.llm?.ccr?.baseURL || ''}
+                  onChange={(e) => updateProviderConfig('ccr', { baseURL: e.target.value })}
                   placeholder="http://localhost:3456"
-                  className="font-mono"
+                  className="w-full font-mono text-sm"
                 />
                 <p className="text-xs text-slate-400 mt-1">
-                  CCR 代理服务的地址，通常运行在本地 localhost
+                  CCR 代理服务的地址，例如 http://localhost:3456
                 </p>
               </div>
 
-              {/* Model 选择 (CCR 使用 Claude 模型) */}
+              {/* Model 输入 */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   Model
                 </label>
-                <Select
-                  value={config.llm?.model || 'claude-sonnet-4-6'}
-                  onChange={(value) => setConfig({ ...config, llm: { ...config.llm, model: value } })}
-                  options={[
-                    { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
-                    { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
-                    { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
-                  ]}
-                  className="w-full"
+                <Input
+                  value={config.llm?.ccr?.model || ''}
+                  onChange={(e) => updateProviderConfig('ccr', { model: e.target.value })}
+                  onFocus={(e) => e.target.select()}
+                  placeholder="claude-sonnet-4-6"
+                  className="w-full font-mono"
                 />
+                <p className="text-xs text-slate-400 mt-1">
+                  💡 根据 CCR 代理支持的模型填写，通常为 Claude 模型名称
+                </p>
               </div>
 
-              {/* Temperature & Max Tokens */}
+              {/* Temperature */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Temperature <span className="text-slate-400">({config.llm?.temperature ?? 0.3})</span>
+                  Temperature <span className="text-slate-400">({config.llm?.ccr?.temperature ?? 0.3})</span>
                 </label>
                 <Slider
                   min={0}
                   max={1}
                   step={0.1}
-                  value={config.llm?.temperature ?? 0.3}
-                  onChange={(value) => setConfig({ ...config, llm: { ...config.llm, temperature: value } })}
+                  value={config.llm?.ccr?.temperature ?? 0.3}
+                  onChange={(value) => updateProviderConfig('ccr', { temperature: value })}
                   marks={{ 0: '精确 (0)', 1: '随机 (1)' }}
                 />
               </div>
 
+              {/* Max Tokens */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   Max Tokens
@@ -514,8 +488,8 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
                 <InputNumber
                   min={1024}
                   max={16384}
-                  value={config.llm?.maxTokens ?? 4096}
-                  onChange={(value) => setConfig({ ...config, llm: { ...config.llm, maxTokens: value || 4096 } })}
+                  value={config.llm?.ccr?.maxTokens ?? 4096}
+                  onChange={(value) => updateProviderConfig('ccr', { maxTokens: value || 4096 })}
                   className="w-full"
                 />
               </div>
@@ -523,7 +497,7 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
           )}
         </motion.div>
       </AnimatePresence>
-    </div>
+      </div>
     </ConfigProvider>
   );
 };

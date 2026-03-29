@@ -147,19 +147,27 @@ export interface Config {
     interval: string;
   };
   llm: {
-    provider?: 'anthropic' | 'openai';
-    model: string;
-    maxTokens: number;
-    temperature: number;
-    enablePromptCaching?: boolean;
-    baseURL?: string;
-    defaultHeaders?: Record<string, string>;
-    anthropic?: {
+    activeProvider: 'claude' | 'openai' | 'ccr';
+    claude: {
+      model: string;
+      temperature: number;
+      maxTokens: number;
+      enablePromptCaching: boolean;
       apiVersion?: string;
     };
-    openai?: {
+    openai: {
+      model: string;
+      temperature: number;
+      maxTokens: number;
+      baseURL?: string;
       apiKey?: string;
       organization?: string;
+    };
+    ccr: {
+      model: string;
+      temperature: number;
+      maxTokens: number;
+      baseURL: string;
     };
   };
   learning?: {

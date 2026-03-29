@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
-import { Config, ConfigSchema, DEFAULT_CONFIG } from './schema.js';
+import { Config, ConfigSchema, DEFAULT_CONFIG, ActiveProvider } from './schema.js';
 
 /**
  * 获取 claude-evolution 根目录
@@ -29,18 +29,164 @@ export async function loadConfig(): Promise<Config> {
     return DEFAULT_CONFIG;
   }
 
+  let backupPath: string | null = null;
+
   try {
     const rawConfig = await fs.readJSON(configPath);
+
+    // 检测是否需要迁移
+    const needsMigration = isOldConfigFormat(rawConfig);
+
+    // 如果需要迁移，先备份
+    if (needsMigration) {
+      backupPath = await backupConfig(configPath);
+    }
 
     // 执行配置迁移
     const migratedConfig = migrateConfig(rawConfig);
 
     // 使用 Zod 验证和填充默认值
-    return ConfigSchema.parse(migratedConfig);
+    const validatedConfig = ConfigSchema.parse(migratedConfig);
+
+    // 如果迁移成功且配置有变化，保存新配置
+    if (needsMigration) {
+      await fs.writeJSON(configPath, validatedConfig, { spaces: 2 });
+      console.log('[Config Migration] 新配置已保存');
+    }
+
+    return validatedConfig;
   } catch (error) {
-    console.error('配置文件解析失败,使用默认配置:', error);
+    console.error('[Config Migration] 配置文件解析或迁移失败:', error);
+
+    // 如果有备份且迁移失败，尝试恢复
+    if (backupPath) {
+      try {
+        await fs.copy(backupPath, configPath);
+        console.error('[Config Migration] 已从备份恢复配置');
+      } catch (restoreError) {
+        console.error('[Config Migration] 恢复备份失败:', restoreError);
+      }
+    }
+
+    // 返回默认配置
+    console.log('[Config Migration] 使用默认配置');
     return DEFAULT_CONFIG;
   }
+}
+
+/**
+ * 检测是否为旧的 LLM 配置格式
+ */
+function isOldConfigFormat(config: any): boolean {
+  if (!config.llm) return false;
+
+  // 检查是否存在旧的顶层字段
+  return (
+    'model' in config.llm ||
+    'provider' in config.llm ||
+    'temperature' in config.llm ||
+    'maxTokens' in config.llm
+  );
+}
+
+/**
+ * 推断激活的提供商
+ */
+function inferActiveProvider(oldConfig: any): ActiveProvider {
+  if (!oldConfig.llm) return 'claude';
+
+  const { provider, baseURL } = oldConfig.llm;
+
+  // 如果明确指定了 provider
+  if (provider === 'openai') return 'openai';
+  if (provider === 'anthropic' && !baseURL) return 'claude';
+
+  // 如果有 baseURL，判断为 CCR 模式
+  if (baseURL) return 'ccr';
+
+  // 默认为 Claude
+  return 'claude';
+}
+
+/**
+ * 备份配置文件
+ */
+async function backupConfig(configPath: string): Promise<string> {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+  const backupPath = `${configPath}.backup-${timestamp}`;
+
+  try {
+    await fs.copy(configPath, backupPath);
+    console.log(`[Config Migration] 配置已备份至: ${backupPath}`);
+    return backupPath;
+  } catch (error) {
+    console.error('[Config Migration] 备份失败:', error);
+    throw new Error('配置备份失败，迁移中止');
+  }
+}
+
+/**
+ * 迁移 LLM 配置从扁平结构到嵌套结构
+ */
+function migrateLLMConfig(oldConfig: any): any {
+  if (!isOldConfigFormat(oldConfig)) {
+    // 已经是新格式，无需迁移
+    return oldConfig.llm;
+  }
+
+  console.log('[Config Migration] 检测到旧的 LLM 配置格式，开始迁移...');
+
+  const oldLLM = oldConfig.llm;
+  const activeProvider = inferActiveProvider(oldConfig);
+
+  console.log(`[Config Migration] 推断当前激活提供商: ${activeProvider}`);
+
+  // 创建新的嵌套配置结构
+  const newLLM: any = {
+    activeProvider,
+    claude: DEFAULT_CONFIG.llm.claude,
+    openai: DEFAULT_CONFIG.llm.openai,
+    ccr: DEFAULT_CONFIG.llm.ccr,
+  };
+
+  // 迁移当前激活提供商的配置
+  switch (activeProvider) {
+    case 'claude':
+      newLLM.claude = {
+        model: oldLLM.model || DEFAULT_CONFIG.llm.claude.model,
+        temperature: oldLLM.temperature ?? DEFAULT_CONFIG.llm.claude.temperature,
+        maxTokens: oldLLM.maxTokens ?? DEFAULT_CONFIG.llm.claude.maxTokens,
+        enablePromptCaching: oldLLM.enablePromptCaching ?? DEFAULT_CONFIG.llm.claude.enablePromptCaching,
+        apiVersion: oldLLM.anthropic?.apiVersion,
+      };
+      break;
+
+    case 'openai':
+      newLLM.openai = {
+        model: oldLLM.model || DEFAULT_CONFIG.llm.openai.model,
+        temperature: oldLLM.temperature ?? DEFAULT_CONFIG.llm.openai.temperature,
+        maxTokens: oldLLM.maxTokens ?? DEFAULT_CONFIG.llm.openai.maxTokens,
+        baseURL: oldLLM.baseURL,
+        apiKey: oldLLM.openai?.apiKey,
+        organization: oldLLM.openai?.organization,
+      };
+      break;
+
+    case 'ccr':
+      newLLM.ccr = {
+        model: oldLLM.model || DEFAULT_CONFIG.llm.ccr.model,
+        temperature: oldLLM.temperature ?? DEFAULT_CONFIG.llm.ccr.temperature,
+        maxTokens: oldLLM.maxTokens ?? DEFAULT_CONFIG.llm.ccr.maxTokens,
+        baseURL: oldLLM.baseURL || DEFAULT_CONFIG.llm.ccr.baseURL,
+      };
+      break;
+  }
+
+  console.log('[Config Migration] LLM 配置迁移完成');
+  console.log(`[Config Migration] - 激活提供商: ${activeProvider}`);
+  console.log(`[Config Migration] - ${activeProvider} 模型: ${newLLM[activeProvider].model}`);
+
+  return newLLM;
 }
 
 /**
@@ -148,6 +294,11 @@ function migrateConfig(oldConfig: any): any {
   // 迁移 11: 添加 reminders 配置（如果不存在）
   if (!migrated.reminders) {
     migrated.reminders = DEFAULT_CONFIG.reminders;
+  }
+
+  // 迁移 12: LLM 配置从扁平结构迁移到嵌套结构
+  if (migrated.llm) {
+    migrated.llm = migrateLLMConfig(migrated);
   }
 
   return migrated;

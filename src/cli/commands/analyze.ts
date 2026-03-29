@@ -19,9 +19,17 @@ export async function analyzeCommand(options: { now?: boolean }): Promise<void> 
     // 加载配置检查LLM设置
     const config = await loadConfig();
 
-    // 如果未配置自定义baseURL,则需要ANTHROPIC_API_KEY
-    if (!config.llm.baseURL && !process.env.ANTHROPIC_API_KEY) {
-      throw new Error('缺少 ANTHROPIC_API_KEY 环境变量。请设置: export ANTHROPIC_API_KEY=your-api-key\n或在配置文件中设置 llm.baseURL 使用本地代理');
+    // 检查是否配置了自定义 baseURL (CCR 或 OpenAI 模式)
+    const hasCustomBaseURL =
+      config.llm.activeProvider === 'ccr' ||
+      (config.llm.activeProvider === 'openai' && config.llm.openai.baseURL);
+
+    // 如果使用 Claude 官方 API 且未配置自定义 baseURL，则需要 ANTHROPIC_API_KEY
+    if (!hasCustomBaseURL && !process.env.ANTHROPIC_API_KEY) {
+      throw new Error(
+        '缺少 ANTHROPIC_API_KEY 环境变量。请设置: export ANTHROPIC_API_KEY=your-api-key\n' +
+        '或在配置文件中设置 llm.activeProvider 为 "ccr" 或 "openai" 使用自定义 API'
+      );
     }
 
     // 运行分析流程（通过统一的 AnalysisExecutor）

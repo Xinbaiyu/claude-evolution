@@ -72,40 +72,51 @@ const WebUIConfigSchema = z.object({
 });
 
 /**
- * LLM 配置
+ * LLM 提供商类型
+ */
+export type ActiveProvider = 'claude' | 'openai' | 'ccr';
+
+/**
+ * Claude 提供商配置
+ */
+const ClaudeConfigSchema = z.object({
+  model: z.string().min(1).default('claude-sonnet-4-6'),
+  temperature: z.number().min(0).max(1).default(0.3),
+  maxTokens: z.number().default(4096),
+  enablePromptCaching: z.boolean().default(true),
+  apiVersion: z.string().optional(),
+});
+
+/**
+ * OpenAI 提供商配置
+ */
+const OpenAIConfigSchema = z.object({
+  model: z.string().min(1).default('gpt-4-turbo'),
+  temperature: z.number().min(0).max(1).default(0.3),
+  maxTokens: z.number().default(4096),
+  baseURL: z.string().nullish().transform(val => val === null ? undefined : val),
+  apiKey: z.string().optional(),
+  organization: z.string().optional(),
+});
+
+/**
+ * CCR 提供商配置
+ */
+const CCRConfigSchema = z.object({
+  model: z.string().min(1).default('claude-sonnet-4-6'),
+  temperature: z.number().min(0).max(1).default(0.3),
+  maxTokens: z.number().default(4096),
+  baseURL: z.string().min(1).default('http://localhost:3456'),
+});
+
+/**
+ * LLM 配置（嵌套结构）
  */
 const LLMSchema = z.object({
-  // LLM 提供商类型（可选，未指定时自动检测）
-  // 自动检测规则：baseURL → CCR (Anthropic), env vars → provider
-  provider: z.enum(['anthropic', 'openai']).optional(),
-
-  // 模型名称
-  // 支持任意模型名称，包括：
-  // - Claude 系列: claude-sonnet-4-6, claude-opus-4-6, claude-haiku-4-5, etc.
-  // - OpenAI 系列: gpt-4-turbo, gpt-4, gpt-3.5-turbo, etc.
-  // - 国产模型: qwen-turbo, deepseek-chat, etc.
-  // - Azure OpenAI: 自定义部署名
-  // - Ollama: 自定义模型名 (llama2:13b, etc.)
-  model: z.string().min(1).default('claude-sonnet-4-6'),
-
-  maxTokens: z.number().default(4096),
-  temperature: z.number().min(0).max(1).default(0.3),
-
-  // Prompt Caching（仅 Anthropic 支持）
-  enablePromptCaching: z.boolean().default(true),
-
-  // 自定义 API 配置
-  baseURL: z.string().nullish().transform(val => val === null ? undefined : val), // CCR 代理端点或自定义 API 地址
-  defaultHeaders: z.record(z.string()).optional(), // 自定义请求头（用于代理认证）
-
-  // Provider 特定配置
-  anthropic: z.object({
-    apiVersion: z.string().optional(), // Anthropic API 版本
-  }).optional(),
-  openai: z.object({
-    apiKey: z.string().optional(), // OpenAI API Key (优先级高于环境变量)
-    organization: z.string().optional(), // OpenAI 组织 ID
-  }).optional(),
+  activeProvider: z.enum(['claude', 'openai', 'ccr']).default('claude'),
+  claude: ClaudeConfigSchema,
+  openai: OpenAIConfigSchema,
+  ccr: CCRConfigSchema,
 });
 
 /**
@@ -292,6 +303,12 @@ export const ConfigSchema = z.object({
 
 export type Config = z.infer<typeof ConfigSchema>;
 
+// LLM 配置类型导出
+export type ClaudeConfig = z.infer<typeof ClaudeConfigSchema>;
+export type OpenAIConfig = z.infer<typeof OpenAIConfigSchema>;
+export type CCRConfig = z.infer<typeof CCRConfigSchema>;
+export type LLMConfig = z.infer<typeof LLMSchema>;
+
 /**
  * 默认配置
  */
@@ -387,10 +404,27 @@ export const DEFAULT_CONFIG: Config = {
     },
   },
   llm: {
-    model: 'claude-sonnet-4-6',
-    maxTokens: 4096,
-    temperature: 0.3,
-    enablePromptCaching: true,
+    activeProvider: 'claude' as ActiveProvider,
+    claude: {
+      model: 'claude-sonnet-4-6',
+      temperature: 0.3,
+      maxTokens: 4096,
+      enablePromptCaching: true,
+    },
+    openai: {
+      model: 'gpt-4-turbo',
+      temperature: 0.3,
+      maxTokens: 4096,
+      baseURL: undefined,
+      apiKey: undefined,
+      organization: undefined,
+    },
+    ccr: {
+      model: 'claude-sonnet-4-6',
+      temperature: 0.3,
+      maxTokens: 4096,
+      baseURL: 'http://localhost:3456',
+    },
   },
   httpApi: {
     baseUrl: 'http://localhost:37777',

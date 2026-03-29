@@ -30,10 +30,32 @@ export async function configListCommand(): Promise<void> {
 
   // LLM
   console.log(chalk.bold.yellow('\nLLM:'));
-  console.log(`  模型: ${config.llm.model}`);
-  console.log(`  温度: ${config.llm.temperature}`);
-  console.log(`  最大 tokens: ${config.llm.maxTokens}`);
-  console.log(`  Prompt缓存: ${config.llm.enablePromptCaching ? '启用' : '禁用'}`);
+  console.log(`  当前提供商: ${config.llm.activeProvider}`);
+
+  // 根据 activeProvider 显示对应配置
+  const { activeProvider } = config.llm;
+  switch (activeProvider) {
+    case 'claude':
+      console.log(`  模型: ${config.llm.claude.model}`);
+      console.log(`  温度: ${config.llm.claude.temperature}`);
+      console.log(`  最大 tokens: ${config.llm.claude.maxTokens}`);
+      console.log(`  Prompt缓存: ${config.llm.claude.enablePromptCaching ? '启用' : '禁用'}`);
+      break;
+    case 'openai':
+      console.log(`  模型: ${config.llm.openai.model}`);
+      console.log(`  温度: ${config.llm.openai.temperature}`);
+      console.log(`  最大 tokens: ${config.llm.openai.maxTokens}`);
+      if (config.llm.openai.baseURL) {
+        console.log(`  Base URL: ${config.llm.openai.baseURL}`);
+      }
+      break;
+    case 'ccr':
+      console.log(`  模型: ${config.llm.ccr.model}`);
+      console.log(`  温度: ${config.llm.ccr.temperature}`);
+      console.log(`  最大 tokens: ${config.llm.ccr.maxTokens}`);
+      console.log(`  Base URL: ${config.llm.ccr.baseURL}`);
+      break;
+  }
 
   // HTTP API
   console.log(chalk.bold.yellow('\nHTTP API:'));

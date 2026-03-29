@@ -35,11 +35,30 @@ export async function extractExperience(
   }
 
   logger.info('开始使用 LLM 提取经验...');
-  logger.debug(`模型: ${config.llm.model}`);
-  logger.debug(`温度: ${config.llm.temperature}`);
-  logger.debug(`最大 tokens: ${config.llm.maxTokens}`);
-  if (config.llm.baseURL) {
-    logger.debug(`使用自定义 baseURL: ${config.llm.baseURL}`);
+  const { activeProvider } = config.llm;
+
+  // 根据 activeProvider 获取对应的配置
+  let providerConfig: { model: string; temperature: number; maxTokens: number; baseURL?: string };
+  switch (activeProvider) {
+    case 'claude':
+      providerConfig = config.llm.claude;
+      break;
+    case 'openai':
+      providerConfig = { ...config.llm.openai, baseURL: config.llm.openai.baseURL || undefined };
+      break;
+    case 'ccr':
+      providerConfig = config.llm.ccr;
+      break;
+    default:
+      throw new Error(`Unknown activeProvider: ${activeProvider}`);
+  }
+
+  logger.debug(`提供商: ${activeProvider}`);
+  logger.debug(`模型: ${providerConfig.model}`);
+  logger.debug(`温度: ${providerConfig.temperature}`);
+  logger.debug(`最大 tokens: ${providerConfig.maxTokens}`);
+  if (providerConfig.baseURL) {
+    logger.debug(`使用自定义 baseURL: ${providerConfig.baseURL}`);
   }
 
   if (promptsContext) {
@@ -130,8 +149,12 @@ async function extractFromBatch(
     },
   ];
 
-  // 构建系统消息 (支持 prompt caching)
-  const system: any = config.llm.enablePromptCaching
+  // 构建系统消息 (支持 prompt caching - 仅 Claude 提供商)
+  const enablePromptCaching = config.llm.activeProvider === 'claude'
+    ? config.llm.claude.enablePromptCaching
+    : false;
+
+  const system: any = enablePromptCaching
     ? [
         {
           type: 'text',
@@ -141,18 +164,32 @@ async function extractFromBatch(
       ]
     : SYSTEM_MESSAGE;
 
+  // 根据 activeProvider 获取配置
+  const activeConfig = (() => {
+    switch (config.llm.activeProvider) {
+      case 'claude':
+        return config.llm.claude;
+      case 'openai':
+        return config.llm.openai;
+      case 'ccr':
+        return config.llm.ccr;
+      default:
+        throw new Error(`Unknown activeProvider: ${config.llm.activeProvider}`);
+    }
+  })();
+
   // 调用 API (使用重试机制)
   const response = await withLLMRetry(
     () => anthropic.messages.create({
-      model: config.llm.model, // 直接使用配置的模型名
-      max_tokens: config.llm.maxTokens,
-      temperature: config.llm.temperature,
+      model: activeConfig.model,
+      max_tokens: activeConfig.maxTokens,
+      temperature: activeConfig.temperature,
       system,
       messages,
     }),
     {
       context: 'Experience Extraction',
-      baseURL: config.llm.baseURL,
+      baseURL: 'baseURL' in activeConfig ? activeConfig.baseURL : undefined,
     }
   );
 

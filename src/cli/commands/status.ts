@@ -180,9 +180,26 @@ async function displayConfigStatus(evolutionDir: string): Promise<void> {
 
   try {
     const config = await loadConfig();
+
+    // 根据 activeProvider 获取模型名称
+    const { activeProvider } = config.llm;
+    const modelName = (() => {
+      switch (activeProvider) {
+        case 'claude':
+          return config.llm.claude.model;
+        case 'openai':
+          return config.llm.openai.model;
+        case 'ccr':
+          return config.llm.ccr.model;
+        default:
+          return 'unknown';
+      }
+    })();
+
     console.log(chalk.green('  ✓ 已初始化'));
     console.log(chalk.gray(`  配置文件: ${configPath}`));
-    console.log(chalk.gray(`  LLM 模型: ${config.llm.model}`));
+    console.log(chalk.gray(`  LLM 提供商: ${activeProvider}`));
+    console.log(chalk.gray(`  LLM 模型: ${modelName}`));
     console.log(chalk.gray(`  学习阶段: 观察 ${config.learningPhases.observation.durationDays} 天 → 建议 ${config.learningPhases.suggestion.durationDays} 天`));
   } catch (error) {
     console.log(chalk.red('  ❌ 配置文件损坏'));

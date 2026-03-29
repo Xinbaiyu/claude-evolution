@@ -12,96 +12,103 @@ const providerCache = new Map<string, LLMProvider>();
 
 /**
  * 生成缓存 key
- * @param provider 提供商类型
  * @param config 配置
  * @returns 缓存 key
  */
-function getCacheKey(provider: LLMProviderType, config: Config): string {
-  const llmConfig = config.llm;
-  return `${provider}:${llmConfig.baseURL || ''}:${llmConfig.model}`;
+function getCacheKey(config: Config): string {
+  const { activeProvider, claude, openai, ccr } = config.llm;
+
+  switch (activeProvider) {
+    case 'claude':
+      return `claude:${claude.model}:${claude.enablePromptCaching}`;
+    case 'openai':
+      return `openai:${openai.baseURL || ''}:${openai.model}`;
+    case 'ccr':
+      return `ccr:${ccr.baseURL}:${ccr.model}`;
+    default:
+      return `unknown:${activeProvider}`;
+  }
 }
 
 /**
- * 检测 LLM 提供商类型
+ * 验证提供商配置是否存在
  * @param config 系统配置
- * @returns 提供商类型
  */
-function detectProvider(config: Config): LLMProviderType {
-  const llmConfig = config.llm;
+function validateProviderConfig(config: Config): void {
+  const { activeProvider, claude, openai, ccr } = config.llm;
 
-  // 1. 显式指定 provider
-  if ('provider' in llmConfig && llmConfig.provider) {
-    const provider = llmConfig.provider as string;
-    if (provider !== 'anthropic' && provider !== 'openai') {
-      throw new Error(
-        `Invalid llm.provider: "${provider}". Supported providers: "anthropic", "openai"`
-      );
-    }
-    return provider as LLMProviderType;
+  if (!activeProvider) {
+    throw new Error('config.llm.activeProvider is required');
   }
 
-  // 2. 根据 baseURL 推断（CCR 模式）
-  if (llmConfig.baseURL) {
-    return 'anthropic';
+  switch (activeProvider) {
+    case 'claude':
+      if (!claude) {
+        throw new Error('config.llm.claude configuration is missing');
+      }
+      break;
+    case 'openai':
+      if (!openai) {
+        throw new Error('config.llm.openai configuration is missing');
+      }
+      break;
+    case 'ccr':
+      if (!ccr) {
+        throw new Error('config.llm.ccr configuration is missing');
+      }
+      if (!ccr.baseURL) {
+        throw new Error('config.llm.ccr.baseURL is required for CCR provider');
+      }
+      break;
+    default:
+      throw new Error(`Invalid activeProvider: "${activeProvider}". Must be "claude", "openai", or "ccr"`);
   }
-
-  // 3. 根据环境变量推断
-  if (process.env.ANTHROPIC_API_KEY) {
-    return 'anthropic';
-  }
-
-  if (process.env.OPENAI_API_KEY) {
-    return 'openai';
-  }
-
-  // 4. 无法推断，抛出错误
-  throw new Error(
-    'Cannot determine LLM provider. Please configure one of:\n' +
-      '  - Set llm.provider in config (e.g., "anthropic" or "openai")\n' +
-      '  - Set llm.baseURL for CCR proxy mode\n' +
-      '  - Set ANTHROPIC_API_KEY environment variable\n' +
-      '  - Set OPENAI_API_KEY environment variable'
-  );
 }
 
 /**
- * 创建 Anthropic 提供商
+ * 创建 Claude 提供商（官方 API）
  * @param config 系统配置
- * @returns Anthropic 提供商实例
+ * @returns Claude 提供商实例
  */
-function createAnthropicProvider(config: Config): LLMProvider {
-  const llmConfig = config.llm;
+function createClaudeProvider(config: Config): LLMProvider {
+  const claudeConfig = config.llm.claude;
 
   return new AnthropicProvider({
     apiKey: process.env.ANTHROPIC_API_KEY,
-    baseURL: llmConfig.baseURL,
-    defaultHeaders: llmConfig.defaultHeaders,
-    enablePromptCaching: llmConfig.enablePromptCaching,
+    baseURL: undefined, // Claude 官方 API 不使用自定义 baseURL
+    enablePromptCaching: claudeConfig.enablePromptCaching,
   });
 }
 
 /**
- * 创建 OpenAI 提供商（延迟加载）
+ * 创建 OpenAI 提供商
  * @param config 系统配置
  * @returns OpenAI 提供商实例
  */
 async function createOpenAIProvider(config: Config): Promise<LLMProvider> {
-  try {
-    const { OpenAIProvider } = await import('./providers/openai.js');
-    const llmConfig = config.llm;
+  const { OpenAIProvider } = await import('./providers/openai.js');
+  const openaiConfig = config.llm.openai;
 
-    return await OpenAIProvider.create({
-      apiKey: process.env.OPENAI_API_KEY,
-      baseURL: llmConfig.baseURL,
-      organization: llmConfig.openai?.organization,
-    });
-  } catch (error) {
-    throw new Error(
-      'OpenAI provider requires "openai" package. Install it with:\n' +
-        '  npm install openai\n' +
-        'Or set llm.provider to "anthropic" to use Anthropic provider.'
-    );
-  }
+  return await OpenAIProvider.create({
+    apiKey: openaiConfig.apiKey,
+    baseURL: openaiConfig.baseURL,
+    organization: openaiConfig.organization,
+  });
+}
+
+/**
+ * 创建 CCR 提供商（CCR Proxy）
+ * @param config 系统配置
+ * @returns CCR 提供商实例
+ */
+function createCCRProvider(config: Config): LLMProvider {
+  const ccrConfig = config.llm.ccr;
+
+  return new AnthropicProvider({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    baseURL: ccrConfig.baseURL,
+    enablePromptCaching: false, // CCR 模式通常不支持 prompt caching
+  });
 }
 
 /**
@@ -110,31 +117,37 @@ async function createOpenAIProvider(config: Config): Promise<LLMProvider> {
  * @returns LLM 提供商实例
  */
 export async function createLLMClient(config: Config): Promise<LLMProvider> {
-  // 检测提供商类型
-  const providerType = detectProvider(config);
+  // 验证配置有效性
+  validateProviderConfig(config);
+
+  const { activeProvider } = config.llm;
 
   // 生成缓存 key
-  const cacheKey = getCacheKey(providerType, config);
+  const cacheKey = getCacheKey(config);
 
   // 检查缓存
   if (providerCache.has(cacheKey)) {
     return providerCache.get(cacheKey)!;
   }
 
-  // 创建新实例
+  // 根据 activeProvider 创建对应的提供商实例
   let provider: LLMProvider;
 
-  switch (providerType) {
-    case 'anthropic':
-      provider = createAnthropicProvider(config);
+  switch (activeProvider) {
+    case 'claude':
+      provider = createClaudeProvider(config);
       break;
 
     case 'openai':
       provider = await createOpenAIProvider(config);
       break;
 
+    case 'ccr':
+      provider = createCCRProvider(config);
+      break;
+
     default:
-      throw new Error(`Unsupported provider: ${providerType}`);
+      throw new Error(`Unsupported activeProvider: ${activeProvider}`);
   }
 
   // 缓存实例

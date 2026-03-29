@@ -5,7 +5,7 @@ import os from 'os';
 import type { WebSocketManager } from '../websocket.js';
 import type { NotificationManager } from '../notifications.js';
 import { ProcessManager } from '../../../src/daemon/process-manager.js';
-import { getEvolutionDir } from '../../../src/config/loader.js';
+import { getEvolutionDir, loadConfig, saveConfig } from '../../../src/config/loader.js';
 import {
   AnalysisExecutor,
   AnalysisAlreadyRunningError,
@@ -210,12 +210,10 @@ router.get('/status', async (req: RequestWithManagers, res) => {
   }
 });
 
-// GET /api/config - 读取配置
+// GET /api/config - 读取配置（使用 loadConfig 触发配置迁移）
 router.get('/config', async (req, res) => {
   try {
-    const config = await fs.pathExists(CONFIG_FILE)
-      ? await fs.readJson(CONFIG_FILE)
-      : {};
+    const config = await loadConfig();
 
     res.json({
       success: true,
@@ -241,10 +239,8 @@ router.patch('/config', async (req, res) => {
       });
     }
 
-    // 读取现有配置
-    const currentConfig = await fs.pathExists(CONFIG_FILE)
-      ? await fs.readJson(CONFIG_FILE)
-      : {};
+    // 使用 loadConfig() 读取现有配置（触发迁移）
+    const currentConfig = await loadConfig();
 
     // 辅助函数：深度清理对象中的 null 值（表示删除字段）
     const cleanNullValues = (obj: any): any => {
@@ -324,9 +320,8 @@ router.patch('/config', async (req, res) => {
     console.log('[Config Update] Before clean:', JSON.stringify(newConfig.llm, null, 2));
     console.log('[Config Update] After clean:', JSON.stringify(cleanedConfig.llm, null, 2));
 
-    // 写入配置文件
-    await fs.ensureDir(CONFIG_DIR);
-    await fs.writeJson(CONFIG_FILE, cleanedConfig, { spaces: 2 });
+    // 使用 saveConfig() 写入配置文件（带验证）
+    await saveConfig(cleanedConfig);
 
     // 检测调度器配置变更并触发热重载
     const schedulerChanged = updates.scheduler !== undefined;
