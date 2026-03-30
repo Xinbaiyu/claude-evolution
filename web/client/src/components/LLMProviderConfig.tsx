@@ -127,15 +127,11 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
 
   // 同步外部 config 变化
   useEffect(() => {
-    console.log('[LLMProviderConfig] Syncing with initialConfig');
-    console.log('[LLMProviderConfig] initialConfig.llm?.activeProvider:', initialConfig?.llm?.activeProvider);
-
     setConfig(initialConfig);
 
     // 同步 activeProvider
     const activeProvider = initialConfig?.llm?.activeProvider;
     if (activeProvider) {
-      console.log('[LLMProviderConfig] Updating selectedMode to:', activeProvider);
       setSelectedMode(activeProvider as ProviderMode);
     }
   }, [initialConfig]);
@@ -213,22 +209,15 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
 
       {/* Provider 选择器 */}
       <div className="grid grid-cols-3 gap-4">
-        {(['claude', 'openai', 'ccr'] as ProviderMode[]).map((mode) => {
-          console.log(`[LLMProviderConfig] Rendering ${mode} card:`, {
-            selectedMode,
-            isSelected: selectedMode === mode,
-            configActiveProvider: config?.llm?.activeProvider,
-          });
-          return (
-            <ProviderCard
-              key={mode}
-              mode={mode}
-              selected={selectedMode === mode}
-              configured={isConfigured[mode]}
-              onSelect={() => handleProviderChange(mode)}
-            />
-          );
-        })}
+        {(['claude', 'openai', 'ccr'] as ProviderMode[]).map((mode) => (
+          <ProviderCard
+            key={mode}
+            mode={mode}
+            selected={selectedMode === mode}
+            configured={isConfigured[mode]}
+            onSelect={() => handleProviderChange(mode)}
+          />
+        ))}
       </div>
 
       {/* 配置表单区域 */}
