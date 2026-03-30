@@ -118,19 +118,25 @@ interface LLMProviderConfigProps {
 }
 
 export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: initialConfig, onSave }) => {
-  // 从配置读取当前激活提供商（不再使用 detectMode）
+  // 使用 initialConfig.llm?.activeProvider 作为初始值（这次真正使用它）
   const [selectedMode, setSelectedMode] = useState<ProviderMode>(
-    initialConfig.llm?.activeProvider || 'claude'
+    () => initialConfig?.llm?.activeProvider || 'claude'
   );
   const [config, setConfig] = useState(initialConfig);
   const isFirstRender = useRef(true);
 
   // 同步外部 config 变化
   useEffect(() => {
+    console.log('[LLMProviderConfig] Syncing with initialConfig');
+    console.log('[LLMProviderConfig] initialConfig.llm?.activeProvider:', initialConfig?.llm?.activeProvider);
+
     setConfig(initialConfig);
-    // 同步 activeProvider 到 selectedMode
-    if (initialConfig.llm?.activeProvider) {
-      setSelectedMode(initialConfig.llm.activeProvider);
+
+    // 同步 activeProvider
+    const activeProvider = initialConfig?.llm?.activeProvider;
+    if (activeProvider) {
+      console.log('[LLMProviderConfig] Updating selectedMode to:', activeProvider);
+      setSelectedMode(activeProvider as ProviderMode);
     }
   }, [initialConfig]);
 
@@ -207,15 +213,22 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
 
       {/* Provider 选择器 */}
       <div className="grid grid-cols-3 gap-4">
-        {(['claude', 'openai', 'ccr'] as ProviderMode[]).map((mode) => (
-          <ProviderCard
-            key={mode}
-            mode={mode}
-            selected={selectedMode === mode}
-            configured={isConfigured[mode]}
-            onSelect={() => handleProviderChange(mode)}
-          />
-        ))}
+        {(['claude', 'openai', 'ccr'] as ProviderMode[]).map((mode) => {
+          console.log(`[LLMProviderConfig] Rendering ${mode} card:`, {
+            selectedMode,
+            isSelected: selectedMode === mode,
+            configActiveProvider: config?.llm?.activeProvider,
+          });
+          return (
+            <ProviderCard
+              key={mode}
+              mode={mode}
+              selected={selectedMode === mode}
+              configured={isConfigured[mode]}
+              onSelect={() => handleProviderChange(mode)}
+            />
+          );
+        })}
       </div>
 
       {/* 配置表单区域 */}
