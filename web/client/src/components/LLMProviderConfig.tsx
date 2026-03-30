@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ConfigProvider, theme, Select, Slider, InputNumber, Checkbox, Input } from 'antd';
+import { apiClient } from '../api/client';
+import { toast } from './Toast';
 
 // Provider 类型定义
 type ProviderMode = 'claude' | 'openai' | 'ccr';
@@ -125,6 +127,12 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
   const [config, setConfig] = useState(initialConfig);
   const isFirstRender = useRef(true);
 
+  // OpenAI 验证状态
+  const [verifying, setVerifying] = useState(false);
+  const [verifiedModels, setVerifiedModels] = useState<string[] | null>(null);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [useCustomModel, setUseCustomModel] = useState(false);
+
   // 同步外部 config 变化
   useEffect(() => {
     setConfig(initialConfig);
@@ -168,6 +176,61 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
       },
     });
   };
+
+  // OpenAI 验证处理函数
+  const handleVerifyOpenAI = async () => {
+    const baseURL = config.llm?.openai?.baseURL;
+    const apiKey = config.llm?.openai?.apiKey;
+
+    if (!baseURL && !apiKey) {
+      toast.error('请先填写 Base URL 或 API Key');
+      return;
+    }
+
+    setVerifying(true);
+    setVerifyError(null);
+
+    try {
+      const result = await apiClient.verifyOpenAIConnection({
+        baseURL,
+        apiKey,
+        organization: config.llm?.openai?.organization,
+      });
+
+      if (result.success && result.models) {
+        // 提取模型 ID 列表
+        const modelIds = result.models.map(m => m.id);
+
+        setVerifiedModels(modelIds);
+        setUseCustomModel(false);
+        toast.success(`连接成功，发现 ${modelIds.length} 个可用模型`);
+
+        // 如果当前模型为空，自动选择第一个模型
+        if (!config.llm?.openai?.model && modelIds.length > 0) {
+          updateProviderConfig('openai', { model: modelIds[0] });
+        }
+      } else {
+        setVerifyError(result.error || '验证失败');
+        toast.error(result.error || '验证失败');
+      }
+    } catch (error: any) {
+      const errorMsg = error.message || '网络请求失败';
+      setVerifyError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleToggleCustomModel = () => {
+    setUseCustomModel(!useCustomModel);
+  };
+
+  // 当 baseURL 或 apiKey 变化时，重置验证状态
+  useEffect(() => {
+    setVerifiedModels(null);
+    setVerifyError(null);
+  }, [config.llm?.openai?.baseURL, config.llm?.openai?.apiKey]);
 
   // 当配置变化时通知父组件
   useEffect(() => {
@@ -371,20 +434,80 @@ export const LLMProviderConfig: React.FC<LLMProviderConfigProps> = ({ config: in
                 </p>
               </div>
 
-              {/* Model 输入 */}
+              {/* 验证连接按钮 */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleVerifyOpenAI}
+                  disabled={verifying || (!config.llm?.openai?.baseURL && !config.llm?.openai?.apiKey)}
+                  className="rounded-lg border-2 border-green-500/50 text-green-400 hover:bg-green-500/10 px-4 py-2 font-mono text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {verifying ? (
+                    <>
+                      <span className="animate-spin">⏳</span>
+                      验证中...
+                    </>
+                  ) : (
+                    <>
+                      <span>🔍</span>
+                      验证连接 & 获取模型
+                    </>
+                  )}
+                </button>
+                {verifiedModels && !useCustomModel && (
+                  <button
+                    onClick={handleToggleCustomModel}
+                    className="text-xs text-green-400/70 hover:text-green-400 underline"
+                  >
+                    使用自定义模型名
+                  </button>
+                )}
+              </div>
+
+              {/* Model 字段 - 条件渲染 */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   Model
+                  {verifiedModels && !useCustomModel && (
+                    <span className="ml-2 text-xs text-green-400">
+                      ✓ 已验证 ({verifiedModels.length} 个模型)
+                    </span>
+                  )}
                 </label>
-                <Input
-                  value={config.llm?.openai?.model || ''}
-                  onChange={(e) => updateProviderConfig('openai', { model: e.target.value })}
-                  onFocus={(e) => e.target.select()}
-                  placeholder="gpt-4-turbo, deepseek-chat, qwen-turbo..."
-                  className="w-full font-mono"
-                />
+
+                {verifiedModels && !useCustomModel ? (
+                  <Select
+                    value={config.llm?.openai?.model || ''}
+                    onChange={(value) => updateProviderConfig('openai', { model: value })}
+                    options={verifiedModels.map(model => ({ value: model, label: model }))}
+                    placeholder="选择模型..."
+                    className="w-full"
+                    showSearch
+                    filterOption={(input, option) =>
+                      (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
+                  />
+                ) : (
+                  <Input
+                    value={config.llm?.openai?.model || ''}
+                    onChange={(e) => updateProviderConfig('openai', { model: e.target.value })}
+                    onFocus={(e) => e.target.select()}
+                    placeholder="gpt-4-turbo, deepseek-chat, qwen-turbo..."
+                    className="w-full font-mono"
+                    disabled={verifying}
+                  />
+                )}
+
+                {verifyError && (
+                  <div className="mt-2 p-2 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-xs">
+                    <span className="font-bold">❌ 验证失败:</span> {verifyError}
+                  </div>
+                )}
+
                 <p className="text-xs text-slate-400 mt-1">
-                  💡 支持任意模型名称：gpt-4-turbo, deepseek-chat, qwen-turbo, Azure 部署名等
+                  💡 {verifiedModels && !useCustomModel
+                    ? '已从 API 获取可用模型列表'
+                    : '支持任意模型名称：gpt-4-turbo, deepseek-chat, qwen-turbo, Azure 部署名等'
+                  }
                 </p>
               </div>
 

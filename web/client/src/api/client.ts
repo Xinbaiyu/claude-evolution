@@ -31,6 +31,21 @@ export interface SystemStatus {
   };
 }
 
+export interface OpenAIModel {
+  id: string;
+  created: number;
+  owned_by: string;
+}
+
+export interface VerifyOpenAIResponse {
+  success: boolean;
+  models?: OpenAIModel[];
+  count?: number;
+  error?: string;
+  details?: string;
+  errorType?: 'auth' | 'network' | 'invalid_url' | 'unknown';
+}
+
 export interface LearningStats {
   pools: {
     active: {
@@ -385,6 +400,38 @@ export const apiClient = {
       body: JSON.stringify(webhook),
     });
     return response.data ?? { success: response.success, error: response.error };
+  },
+
+  /**
+   * 验证 OpenAI API 连接并获取可用模型列表
+   */
+  async verifyOpenAIConnection(params: {
+    baseURL?: string;
+    apiKey?: string;
+    organization?: string;
+  }): Promise<VerifyOpenAIResponse> {
+    const response = await request<{
+      models: OpenAIModel[];
+      count: number;
+    }>('/llm/verify', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+
+    if (!response.success) {
+      return {
+        success: false,
+        error: response.error,
+        details: (response as any).details,
+        errorType: (response as any).errorType,
+      };
+    }
+
+    return {
+      success: true,
+      models: response.data?.models || [],
+      count: response.data?.count || 0,
+    };
   },
 
   /**

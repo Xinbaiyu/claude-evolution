@@ -423,6 +423,107 @@ router.post('/webhook/test', async (req, res) => {
   }
 });
 
+// POST /api/llm/verify - 验证 LLM API 连接并获取模型列表
+router.post('/llm/verify', async (req, res) => {
+  try {
+    const { baseURL, apiKey, organization } = req.body;
+
+    // 验证：至少需要 baseURL 或 apiKey 之一
+    if (!baseURL && !apiKey) {
+      return res.status(400).json({
+        success: false,
+        error: '请提供 baseURL 或 apiKey',
+      });
+    }
+
+    // 动态导入 OpenAI SDK
+    const { OpenAI } = await import('openai');
+
+    // 创建临时客户端
+    const client = new OpenAI({
+      apiKey: apiKey || process.env.OPENAI_API_KEY,
+      ...(baseURL && { baseURL }),
+      ...(organization && { organization }),
+    });
+
+    // 调用模型列表 API
+    const response = await client.models.list();
+
+    // 过滤并格式化模型列表
+    const allModels = response.data.map((model: any) => ({
+      id: model.id,
+      created: model.created,
+      owned_by: model.owned_by,
+    }));
+
+    // 过滤：仅保留聊天模型（排除 embedding, whisper, tts, dall-e 等）
+    const chatModels = allModels.filter((m: any) =>
+      !m.id.includes('embedding') &&
+      !m.id.includes('whisper') &&
+      !m.id.includes('tts') &&
+      !m.id.includes('dall-e') &&
+      !m.id.includes('babbage') &&  // 旧模型
+      !m.id.includes('davinci') &&  // 旧模型
+      !m.id.includes('curie') &&    // 旧模型
+      !m.id.includes('ada')         // 旧模型
+    );
+
+    // 按创建时间倒序排序（新模型在前）
+    chatModels.sort((a: any, b: any) => b.created - a.created);
+
+    console.log(`[LLM Verify] 验证成功，发现 ${chatModels.length} 个聊天模型`);
+
+    res.json({
+      success: true,
+      data: {
+        models: chatModels,
+        count: chatModels.length,
+      },
+    });
+  } catch (error: any) {
+    // 错误分类
+    let errorMessage = '验证失败';
+    let errorType = 'unknown';
+    let statusCode = 500;
+
+    if (error.status === 401 || error.message?.includes('Incorrect API key')) {
+      errorMessage = 'API Key 无效';
+      errorType = 'auth';
+      statusCode = 401;
+    } else if (error.status === 403) {
+      errorMessage = '访问被拒绝，请检查 API Key 权限';
+      errorType = 'auth';
+      statusCode = 403;
+    } else if (error.code === 'ENOTFOUND') {
+      errorMessage = '无法连接到指定的 Base URL';
+      errorType = 'network';
+      statusCode = 503;
+    } else if (error.code === 'ECONNREFUSED') {
+      errorMessage = '连接被拒绝，请检查 Base URL 是否正确';
+      errorType = 'network';
+      statusCode = 503;
+    } else if (error.message?.includes('Invalid URL')) {
+      errorMessage = 'Base URL 格式无效';
+      errorType = 'invalid_url';
+      statusCode = 400;
+    }
+
+    console.error('[LLM Verify] 验证失败:', {
+      errorType,
+      message: error.message,
+      status: error.status,
+      code: error.code,
+    });
+
+    res.status(statusCode).json({
+      success: false,
+      error: errorMessage,
+      details: error.message,
+      errorType,
+    });
+  }
+});
+
 // POST /api/analyze - 手动触发分析
 router.post('/analyze', async (req: RequestWithManagers, res) => {
   try {
