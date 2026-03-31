@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ Features
+
+#### Simplified Init Command
+Simplified the initialization flow from 10-30+ questions to just 3-5 questions with sensible defaults.
+
+**Changes**:
+- **P0 Configuration (Required)**: LLM Provider selection only (Claude/OpenAI-Compatible/CCR)
+- **P1 Configuration (Optional with defaults)**: Scheduler settings + WebUI port
+- **P2 Configuration (Moved to WebUI)**: Model tuning, Learning capacity, Reminders, Bot integrations, and all advanced options
+
+**New Functions**:
+- `promptLLMProvider()`: Three-option provider selection with minimal follow-up questions
+- `promptScheduler()`: Preserved 4-option scheduler configuration (24h/12h/6h/timepoints)
+- `promptWebUIPort()`: Simple port configuration with validation
+- `question()`: Readline wrapper helper function
+- `printNextSteps()`: Enhanced completion message guiding users to WebUI for P2 configs
+
+**UX Improvements**:
+- Configuration time reduced from 5-15 minutes to 1-3 minutes
+- All prompts provide defaults - users can press Enter throughout for quick init
+- Completion message explicitly lists all WebUI-configurable options
+- Provider-specific API key setup instructions
+
+**Backward Compatibility**:
+- Existing `config.json` files remain valid
+- Users can re-run init to update configuration
+- ConfigSchema structure unchanged
+
 ### 🔧 Refactoring
 
 #### Unified LLM Client Factory
