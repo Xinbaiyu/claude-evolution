@@ -4,6 +4,252 @@ import os from 'os';
 import chalk from 'chalk';
 import { saveConfig, getEvolutionDir, DEFAULT_CONFIG } from '../../config/index.js';
 import { logger } from '../../utils/index.js';
+import type { ActiveProvider, LLMConfig } from '../../config/schema.js';
+import { createInterface } from 'readline';
+
+/**
+ * 辅助函数：封装 readline 问题提示
+ */
+async function question(rl: any, prompt: string, defaultValue?: string): Promise<string> {
+  return new Promise((resolve) => {
+    rl.question(prompt, (answer: string) => {
+      const trimmed = answer.trim();
+      resolve(trimmed || defaultValue || '');
+    });
+  });
+}
+
+/**
+ * P0 配置：LLM Provider 选择
+ */
+async function promptLLMProvider(rl: any): Promise<LLMConfig> {
+  console.log(chalk.bold.cyan('\n📡 LLM Provider 配置\n'));
+  console.log(chalk.gray('请选择您使用的 LLM Provider:\n'));
+
+  console.log(chalk.white('[1] Claude Official API (推荐)'));
+  console.log(chalk.gray('    → 直接连接 Anthropic API'));
+  console.log(chalk.gray('    → 需要 Anthropic API Key (ANTHROPIC_API_KEY)\n'));
+
+  console.log(chalk.white('[2] OpenAI-Compatible API'));
+  console.log(chalk.gray('    → 支持 OpenAI、DeepSeek、Qwen、Azure OpenAI 等'));
+  console.log(chalk.gray('    → 需要 API Key + Base URL\n'));
+
+  console.log(chalk.white('[3] CCR Proxy'));
+  console.log(chalk.gray('    → 通过 claude-code-router 连接'));
+  console.log(chalk.gray('    → 需要本地运行 CCR 服务\n'));
+
+  const choice = await question(
+    rl,
+    chalk.cyan('您的选择 [1/2/3]: ') + chalk.gray('(默认: 1) '),
+    '1'
+  );
+
+  switch (choice) {
+    case '2': {
+      // OpenAI-Compatible provider
+      console.log(chalk.blue('\n配置 OpenAI-Compatible Provider'));
+      const baseURL = await question(
+        rl,
+        chalk.cyan('Base URL: ') + chalk.gray('(默认: https://api.openai.com) '),
+        'https://api.openai.com'
+      );
+      const model = await question(
+        rl,
+        chalk.cyan('Model: ') + chalk.gray('(默认: gpt-4-turbo) '),
+        'gpt-4-turbo'
+      );
+
+      console.log(chalk.gray('\n提示: API Key 请通过环境变量 OPENAI_API_KEY 设置'));
+
+      return {
+        activeProvider: 'openai',
+        claude: DEFAULT_CONFIG.llm.claude,
+        openai: {
+          ...DEFAULT_CONFIG.llm.openai,
+          baseURL,
+          model,
+        },
+        ccr: DEFAULT_CONFIG.llm.ccr,
+      };
+    }
+
+    case '3': {
+      // CCR Proxy provider
+      console.log(chalk.blue('\n配置 CCR Proxy Provider'));
+      const baseURL = await question(
+        rl,
+        chalk.cyan('CCR Base URL: ') + chalk.gray('(默认: http://localhost:3456) '),
+        'http://localhost:3456'
+      );
+
+      console.log(chalk.gray('\n提示: 请确保 claude-code-router 正在运行'));
+
+      return {
+        activeProvider: 'ccr',
+        claude: DEFAULT_CONFIG.llm.claude,
+        openai: DEFAULT_CONFIG.llm.openai,
+        ccr: {
+          ...DEFAULT_CONFIG.llm.ccr,
+          baseURL,
+        },
+      };
+    }
+
+    default: {
+      // Claude Official provider (default)
+      console.log(chalk.blue('\n✓ 使用 Claude Official API'));
+      console.log(chalk.gray('提示: API Key 请通过环境变量 ANTHROPIC_API_KEY 设置'));
+
+      return {
+        activeProvider: 'claude',
+        claude: DEFAULT_CONFIG.llm.claude,
+        openai: DEFAULT_CONFIG.llm.openai,
+        ccr: DEFAULT_CONFIG.llm.ccr,
+      };
+    }
+  }
+}
+
+/**
+ * P1 配置：Scheduler 时间点输入
+ */
+async function promptScheduleTimes(rl: any): Promise<string[]> {
+  const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+  while (true) {
+    const input = await question(
+      rl,
+      chalk.cyan('请输入分析时间点 (HH:MM格式，逗号分隔): ') + chalk.gray('例如: 09:00, 13:00, 18:00\n> '),
+      ''
+    );
+
+    const times = input.split(',').map(t => t.trim()).filter(Boolean);
+
+    if (times.length === 0) {
+      console.log(chalk.red('至少需要输入一个时间点'));
+      continue;
+    }
+
+    if (times.length > 12) {
+      console.log(chalk.red('最多支持 12 个时间点'));
+      continue;
+    }
+
+    const invalidTimes = times.filter(t => !timeRegex.test(t));
+    if (invalidTimes.length > 0) {
+      console.log(chalk.red(`无效的时间格式: ${invalidTimes.join(', ')} (请使用 HH:MM 格式，如 09:00)`));
+      continue;
+    }
+
+    const sorted = times.sort();
+    console.log(chalk.green(`✓ 已设置 ${sorted.length} 个时间点: ${sorted.join(', ')}`));
+    return sorted;
+  }
+}
+
+/**
+ * P1 配置：Scheduler 调度配置
+ */
+async function promptScheduler(rl: any) {
+  console.log(chalk.bold.cyan('\n⏰ 学习调度配置\n'));
+  console.log(chalk.gray('系统会定期分析 Claude 会话并提取经验。'));
+  console.log(chalk.gray('请选择调度模式:\n'));
+
+  console.log(chalk.white('[1] 每 24 小时 - 适合低频使用'));
+  console.log(chalk.white('[2] 每 12 小时 - 适合中频使用'));
+  console.log(chalk.white('[3] 每 6 小时 (推荐) - 及时响应'));
+  console.log(chalk.white('[4] 定时模式 - 指定每天的具体时间点\n'));
+
+  const choice = await question(
+    rl,
+    chalk.cyan('您的选择 [1/2/3/4]: ') + chalk.gray('(默认: 3) '),
+    '3'
+  );
+
+  let interval: string;
+  let scheduleTimes: string[] | undefined;
+
+  switch (choice) {
+    case '1':
+      interval = '24h';
+      break;
+    case '2':
+      interval = '12h';
+      break;
+    case '4':
+      interval = 'timepoints';
+      scheduleTimes = await promptScheduleTimes(rl);
+      break;
+    default:
+      interval = '6h';
+  }
+
+  return {
+    ...DEFAULT_CONFIG.scheduler,
+    interval,
+    ...(scheduleTimes && { scheduleTimes }),
+  };
+}
+
+/**
+ * P1 配置：WebUI 端口配置
+ */
+async function promptWebUIPort(rl: any) {
+  console.log(chalk.bold.cyan('\n🌐 Web UI 配置\n'));
+
+  const portStr = await question(
+    rl,
+    chalk.cyan('Web UI 端口: ') + chalk.gray('(默认: 10010) '),
+    '10010'
+  );
+
+  const port = parseInt(portStr, 10);
+
+  if (isNaN(port) || port < 1 || port > 65535) {
+    console.log(chalk.yellow('⚠️  无效端口，使用默认值 10010'));
+    return { port: 10010 };
+  }
+
+  return { port };
+}
+
+/**
+ * 完成提示：根据 provider 显示不同的下一步指引
+ */
+function printNextSteps(provider: ActiveProvider, port: number) {
+  console.log(chalk.bold.green('\n✅ 初始化完成!\n'));
+  console.log(chalk.bold('下一步:\n'));
+
+  // 1. API Key 设置提示
+  console.log(chalk.gray('1. 设置 API Key 环境变量:'));
+  switch (provider) {
+    case 'claude':
+      console.log(chalk.cyan('   export ANTHROPIC_API_KEY="sk-ant-xxx..."'));
+      break;
+    case 'openai':
+      console.log(chalk.cyan('   export OPENAI_API_KEY="sk-xxx..."'));
+      break;
+    case 'ccr':
+      console.log(chalk.cyan('   确保 claude-code-router 正在运行'));
+      console.log(chalk.cyan('   export ANTHROPIC_API_KEY="test-key"'));
+      break;
+  }
+
+  // 2. 启动守护进程
+  console.log(chalk.gray('\n2. 启动守护进程:'));
+  console.log(chalk.cyan('   claude-evolution start'));
+
+  // 3. WebUI 配置引导
+  console.log(chalk.gray(`\n3. 打开 Web UI 进行更多配置:`));
+  console.log(chalk.cyan(`   http://localhost:${port}/settings\n`));
+
+  console.log(chalk.gray('   可配置项:'));
+  console.log(chalk.gray('   • Model 和 Temperature 调优'));
+  console.log(chalk.gray('   • 学习容量和算法参数'));
+  console.log(chalk.gray('   • 提醒系统 (桌面通知/Webhook)'));
+  console.log(chalk.gray('   • 机器人集成 (钉钉/Claude Code)'));
+  console.log(chalk.gray('   • 日志级别和其他高级选项\n'));
+}
 
 /**
  * 初始化 claude-evolution 配置
@@ -22,28 +268,25 @@ export async function initCommand(): Promise<void> {
       chalk.gray(`配置目录: ${evolutionDir}`)
     );
 
-    const { createInterface } = await import('readline');
     const rl = createInterface({
       input: process.stdin,
       output: process.stdout,
     });
 
-    const answer = await new Promise<string>((resolve) => {
-      rl.question(
-        chalk.yellow('\n是否要重新初始化? (y/N): '),
-        (ans: string) => {
-          rl.close();
-          resolve(ans.toLowerCase());
-        }
-      );
-    });
+    const answer = await question(
+      rl,
+      chalk.yellow('\n是否要重新初始化? (y/N): '),
+      'n'
+    );
 
     if (answer !== 'y' && answer !== 'yes') {
       console.log(chalk.gray('初始化已取消。'));
+      rl.close();
       return;
     }
 
     console.log(chalk.yellow('\n⚠️  将清除现有配置并重新初始化...\n'));
+    rl.close();
   }
 
   // 创建目录结构
@@ -70,11 +313,28 @@ export async function initCommand(): Promise<void> {
     logger.success('✓ 已创建默认配置模板');
   }
 
-  // 询问并保存用户配置
-  console.log(chalk.bold.cyan('\n📡 API 配置模式:\n'));
-  const apiConfig = await promptForApiMode();
+  // P0/P1 配置提示
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
 
-  const config = await promptForConfig(apiConfig);
+  const llmConfig = await promptLLMProvider(rl);
+  const schedulerConfig = await promptScheduler(rl);
+  const webUIConfig = await promptWebUIPort(rl);
+
+  rl.close();
+
+  // 合并配置
+  const config = {
+    ...DEFAULT_CONFIG,
+    llm: llmConfig,
+    scheduler: schedulerConfig,
+    webUI: {
+      ...DEFAULT_CONFIG.webUI!,
+      port: webUIConfig.port,
+    },
+  };
 
   await saveConfig(config);
   logger.success(`✓ 配置已保存到 ${path.join(evolutionDir, 'config.json')}`);
@@ -83,30 +343,7 @@ export async function initCommand(): Promise<void> {
   await installSkillFiles();
 
   // 显示下一步提示
-  console.log(chalk.bold.green('\n✅ 初始化完成!\n'));
-  console.log(chalk.bold('下一步:'));
-
-  // 根据 API 模式显示不同的提示
-  if (config.llm.baseURL) {
-    // 路由器模式
-    console.log(chalk.gray('  1. 确保 claude-code-router 正在运行:'));
-    console.log(chalk.cyan(`     curl ${config.llm.baseURL}/api/config`));
-    console.log(chalk.gray('  2. 设置环境变量 (任意值即可):'));
-    console.log(chalk.cyan('     export ANTHROPIC_API_KEY="test-key"'));
-  } else {
-    // 标准模式
-    console.log(chalk.gray('  1. 设置 Anthropic API Key:'));
-    console.log(chalk.cyan('     export ANTHROPIC_API_KEY="sk-ant-xxx..."'));
-  }
-
-  console.log(chalk.gray('  ' + (config.llm.baseURL ? '3' : '2') + '. 启动守护进程:'));
-  console.log(chalk.cyan('     claude-evolution start --daemon'));
-  console.log(chalk.gray('  ' + (config.llm.baseURL ? '4' : '3') + '. 编辑配置模板 (可选 - 推荐使用 Web UI):'));
-  console.log(chalk.cyan(`     命令行: ${path.join(evolutionDir, 'source/')}`));
-  console.log(chalk.cyan(`     Web UI: http://localhost:10010/source-manager`));
-  console.log(chalk.gray('  ' + (config.llm.baseURL ? '5' : '4') + '. 运行首次分析:'));
-  console.log(chalk.cyan('     claude-evolution analyze --now'));
-  console.log(chalk.gray('  ' + (config.llm.baseURL ? '6' : '5') + '. 或等待定时任务自动运行\n'));
+  printNextSteps(llmConfig.activeProvider, webUIConfig.port);
 }
 
 /**
@@ -178,206 +415,6 @@ async function createDefaultTemplates(baseDir: string): Promise<void> {
   await fs.writeFile(path.join(sourceDir, 'CORE.md'), coreContent, 'utf-8');
   await fs.writeFile(path.join(sourceDir, 'STYLE.md'), styleContent, 'utf-8');
   await fs.writeFile(path.join(sourceDir, 'CODING.md'), codingContent, 'utf-8');
-}
-
-/**
- * 询问 API 配置模式
- */
-async function promptForApiMode(): Promise<{ baseURL?: string }> {
-  const { createInterface } = await import('readline');
-
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  const question = (prompt: string): Promise<string> => {
-    return new Promise((resolve) => {
-      rl.question(prompt, (answer: string) => {
-        resolve(answer);
-      });
-    });
-  };
-
-  // 显示选项
-  console.log(chalk.gray('请选择您的使用方式:\n'));
-  console.log(chalk.white('[1] 标准模式 (推荐)'));
-  console.log(chalk.gray('    直接连接 Anthropic API'));
-  console.log(chalk.gray('    • 需要: 真实的 Anthropic API Key'));
-  console.log(chalk.gray('    • 费用: 按 Anthropic 定价计费\n'));
-
-  console.log(chalk.white('[2] 路由器模式'));
-  console.log(chalk.gray('    通过 claude-code-router 转发'));
-  console.log(chalk.gray('    • 需要: 路由器运行在 localhost:3456'));
-  console.log(chalk.gray('    • 适用: 内部服务或自定义端点\n'));
-
-  const modeAnswer = await question(
-    chalk.cyan('您的选择 [1/2]: ') + chalk.gray('(默认: 1) ')
-  );
-
-  const mode = modeAnswer.trim() || '1';
-
-  const apiConfig: { baseURL?: string } = {};
-
-  if (mode === '2') {
-    // 路由器模式
-    console.log(chalk.blue('\n正在验证路由器连接...'));
-
-    const defaultRouterURL = 'http://127.0.0.1:3456';
-
-    // 询问是否使用默认端口
-    const customAnswer = await question(
-      chalk.cyan('使用默认端口 3456? (Y/n): ')
-    );
-
-    let routerURL = defaultRouterURL;
-
-    if (customAnswer.toLowerCase() === 'n') {
-      const urlAnswer = await question(
-        chalk.cyan('请输入路由器地址 (如 http://localhost:8080): ')
-      );
-      routerURL = urlAnswer.trim() || defaultRouterURL;
-    }
-
-    // 验证路由器连接
-    try {
-      const response = await fetch(`${routerURL}/api/config`, {
-        signal: AbortSignal.timeout(3000),
-      });
-
-      if (response.ok) {
-        logger.success(`✓ 已连接到 claude-code-router (${routerURL})`);
-        apiConfig.baseURL = routerURL;
-      } else {
-        throw new Error(`HTTP ${response.status}`);
-      }
-    } catch (error: any) {
-      console.log(chalk.yellow(`\n⚠️  无法连接到 ${routerURL}`));
-      console.log(chalk.gray('\n可能原因:'));
-      console.log(chalk.gray('  1. claude-code-router 未启动'));
-      console.log(chalk.gray('  2. 端口配置不正确'));
-
-      const continueAnswer = await question(
-        chalk.yellow('\n是否继续初始化? (y/N): ')
-      );
-
-      if (continueAnswer.toLowerCase() === 'y') {
-        console.log(chalk.yellow('⚠️  已保存配置，但请确保启动路由器后再使用\n'));
-        apiConfig.baseURL = routerURL;
-      } else {
-        rl.close();
-        console.log(chalk.gray('初始化已取消。'));
-        process.exit(0);
-      }
-    }
-  } else {
-    // 标准模式
-    console.log(chalk.blue('\n✓ 使用标准 Anthropic API'));
-    console.log(chalk.gray('请确保设置环境变量: ANTHROPIC_API_KEY\n'));
-  }
-
-  rl.close();
-  return apiConfig;
-}
-
-/**
- * 交互式询问配置
- */
-async function promptForConfig(apiConfig: { baseURL?: string }) {
-  // 动态导入 readline
-  const { createInterface } = await import('readline');
-
-  const rl = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  const question = (prompt: string): Promise<string> => {
-    return new Promise((resolve) => {
-      rl.question(prompt, (answer: string) => {
-        resolve(answer);
-      });
-    });
-  };
-
-  console.log(chalk.bold.cyan('\n⏰ 调度配置:\n'));
-
-  // 调度模式选择
-  console.log(chalk.gray('请选择调度模式:\n'));
-  console.log(chalk.white('[1] 每 24 小时'));
-  console.log(chalk.white('[2] 每 12 小时'));
-  console.log(chalk.white('[3] 每 6 小时'));
-  console.log(chalk.white('[4] 定时模式 (指定每天的具体时间)\n'));
-
-  const modeAnswer = await question(
-    chalk.cyan('您的选择 [1/2/3/4]: ') + chalk.gray('(默认: 1) ')
-  );
-
-  let interval = '24h';
-  let scheduleTimes: string[] | undefined;
-
-  const modeChoice = modeAnswer.trim() || '1';
-  switch (modeChoice) {
-    case '2':
-      interval = '12h';
-      break;
-    case '3':
-      interval = '6h';
-      break;
-    case '4': {
-      interval = 'timepoints';
-      // 循环直到输入有效的时间点
-      const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
-      let valid = false;
-      while (!valid) {
-        const timesAnswer = await question(
-          chalk.cyan('请输入分析时间点 (HH:MM格式，逗号分隔): ') + chalk.gray('例如: 06:00, 13:00, 16:00\n> ')
-        );
-        const times = timesAnswer.split(',').map(t => t.trim()).filter(Boolean);
-
-        if (times.length === 0) {
-          console.log(chalk.red('至少需要输入一个时间点'));
-          continue;
-        }
-
-        if (times.length > 12) {
-          console.log(chalk.red('最多支持 12 个时间点'));
-          continue;
-        }
-
-        const invalidTimes = times.filter(t => !timeRegex.test(t));
-        if (invalidTimes.length > 0) {
-          console.log(chalk.red(`无效的时间格式: ${invalidTimes.join(', ')} (请使用 HH:MM 格式，如 06:00)`));
-          continue;
-        }
-
-        scheduleTimes = times.sort();
-        valid = true;
-        console.log(chalk.green(`✓ 已设置 ${scheduleTimes.length} 个时间点: ${scheduleTimes.join(', ')}`));
-      }
-      break;
-    }
-    default:
-      interval = '24h';
-  }
-
-  rl.close();
-
-  // 合并 API 配置
-  const llmConfig = {
-    ...DEFAULT_CONFIG.llm,
-    ...(apiConfig.baseURL && { baseURL: apiConfig.baseURL }),
-  };
-
-  return {
-    ...DEFAULT_CONFIG,
-    scheduler: {
-      ...DEFAULT_CONFIG.scheduler,
-      interval,
-      ...(scheduleTimes && { scheduleTimes }),
-    },
-    llm: llmConfig,
-  };
 }
 
 /**

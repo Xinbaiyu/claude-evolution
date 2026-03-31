@@ -172,14 +172,23 @@ npm install -g claude-evolution
 ### 初始化
 
 ```bash
-# 初始化配置
+# 初始化配置（简化流程：3-5个问题）
 claude-evolution init
 
-# 设置 API Key
-export ANTHROPIC_API_KEY=your-api-key
+# 系统会引导您配置：
+# 1. LLM Provider 选择 (Claude/OpenAI-Compatible/CCR)
+# 2. 调度频率 (24h/12h/6h/定时模式)
+# 3. Web UI 端口 (默认 10010)
 
-# 运行首次分析
-claude-evolution analyze --now
+# 设置 API Key
+export ANTHROPIC_API_KEY=your-api-key  # Claude provider
+# 或 export OPENAI_API_KEY=your-key   # OpenAI provider
+
+# 启动守护进程
+claude-evolution start
+
+# 更多配置可在 Web UI 中设置
+# 访问 http://localhost:10010/settings
 ```
 
 ### 守护进程模式 ⭐ 推荐
@@ -220,6 +229,25 @@ claude-evolution uninstall      # 卸载自启动
 $ claude-evolution init
 ```
 
+**简化的初始化流程** (3-5个问题)：
+
+**P0 配置 (必选)**：
+- LLM Provider 选择：
+  - [1] Claude Official API (推荐) - 需要 ANTHROPIC_API_KEY
+  - [2] OpenAI-Compatible API - 支持 OpenAI/DeepSeek/Qwen/Azure，需要配置 Base URL 和 Model
+  - [3] CCR Proxy - 通过 claude-code-router 连接
+
+**P1 配置 (有默认值)**：
+- 调度频率：24h / 12h / 6h (推荐) / 定时模式
+- Web UI 端口：默认 10010
+
+**P2 配置 (在 Web UI 中设置)**：
+- Model 和 Temperature 调优
+- 学习容量和算法参数
+- 提醒系统 (桌面通知/Webhook)
+- 机器人集成 (钉钉/Claude Code)
+- 日志级别和其他高级选项
+
 系统会在 `~/.claude-evolution/` 创建配置目录，包含：
 - `config.json` - 系统配置
 - `source/` - 静态规则（手动维护，可通过 Web UI 管理）
@@ -227,10 +255,10 @@ $ claude-evolution init
 - `suggestions/` - 建议存储
 - `logs/` - 日志文件
 
-**提示**: 初始化完成后，建议启动守护进程并通过 Web UI 管理配置文件：
+**提示**: 初始化完成后，启动守护进程并访问 Web UI 进行高级配置：
 ```bash
-claude-evolution start --daemon
-# 访问 http://localhost:10010/source-manager 编辑源文件
+claude-evolution start
+# 访问 http://localhost:10010/settings 配置高级选项
 ```
 
 #### 2. 分析会话历史
