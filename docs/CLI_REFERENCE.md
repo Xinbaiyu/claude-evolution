@@ -586,7 +586,6 @@ claude-evolution analyze --now
 ========================================
 
 [1/7] 加载配置
-  当前学习阶段: suggestion
   上次分析时间: 2026-03-13 15:00:00
 
 [2/7] 连接 claude-mem HTTP API
@@ -938,7 +937,6 @@ claude-evolution status
   ✓ 已初始化
   配置文件: ~/.claude-evolution/config.json
   LLM 模型: claude-3-5-haiku-20241022
-  学习阶段: 建议期 (第 2/3 天)
 
 💡 建议统计
   总计: 106 条建议
@@ -1341,14 +1339,6 @@ LLM (llm):
   temperature: 0.3
   enablePromptCaching: false
 
-学习阶段 (learningPhases):
-  observation:
-    durationDays: 3
-  suggestion:
-    durationDays: 4
-  automatic:
-    confidenceThreshold: 0.8
-
 配置文件: ~/.claude-evolution/config.json
 ```
 
@@ -1386,10 +1376,6 @@ claude-evolution config set llm.temperature 0.5
 
 # 修改最大 Token
 claude-evolution config set llm.maxTokens 3000
-
-# 修改学习阶段
-claude-evolution config set learningPhases.observation.durationDays 7
-claude-evolution config set learningPhases.automatic.confidenceThreshold 0.9
 ```
 
 **输出示例**:
@@ -1414,9 +1400,6 @@ claude-evolution config set learningPhases.automatic.confidenceThreshold 0.9
 | `llm.maxTokens` | number | 4096 | 最大 Token 数 |
 | `llm.temperature` | number | 0.3 | 温度 (0-1) |
 | `llm.enablePromptCaching` | boolean | false | 是否启用 Prompt Caching |
-| `learningPhases.observation.durationDays` | number | 3 | 观察期天数 |
-| `learningPhases.suggestion.durationDays` | number | 4 | 建议期天数 |
-| `learningPhases.automatic.confidenceThreshold` | number | 0.8 | 自动应用阈值 (0-1) |
 
 **错误场景**:
 

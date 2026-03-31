@@ -270,28 +270,25 @@ const batchSize = 10;  // 每次处理 10 个会话
 | `suggestion-manager.ts` | 建议生命周期管理 | `approveSuggestion()`, `rejectSuggestion()` |
 | `index.ts` | 模块入口 | `batchApproveSuggestions()` |
 
-**三阶段学习机制**:
+**自动提升机制**:
+
+增量学习系统使用 `learning.promotion` 配置进行自动提升，不再依赖时间阶段：
 
 ```typescript
-type LearningPhase = 'observation' | 'suggestion' | 'automatic';
-
-// 阶段 1: 观察期 (默认 3 天)
-if (currentPhase === 'observation') {
-  result.toSuggest.push(item);  // 全部待审批
+// 基于置信度和提及次数的自动提升
+interface PromotionConfig {
+  candidateConfidence: number;  // 候选阈值: 0.60
+  candidateMentions: number;    // 候选提及: 3次
+  highConfidence: number;       // 高质量阈值: 0.75
+  highMentions: number;         // 高质量提及: 5次
+  autoConfidence: number;       // 自动晋升阈值: 0.90
+  autoMentions: number;         // 自动晋升提及: 10次
 }
 
-// 阶段 2: 建议期 (默认 4 天)
-else if (currentPhase === 'suggestion') {
-  result.toSuggest.push(item);  // 全部待审批
-}
-
-// 阶段 3: 自动期
-else {
-  if (item.confidence >= 0.8) {
-    result.toApply.push(item);  // 高置信度自动应用
-  } else {
-    result.toSuggest.push(item);  // 低置信度仍需审批
-  }
+// Active Pool → Context Pool 自动提升
+if (observation.confidence >= config.learning.promotion.autoConfidence &&
+    observation.mentions >= config.learning.promotion.autoMentions) {
+  // 自动晋升到 Context Pool
 }
 ```
 

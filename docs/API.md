@@ -509,11 +509,6 @@ curl http://localhost:10010/api/config
       "maxTokens": 4096,
       "temperature": 0.3,
       "enablePromptCaching": false
-    },
-    "learningPhases": {
-      "observation": { "durationDays": 3 },
-      "suggestion": { "durationDays": 4 },
-      "automatic": { "confidenceThreshold": 0.8 }
     }
   }
 }
@@ -566,11 +561,6 @@ curl -X PATCH http://localhost:10010/api/config \
       "maxTokens": 4096,
       "temperature": 0.5,
       "enablePromptCaching": false
-    },
-    "learningPhases": {
-      "observation": { "durationDays": 3 },
-      "suggestion": { "durationDays": 4 },
-      "automatic": { "confidenceThreshold": 0.8 }
     }
   }
 }
@@ -980,17 +970,6 @@ interface Config {
     maxTokens: number;
     temperature: number;           // 0-1
     enablePromptCaching: boolean;
-  };
-  learningPhases: {
-    observation: {
-      durationDays: number;        // 观察期天数
-    };
-    suggestion: {
-      durationDays: number;        // 建议期天数
-    };
-    automatic: {
-      confidenceThreshold: number; // 自动应用阈值
-    };
   };
 }
 ```

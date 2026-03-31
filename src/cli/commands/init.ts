@@ -74,7 +74,6 @@ export async function initCommand(): Promise<void> {
   console.log(chalk.bold.cyan('\n📡 API 配置模式:\n'));
   const apiConfig = await promptForApiMode();
 
-  console.log(chalk.bold.cyan('\n📋 学习阶段配置:\n'));
   const config = await promptForConfig(apiConfig);
 
   await saveConfig(config);
@@ -301,30 +300,6 @@ async function promptForConfig(apiConfig: { baseURL?: string }) {
     });
   };
 
-  // 观察期天数
-  const obsAnswer = await question(
-    chalk.cyan('观察期天数 (仅收集数据): ') + chalk.gray('(默认: 3) ')
-  );
-  const observationDays = obsAnswer.trim()
-    ? parseInt(obsAnswer)
-    : DEFAULT_CONFIG.learningPhases.observation.durationDays;
-
-  // 建议期天数
-  const sugAnswer = await question(
-    chalk.cyan('建议期天数 (生成建议需确认): ') + chalk.gray('(默认: 4) ')
-  );
-  const suggestionDays = sugAnswer.trim()
-    ? parseInt(sugAnswer)
-    : DEFAULT_CONFIG.learningPhases.suggestion.durationDays;
-
-  // 自动应用置信度阈值
-  const confAnswer = await question(
-    chalk.cyan('自动应用的置信度阈值 (0-1): ') + chalk.gray('(默认: 0.8) ')
-  );
-  const confidenceThreshold = confAnswer.trim()
-    ? parseFloat(confAnswer)
-    : DEFAULT_CONFIG.learningPhases.automatic.confidenceThreshold;
-
   console.log(chalk.bold.cyan('\n⏰ 调度配置:\n'));
 
   // 调度模式选择
@@ -396,20 +371,6 @@ async function promptForConfig(apiConfig: { baseURL?: string }) {
 
   return {
     ...DEFAULT_CONFIG,
-    learningPhases: {
-      observation: {
-        ...DEFAULT_CONFIG.learningPhases.observation,
-        durationDays: observationDays,
-      },
-      suggestion: {
-        ...DEFAULT_CONFIG.learningPhases.suggestion,
-        durationDays: suggestionDays,
-      },
-      automatic: {
-        ...DEFAULT_CONFIG.learningPhases.automatic,
-        confidenceThreshold,
-      },
-    },
     scheduler: {
       ...DEFAULT_CONFIG.scheduler,
       interval,

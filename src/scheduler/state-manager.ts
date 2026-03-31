@@ -1,8 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { getEvolutionDir } from '../config/loader.js';
-import { SystemState, LearningPhase } from '../types/index.js';
-import { Config } from '../config/schema.js';
+import { SystemState } from '../types/index.js';
 
 /**
  * 获取状态文件路径
@@ -24,7 +23,6 @@ async function loadState(): Promise<SystemState> {
       lastAnalysisTime: null,
       lastAnalysisSuccess: false,
       totalAnalyses: 0,
-      currentPhase: 'observation',
     };
     await saveState(initialState);
     return initialState;
@@ -62,53 +60,8 @@ export async function updateAfterAnalysis(success: boolean): Promise<void> {
 }
 
 /**
- * 判断当前处于哪个学习阶段
- */
-export async function getCurrentPhase(config: Config): Promise<LearningPhase> {
-  const state = await loadState();
-  const installDate = new Date(state.installDate);
-  const now = new Date();
-  const daysSinceInstall = Math.floor(
-    (now.getTime() - installDate.getTime()) / (1000 * 60 * 60 * 24)
-  );
-
-  // 观察期
-  if (daysSinceInstall <= config.learningPhases.observation.durationDays) {
-    state.currentPhase = 'observation';
-    await saveState(state);
-    return 'observation';
-  }
-
-  // 建议期
-  const suggestionEndDay =
-    config.learningPhases.observation.durationDays +
-    config.learningPhases.suggestion.durationDays;
-
-  if (daysSinceInstall <= suggestionEndDay) {
-    state.currentPhase = 'suggestion';
-    await saveState(state);
-    return 'suggestion';
-  }
-
-  // 自动期
-  state.currentPhase = 'automatic';
-  await saveState(state);
-  return 'automatic';
-}
-
-/**
  * 获取系统状态
  */
 export async function getSystemState(): Promise<SystemState> {
   return loadState();
-}
-
-/**
- * 获取安装天数
- */
-export async function getDaysSinceInstall(): Promise<number> {
-  const state = await loadState();
-  const installDate = new Date(state.installDate);
-  const now = new Date();
-  return Math.floor((now.getTime() - installDate.getTime()) / (1000 * 60 * 60 * 24));
 }

@@ -1,33 +1,6 @@
 import { z } from 'zod';
 
 /**
- * 学习阶段配置
- */
-const LearningPhaseSchema = z.object({
-  enabled: z.boolean(),
-  durationDays: z.number().min(1).max(90),
-  description: z.string(),
-});
-
-const LearningPhasesSchema = z.object({
-  observation: LearningPhaseSchema.default({
-    enabled: true,
-    durationDays: 3,
-    description: '观察期: 仅收集数据,不生成建议',
-  }),
-  suggestion: LearningPhaseSchema.default({
-    enabled: true,
-    durationDays: 4,
-    description: '建议期: 生成建议但需用户确认',
-  }),
-  automatic: z.object({
-    enabled: z.boolean().default(true),
-    confidenceThreshold: z.number().min(0).max(1).default(0.8),
-    description: z.string().default('自动期: 高置信度建议自动应用'),
-  }),
-});
-
-/**
  * 调度配置
  */
 const SchedulerSchema = z.object({
@@ -288,7 +261,6 @@ const BotConfigSchema = z.object({
  * 完整配置 Schema
  */
 export const ConfigSchema = z.object({
-  learningPhases: LearningPhasesSchema,
   scheduler: SchedulerSchema,
   daemon: DaemonConfigSchema.optional(), // 可选，用于向后兼容
   webUI: WebUIConfigSchema.optional(), // 可选，用于向后兼容
@@ -299,7 +271,7 @@ export const ConfigSchema = z.object({
   httpApi: HttpApiSchema,
   filters: FiltersSchema,
   mdGenerator: MDGeneratorSchema,
-});
+}).passthrough(); // 允许未知字段通过，支持旧配置兼容
 
 export type Config = z.infer<typeof ConfigSchema>;
 
@@ -313,23 +285,6 @@ export type LLMConfig = z.infer<typeof LLMSchema>;
  * 默认配置
  */
 export const DEFAULT_CONFIG: Config = {
-  learningPhases: {
-    observation: {
-      enabled: true,
-      durationDays: 3,
-      description: '观察期: 仅收集数据,不生成建议',
-    },
-    suggestion: {
-      enabled: true,
-      durationDays: 4,
-      description: '建议期: 生成建议但需用户确认',
-    },
-    automatic: {
-      enabled: true,
-      confidenceThreshold: 0.8,
-      description: '自动期: 高置信度建议自动应用',
-    },
-  },
   scheduler: {
     enabled: true,
     interval: '6h',

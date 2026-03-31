@@ -43,14 +43,10 @@ export type {
   EvolutionHistoryEntry,
 } from './legacy.js';
 
-// ==================== 学习阶段类型 ====================
-export type LearningPhase = 'observation' | 'suggestion' | 'automatic';
-
 // ==================== 系统状态类型 ====================
 export interface SystemState {
   installDate: string;
   lastAnalysisTime: string | null;
   lastAnalysisSuccess: boolean;
   totalAnalyses: number;
-  currentPhase: LearningPhase;
 }

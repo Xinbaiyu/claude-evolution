@@ -10,7 +10,6 @@ describe('Config Schema', () => {
 
     it('应该接受缺少 daemon 和 webUI 的配置（向后兼容）', () => {
       const oldConfig = {
-        learningPhases: DEFAULT_CONFIG.learningPhases,
         scheduler: DEFAULT_CONFIG.scheduler,
         llm: DEFAULT_CONFIG.llm,
         httpApi: DEFAULT_CONFIG.httpApi,
@@ -24,23 +23,6 @@ describe('Config Schema', () => {
 
     it('应该填充默认值', () => {
       const minimalConfig = {
-        learningPhases: {
-          observation: {
-            enabled: true,
-            durationDays: 3,
-            description: 'test',
-          },
-          suggestion: {
-            enabled: true,
-            durationDays: 4,
-            description: 'test',
-          },
-          automatic: {
-            enabled: true,
-            confidenceThreshold: 0.8,
-            description: 'test',
-          },
-        },
         scheduler: {},
         llm: {},
         httpApi: {},
@@ -170,7 +152,6 @@ describe('Config Schema', () => {
 
   describe('默认配置', () => {
     it('DEFAULT_CONFIG 应该包含所有必需字段', () => {
-      expect(DEFAULT_CONFIG).toHaveProperty('learningPhases');
       expect(DEFAULT_CONFIG).toHaveProperty('scheduler');
       expect(DEFAULT_CONFIG).toHaveProperty('daemon');
       expect(DEFAULT_CONFIG).toHaveProperty('webUI');

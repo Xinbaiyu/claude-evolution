@@ -278,10 +278,6 @@ router.patch('/config', async (req, res) => {
         ...currentConfig.llm,
         ...updates.llm,
       },
-      learningPhases: {
-        ...currentConfig.learningPhases,
-        ...updates.learningPhases,
-      },
       reminders: {
         ...currentConfig.reminders,
         ...updates.reminders,

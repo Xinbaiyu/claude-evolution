@@ -23,7 +23,6 @@ describe('Config Migration', () => {
     it('应该迁移缺少 daemon 配置的旧配置', async () => {
       // 创建旧版配置（没有 daemon 字段）
       const oldConfig = {
-        learningPhases: DEFAULT_CONFIG.learningPhases,
         scheduler: {
           enabled: true,
           interval: '24h',
@@ -137,7 +136,6 @@ describe('Config Migration', () => {
     it('应该为新增字段提供默认值', async () => {
       // 旧配置缺少新字段
       const incompleteConfig = {
-        learningPhases: DEFAULT_CONFIG.learningPhases,
         scheduler: {
           enabled: true,
           interval: '6h',
@@ -229,7 +227,6 @@ describe('Config Migration', () => {
   describe('配置持久化', () => {
     it('迁移后的配置应该可以正确保存', async () => {
       const oldConfig = {
-        learningPhases: DEFAULT_CONFIG.learningPhases,
         scheduler: {
           enabled: true,
           interval: '24h',

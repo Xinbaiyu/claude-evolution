@@ -133,11 +133,6 @@ describe('CLI 工作流集成测试', () => {
     it('应该创建默认配置文件', async () => {
       // Create a minimal config
       const defaultConfig: Partial<Config> = {
-        learningPhases: {
-          observation: { durationDays: 3 },
-          suggestion: { durationDays: 4 },
-          automatic: { confidenceThreshold: 0.8 },
-        },
         llm: {
           model: 'claude-haiku-4',
           maxTokens: 4096,
@@ -149,7 +144,6 @@ describe('CLI 工作流集成测试', () => {
       await fs.writeJSON(join(testDir, 'config.json'), defaultConfig, { spaces: 2 });
 
       const savedConfig = await fs.readJSON(join(testDir, 'config.json'));
-      expect(savedConfig).toHaveProperty('learningPhases');
       expect(savedConfig).toHaveProperty('llm');
     });
   });
@@ -161,11 +155,6 @@ describe('CLI 工作流集成测试', () => {
       await fs.ensureDir(join(testDir, 'logs'));
 
       const config: Partial<Config> = {
-        learningPhases: {
-          observation: { durationDays: 3 },
-          suggestion: { durationDays: 4 },
-          automatic: { confidenceThreshold: 0.8 },
-        },
         llm: {
           model: 'claude-haiku-4',
           maxTokens: 4096,

@@ -8,7 +8,6 @@ import { createHTTPClient } from '../memory/http-client.js';
 import {
   getLastAnalysisTime,
   updateAfterAnalysis,
-  getCurrentPhase,
 } from '../scheduler/index.js';
 import {
   collectRecentSessions,
@@ -128,12 +127,10 @@ export async function runAnalysisPipeline(options?: {
     // 1. 加载配置
     logger.info('\n[1/8] 加载配置');
     const config = await loadConfig();
-    const currentPhase = await getCurrentPhase(config);
     const lastAnalysisTime = await getLastAnalysisTime();
 
-    logger.info(`  当前学习阶段: ${currentPhase}`);
     logger.info(`  上次分析时间: ${lastAnalysisTime?.toLocaleString() || '从未'}`);
-    await logStep(1, '加载配置', 'success', `学习阶段: ${currentPhase}`);
+    await logStep(1, '加载配置', 'success', '配置加载完成');
 
     // 2. 连接 HTTP API
     logger.info('\n[2/8] 连接 claude-mem HTTP API');

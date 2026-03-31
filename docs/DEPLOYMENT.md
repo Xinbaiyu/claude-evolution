@@ -786,16 +786,6 @@ claude-evolution config set llm.model claude-3-5-sonnet-20241022
 claude-evolution config set llm.model claude-3-5-haiku-20241022
 ```
 
-**调整学习阶段**:
-
-```bash
-# 延长观察期
-claude-evolution config set learningPhases.observation.durationDays 7
-
-# 提高自动应用阈值
-claude-evolution config set learningPhases.automatic.confidenceThreshold 0.9
-```
-
 **查看当前配置**:
 
 ```bash

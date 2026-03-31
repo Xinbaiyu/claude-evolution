@@ -380,7 +380,6 @@ describe('Configuration Schema', () => {
 
     it('should fill in defaults when learning is omitted', () => {
       const config = {
-        learningPhases: DEFAULT_CONFIG.learningPhases,
         scheduler: DEFAULT_CONFIG.scheduler,
         llm: DEFAULT_CONFIG.llm,
         httpApi: DEFAULT_CONFIG.httpApi,
@@ -391,6 +390,97 @@ describe('Configuration Schema', () => {
 
       const result = ConfigSchema.parse(config);
       expect(result.learning).toBeUndefined(); // Optional, so should remain undefined
+    });
+  });
+
+  describe('Backward Compatibility', () => {
+    it('should accept old config files with learningPhases field (passthrough)', () => {
+      const oldConfig = {
+        ...DEFAULT_CONFIG,
+        learningPhases: {
+          observation: {
+            durationDays: 3,
+          },
+          suggestion: {
+            durationDays: 4,
+          },
+          automatic: {
+            confidenceThreshold: 0.8,
+          },
+        },
+      };
+
+      const result = ConfigSchema.safeParse(oldConfig);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // learningPhases field should be preserved by passthrough
+        expect((result.data as any).learningPhases).toBeDefined();
+      }
+    });
+
+    it('should accept new config files without learningPhases field', () => {
+      const newConfig = {
+        ...DEFAULT_CONFIG,
+      };
+
+      const result = ConfigSchema.safeParse(newConfig);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect((result.data as any).learningPhases).toBeUndefined();
+      }
+    });
+
+    it('should not require learningPhases field in new configs', () => {
+      const minimalConfig = {
+        scheduler: DEFAULT_CONFIG.scheduler,
+        llm: DEFAULT_CONFIG.llm,
+        httpApi: DEFAULT_CONFIG.httpApi,
+        filters: DEFAULT_CONFIG.filters,
+        mdGenerator: DEFAULT_CONFIG.mdGenerator,
+      };
+
+      const result = ConfigSchema.safeParse(minimalConfig);
+      expect(result.success).toBe(true);
+    });
+
+    it('should use learning.promotion for auto-promotion logic, not learningPhases', () => {
+      // Verify that DEFAULT_CONFIG has learning.promotion configured
+      expect(DEFAULT_CONFIG.learning).toBeDefined();
+      expect(DEFAULT_CONFIG.learning!.promotion).toBeDefined();
+
+      const promotion = DEFAULT_CONFIG.learning!.promotion;
+
+      // Auto-promotion should be based on these values
+      expect(promotion.autoConfidence).toBe(0.90);
+      expect(promotion.autoMentions).toBe(10);
+
+      // learningPhases should not exist
+      expect((DEFAULT_CONFIG as any).learningPhases).toBeUndefined();
+    });
+
+    it('should validate auto-promotion config with custom values', () => {
+      const configWithCustomPromotion = {
+        ...DEFAULT_CONFIG,
+        learning: {
+          ...DEFAULT_CONFIG.learning!,
+          promotion: {
+            candidateConfidence: 0.55,
+            candidateMentions: 2,
+            highConfidence: 0.70,
+            highMentions: 5,
+            autoConfidence: 0.85, // Custom auto threshold
+            autoMentions: 8,      // Custom auto mentions threshold
+          },
+        },
+      };
+
+      const result = ConfigSchema.safeParse(configWithCustomPromotion);
+      expect(result.success).toBe(true);
+
+      if (result.success) {
+        expect(result.data.learning!.promotion.autoConfidence).toBe(0.85);
+        expect(result.data.learning!.promotion.autoMentions).toBe(8);
+      }
     });
   });
 });

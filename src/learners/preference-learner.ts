@@ -1,21 +1,29 @@
+// DEPRECATED: This file is no longer used by the incremental learning system
+// TODO: Investigate if this file can be removed
+//
+// The incremental learning system (src/memory/learning-orchestrator.ts) has
+// replaced the functionality in this file. Auto-promotion is now based on
+// config.learning.promotion (autoConfidence and autoMentions), not learningPhases.
+
 import fs from 'fs-extra';
 import path from 'path';
-import { ExtractionResult, LearningResult, LearningPhase } from '../types/index.js';
+import { ExtractionResult, LearningResult } from '../types/index.js';
 import { Config } from '../config/index.js';
 import { getEvolutionDir } from '../config/loader.js';
 import { logger } from '../utils/index.js';
 
 /**
- * 偏好学习器
+ * 偏好学习器 (DEPRECATED)
  * 负责根据学习阶段决定如何处理提取的经验
  */
 
 /**
  * 学习偏好并决定处理方式
+ * @deprecated No longer used - replaced by learning-orchestrator.ts
  */
 export async function learnPreferences(
   extractedData: ExtractionResult,
-  currentPhase: LearningPhase,
+  currentPhase: any, // was LearningPhase
   config: Config
 ): Promise<LearningResult> {
   logger.info(`当前学习阶段: ${currentPhase}`);
@@ -54,7 +62,7 @@ export async function learnPreferences(
  */
 async function processPreference(
   pref: ExtractionResult['preferences'][0],
-  currentPhase: LearningPhase,
+  currentPhase: any, // was LearningPhase
   config: Config,
   result: LearningResult
 ): Promise<void> {
@@ -78,7 +86,7 @@ async function processPreference(
     result.toSuggest.push(pref);
   } else {
     // 自动期: 高置信度自动应用
-    if (pref.confidence >= config.learningPhases.automatic.confidenceThreshold) {
+    if (pref.confidence >= (config as any).learningPhases?.automatic?.confidenceThreshold || 0.8) {
       result.toApply.push(pref);
     } else {
       result.toSuggest.push(pref);
@@ -91,7 +99,7 @@ async function processPreference(
  */
 async function processPattern(
   pattern: ExtractionResult['patterns'][0],
-  currentPhase: LearningPhase,
+  currentPhase: any, // was LearningPhase
   config: Config,
   result: LearningResult
 ): Promise<void> {
@@ -110,7 +118,7 @@ async function processPattern(
   } else if (currentPhase === 'suggestion') {
     result.toSuggest.push(pattern);
   } else {
-    if (pattern.confidence >= config.learningPhases.automatic.confidenceThreshold) {
+    if (pattern.confidence >= (config as any).learningPhases?.automatic?.confidenceThreshold || 0.8) {
       result.toApply.push(pattern);
     } else {
       result.toSuggest.push(pattern);
@@ -123,7 +131,7 @@ async function processPattern(
  */
 async function processWorkflow(
   workflow: ExtractionResult['workflows'][0],
-  currentPhase: LearningPhase,
+  currentPhase: any, // was LearningPhase
   config: Config,
   result: LearningResult
 ): Promise<void> {
@@ -142,7 +150,7 @@ async function processWorkflow(
   } else if (currentPhase === 'suggestion') {
     result.toSuggest.push(workflow);
   } else {
-    if (workflow.confidence >= config.learningPhases.automatic.confidenceThreshold) {
+    if (workflow.confidence >= (config as any).learningPhases?.automatic?.confidenceThreshold || 0.8) {
       result.toApply.push(workflow);
     } else {
       result.toSuggest.push(workflow);

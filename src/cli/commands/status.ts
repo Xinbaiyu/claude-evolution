@@ -200,7 +200,6 @@ async function displayConfigStatus(evolutionDir: string): Promise<void> {
     console.log(chalk.gray(`  配置文件: ${configPath}`));
     console.log(chalk.gray(`  LLM 提供商: ${activeProvider}`));
     console.log(chalk.gray(`  LLM 模型: ${modelName}`));
-    console.log(chalk.gray(`  学习阶段: 观察 ${config.learningPhases.observation.durationDays} 天 → 建议 ${config.learningPhases.suggestion.durationDays} 天`));
   } catch (error) {
     console.log(chalk.red('  ❌ 配置文件损坏'));
     console.log(chalk.gray(`  错误: ${error instanceof Error ? error.message : 'Unknown error'}`));

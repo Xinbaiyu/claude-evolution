@@ -14,12 +14,6 @@ export async function configListCommand(): Promise<void> {
 
   const config = await loadConfig();
 
-  // 学习阶段
-  console.log(chalk.bold.yellow('学习阶段:'));
-  console.log(`  观察期: ${config.learningPhases.observation.durationDays} 天`);
-  console.log(`  建议期: ${config.learningPhases.suggestion.durationDays} 天`);
-  console.log(`  自动应用阈值: ${config.learningPhases.automatic.confidenceThreshold}`);
-
   // 调度
   console.log(chalk.bold.yellow('\n调度:'));
   console.log(`  启用: ${config.scheduler.enabled ? '是' : '否'}`);

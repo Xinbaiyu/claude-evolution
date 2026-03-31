@@ -59,7 +59,6 @@ $ claude-evolution status
 ⚙️  配置状态
   ✓ 已初始化
   LLM 模型: claude-3-5-haiku-20241022
-  学习阶段: 观察 3 天 → 建议 4 天
 
 💡 建议统计
   总计: 106 条建议
@@ -318,7 +317,6 @@ $ claude-evolution config list
 
 # 修改配置
 $ claude-evolution config set llm.model claude-haiku-4
-$ claude-evolution config set learningPhases.automatic.confidenceThreshold 0.8
 ```
 
 ---
@@ -507,17 +505,6 @@ interface Workflow {
 
 ```json
 {
-  "learningPhases": {
-    "observation": {
-      "durationDays": 3
-    },
-    "suggestion": {
-      "durationDays": 4
-    },
-    "automatic": {
-      "confidenceThreshold": 0.8
-    }
-  },
   "llm": {
     "activeProvider": "claude",
     "claude": {
@@ -550,9 +537,6 @@ interface Workflow {
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
-| `learningPhases.observation.durationDays` | 观察期天数 | 3 |
-| `learningPhases.suggestion.durationDays` | 建议期天数 | 4 |
-| `learningPhases.automatic.confidenceThreshold` | 自动批准阈值 | 0.8 |
 | `llm.activeProvider` | 当前使用的 LLM 提供商 | claude |
 | `llm.claude.model` | Claude 模型名称 | claude-sonnet-4-6 |
 | `llm.claude.enablePromptCaching` | 是否启用 Prompt Caching | true |

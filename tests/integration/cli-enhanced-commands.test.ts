@@ -61,11 +61,6 @@ describe('CLI 增强命令集成测试', () => {
     it('应该显示配置状态', async () => {
       // 创建基本配置
       const config: Partial<Config> = {
-        learningPhases: {
-          observation: { durationDays: 3 },
-          suggestion: { durationDays: 4 },
-          automatic: { confidenceThreshold: 0.8 },
-        },
         llm: {
           model: 'claude-haiku-4',
           maxTokens: 4096,
@@ -99,11 +94,6 @@ describe('CLI 增强命令集成测试', () => {
       await fs.writeJSON(join(testDir, 'suggestions/pending.json'), pending);
 
       const config: Partial<Config> = {
-        learningPhases: {
-          observation: { durationDays: 3 },
-          suggestion: { durationDays: 4 },
-          automatic: { confidenceThreshold: 0.8 },
-        },
         llm: {
           model: 'claude-haiku-4',
           maxTokens: 4096,
@@ -127,11 +117,6 @@ describe('CLI 增强命令集成测试', () => {
       await fs.ensureDir(join(testDir, 'logs'));
 
       const config: Partial<Config> = {
-        learningPhases: {
-          observation: { durationDays: 3 },
-          suggestion: { durationDays: 4 },
-          automatic: { confidenceThreshold: 0.8 },
-        },
         llm: {
           model: 'claude-haiku-4',
           maxTokens: 4096,
