@@ -58,8 +58,15 @@ async function promptLLMProvider(rl: any): Promise<LLMConfig> {
         chalk.cyan('Model: ') + chalk.gray('(默认: gpt-4-turbo) '),
         'gpt-4-turbo'
       );
+      const apiKey = await question(
+        rl,
+        chalk.cyan('API Key: ') + chalk.gray('(留空则使用环境变量 OPENAI_API_KEY) '),
+        ''
+      );
 
-      console.log(chalk.gray('\n提示: API Key 请通过环境变量 OPENAI_API_KEY 设置'));
+      if (!apiKey) {
+        console.log(chalk.gray('\n提示: 请设置环境变量 OPENAI_API_KEY'));
+      }
 
       return {
         activeProvider: 'openai',
@@ -68,6 +75,7 @@ async function promptLLMProvider(rl: any): Promise<LLMConfig> {
           ...DEFAULT_CONFIG.llm.openai,
           baseURL,
           model,
+          ...(apiKey && { apiKey }),
         },
         ccr: DEFAULT_CONFIG.llm.ccr,
       };
@@ -214,29 +222,132 @@ async function promptWebUIPort(rl: any) {
 }
 
 /**
- * 完成提示：根据 provider 显示不同的下一步指引
+ * 检查 claude-mem Worker Service 可用性
+ * 非阻塞检查，但提供明确的安装指导
  */
-function printNextSteps(provider: ActiveProvider, port: number) {
+async function checkClaudeMemAvailability(
+  rl: any,
+  customBaseUrl?: string
+): Promise<{ available: boolean; baseUrl: string }> {
+  console.log(chalk.bold.cyan('\n✨ 依赖检查\n'));
+
+  const baseUrl = customBaseUrl || 'http://localhost:37777';
+
+  try {
+    // 使用与 http-client.ts 相同的连接逻辑
+    const response = await fetch(`${baseUrl}/api/health`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000), // 5秒超时
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    console.log(chalk.green('✓ claude-mem Worker Service 已就绪'));
+    console.log(chalk.gray(`  连接地址: ${baseUrl}`));
+
+    return { available: true, baseUrl };
+  } catch (error: any) {
+    console.log(chalk.yellow('⚠️  无法连接到 claude-mem Worker Service'));
+    console.log(chalk.gray(`  连接地址: ${baseUrl}`));
+    console.log(chalk.gray(`  错误: ${error.message || 'Connection failed'}\n`));
+
+    // 显示详细的安装指导
+    console.log(chalk.white('  claude-mem 是 claude-evolution 的核心依赖，用于存储和检索会话数据。'));
+    console.log(chalk.white('  没有 claude-mem，分析流程将无法运行。\n'));
+
+    console.log(chalk.cyan('  安装方式 (二选一):\n'));
+
+    console.log(chalk.white('  1. 推荐：通过 Claude Code 插件安装 (自动启动 Worker Service)'));
+    console.log(chalk.gray('     在 Claude Code 中执行:'));
+    console.log(chalk.cyan('     /plugin marketplace add thedotmack/claude-mem'));
+    console.log(chalk.cyan('     /plugin install claude-mem\n'));
+
+    console.log(chalk.white('  2. 手动：从源码安装 (需要手动启动)'));
+    console.log(chalk.cyan('     git clone https://github.com/thedotmack/claude-mem.git'));
+    console.log(chalk.cyan('     cd claude-mem && npm install && npm run worker:start\n'));
+
+    console.log(chalk.white('  验证安装:'));
+    console.log(chalk.cyan(`     curl ${baseUrl}/api/health`));
+    console.log(chalk.gray(`     或访问 ${baseUrl} 查看 Web 界面\n`));
+
+    console.log(chalk.gray('  常见问题:'));
+    console.log(chalk.gray('  • Worker 未启动: npm run worker:start (如果是手动安装)'));
+    console.log(chalk.gray('  • 端口被占用: 在 ~/.claude-mem/settings.json 中修改 CLAUDE_MEM_WORKER_PORT'));
+    console.log(chalk.gray('  • 查看日志: npm run worker:logs\n'));
+
+    // 询问是否继续
+    const answer = await question(
+      rl,
+      chalk.yellow('是否继续初始化? (Y/n): '),
+      'y'
+    );
+
+    const normalizedAnswer = (answer || 'y').toLowerCase();
+    if (normalizedAnswer !== 'y' && normalizedAnswer !== 'yes') {
+      console.log(chalk.gray('\n初始化已取消。请先安装 claude-mem 后重试。'));
+      process.exit(0);
+    }
+
+    console.log(chalk.gray('\n提示: 您可以稍后安装 claude-mem 并运行 claude-evolution start'));
+
+    return { available: false, baseUrl };
+  }
+}
+
+/**
+ * 完成提示：根据 provider 显示不同的下一步指引
+ * @param claudeMemAvailable - claude-mem 服务是否可用
+ * @param llmConfig - LLM 配置信息（用于判断 API Key 是否已配置）
+ */
+function printNextSteps(
+  provider: ActiveProvider,
+  port: number,
+  claudeMemAvailable?: boolean,
+  llmConfig?: LLMConfig
+) {
   console.log(chalk.bold.green('\n✅ 初始化完成!\n'));
   console.log(chalk.bold('下一步:\n'));
 
-  // 1. API Key 设置提示
-  console.log(chalk.gray('1. 设置 API Key 环境变量:'));
-  switch (provider) {
-    case 'claude':
-      console.log(chalk.cyan('   export ANTHROPIC_API_KEY="sk-ant-xxx..."'));
-      break;
-    case 'openai':
-      console.log(chalk.cyan('   export OPENAI_API_KEY="sk-xxx..."'));
-      break;
-    case 'ccr':
-      console.log(chalk.cyan('   确保 claude-code-router 正在运行'));
-      console.log(chalk.cyan('   export ANTHROPIC_API_KEY="test-key"'));
-      break;
+  // ✨ NEW: Claude-Mem warning if not available
+  if (claudeMemAvailable === false) {
+    console.log(chalk.yellow('⚠️  重要: 请先安装并启动 claude-mem Worker Service'));
+    console.log(chalk.gray('   插件安装: /plugin install claude-mem (推荐)'));
+    console.log(chalk.gray('   验证运行: curl http://localhost:37777/api/health\n'));
+  }
+
+  // 1. API Key 设置提示 - 智能判断是否已配置
+  // 注意：Claude provider 的 API Key 总是通过环境变量设置，不在配置文件中
+  const hasConfiguredKey = provider === 'openai' && llmConfig?.openai?.apiKey;
+
+  if (hasConfiguredKey) {
+    console.log(chalk.gray('1. API Key 配置:'));
+    console.log(chalk.green('   ✓ API Key 已保存到配置文件'));
+    console.log(chalk.gray('   您也可以通过环境变量覆盖配置:'));
+    console.log(chalk.gray('   export OPENAI_API_KEY="sk-xxx..."'));
+  } else {
+    console.log(chalk.gray('1. 设置 API Key 环境变量:'));
+
+    switch (provider) {
+      case 'claude':
+        console.log(chalk.cyan('   export ANTHROPIC_API_KEY="sk-ant-xxx..."'));
+        break;
+      case 'openai':
+        console.log(chalk.cyan('   export OPENAI_API_KEY="sk-xxx..."'));
+        break;
+      case 'ccr':
+        console.log(chalk.cyan('   确保 claude-code-router 正在运行'));
+        console.log(chalk.cyan('   export ANTHROPIC_API_KEY="test-key"'));
+        break;
+    }
   }
 
   // 2. 启动守护进程
   console.log(chalk.gray('\n2. 启动守护进程:'));
+  if (claudeMemAvailable === false) {
+    console.log(chalk.yellow('   ⚠️  请先启动 claude-mem，再运行:'));
+  }
   console.log(chalk.cyan('   claude-evolution start'));
 
   // 3. WebUI 配置引导
@@ -248,6 +359,9 @@ function printNextSteps(provider: ActiveProvider, port: number) {
   console.log(chalk.gray('   • 学习容量和算法参数'));
   console.log(chalk.gray('   • 提醒系统 (桌面通知/Webhook)'));
   console.log(chalk.gray('   • 机器人集成 (钉钉/Claude Code)'));
+  if (claudeMemAvailable === false) {
+    console.log(chalk.gray('   • claude-mem HTTP API 地址配置'));
+  }
   console.log(chalk.gray('   • 日志级别和其他高级选项\n'));
 }
 
@@ -323,6 +437,9 @@ export async function initCommand(): Promise<void> {
   const schedulerConfig = await promptScheduler(rl);
   const webUIConfig = await promptWebUIPort(rl);
 
+  // ✨ NEW: Check claude-mem availability
+  const claudeMemCheck = await checkClaudeMemAvailability(rl);
+
   rl.close();
 
   // 合并配置
@@ -334,6 +451,13 @@ export async function initCommand(): Promise<void> {
       ...DEFAULT_CONFIG.webUI!,
       port: webUIConfig.port,
     },
+    // ✨ NEW: Save custom baseUrl if non-default
+    httpApi: {
+      ...DEFAULT_CONFIG.httpApi,
+      ...(claudeMemCheck.baseUrl !== 'http://localhost:37777' && {
+        baseUrl: claudeMemCheck.baseUrl,
+      }),
+    },
   };
 
   await saveConfig(config);
@@ -343,7 +467,7 @@ export async function initCommand(): Promise<void> {
   await installSkillFiles();
 
   // 显示下一步提示
-  printNextSteps(llmConfig.activeProvider, webUIConfig.port);
+  printNextSteps(llmConfig.activeProvider, webUIConfig.port, claudeMemCheck.available, llmConfig);
 }
 
 /**
@@ -437,13 +561,36 @@ async function installSkillFiles(): Promise<void> {
   const { fileURLToPath } = await import('url');
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
-  const sourcePath = path.join(__dirname, '../../../skills/remind/SKILL.md');
 
-  if (await fs.pathExists(sourcePath)) {
+  // 尝试多个可能的路径（增强鲁棒性）
+  const possiblePaths = [
+    // 1. 标准情况：相对于编译后的位置
+    path.join(__dirname, '../../../skills/remind/SKILL.md'),
+    // 2. npm link 场景：多一层目录
+    path.join(__dirname, '../../../../skills/remind/SKILL.md'),
+    // 3. 备用路径：使用规范化的向上查找
+    path.join(__dirname, '..', '..', '..', 'skills', 'remind', 'SKILL.md'),
+  ];
+
+  let sourcePath: string | null = null;
+  for (const testPath of possiblePaths) {
+    if (await fs.pathExists(testPath)) {
+      sourcePath = testPath;
+      logger.debug(`✓ 找到 Skill 文件: ${testPath}`);
+      break;
+    } else {
+      logger.debug(`✗ 未找到: ${testPath}`);
+    }
+  }
+
+  if (sourcePath) {
     await fs.ensureDir(targetDir);
     await fs.copyFile(sourcePath, targetPath);
     logger.success('✓ Skill 文件已安装: ~/.claude/skills/remind/SKILL.md');
   } else {
     console.log(chalk.yellow('⚠️  Skill 源文件未找到，跳过安装'));
+    logger.debug('  已尝试的路径:');
+    possiblePaths.forEach(p => logger.debug(`    - ${p}`));
+    console.log(chalk.gray('  提示: Skill 可以稍后手动安装'));
   }
 }

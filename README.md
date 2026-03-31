@@ -142,6 +142,11 @@ $ claude-evolution diff
 
 - **Node.js** >= 18
 - **Claude Code** 已安装并使用过
+- **claude-mem** Worker Service (用于存储会话数据) ⭐ **必需**
+  - **推荐安装方式**：在 Claude Code 中执行 `/plugin install claude-mem` (自动启动)
+  - **手动安装**：`git clone https://github.com/thedotmack/claude-mem.git && npm install && npm run worker:start`
+  - **验证运行**: `curl http://localhost:37777/api/health` 或访问 http://localhost:37777
+  - **默认端口**: 37777 (可在 `~/.claude-mem/settings.json` 中配置)
 - **ANTHROPIC_API_KEY** 环境变量（用于 LLM 分析）
 
 ### 安装

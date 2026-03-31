@@ -134,8 +134,22 @@ export async function runAnalysisPipeline(options?: {
 
     // 2. 连接 HTTP API
     logger.info('\n[2/8] 连接 claude-mem HTTP API');
-    const httpClient = await createHTTPClient();
-    await logStep(2, '连接 HTTP API', 'success', 'API 连接成功');
+    let httpClient;
+    try {
+      httpClient = await createHTTPClient(config.httpApi.baseUrl);
+      await logStep(2, '连接 HTTP API', 'success', 'API 连接成功');
+    } catch (error: any) {
+      const errorMsg = `无法连接到 claude-mem Worker Service: ${error.message}`;
+      await logStep(2, '连接 HTTP API', 'failed', undefined, errorMsg);
+
+      logger.error('\n❌ 连接失败');
+      logger.error('  claude-mem Worker Service 不可用');
+      logger.error('  请确认 claude-mem 已正确安装和启动\n');
+      logger.info('  插件安装: /plugin install claude-mem (推荐)');
+      logger.info(`  验证运行: curl ${config.httpApi.baseUrl}/api/health\n`);
+
+      throw new Error(errorMsg);
+    }
 
     try {
       // 3. 采集会话数据
