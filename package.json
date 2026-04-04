@@ -8,7 +8,7 @@
     "claude-evolution": "./dist/src/cli/index.js"
   },
   "scripts": {
-    "build": "tsc && npm run build:web && mkdir -p dist/web/client && cp -r web/client/dist dist/web/client/dist",
+    "build": "tsc && npm run build:web && rm -rf dist/web/client/dist && mkdir -p dist/web/client && cp -r web/client/dist dist/web/client/dist",
     "build:web": "cd web/client && npm run build",
     "dev": "tsx watch src/cli/index.ts",
     "dev:server": "tsx watch web/server/index.ts",
