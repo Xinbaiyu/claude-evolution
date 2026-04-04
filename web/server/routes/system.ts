@@ -11,7 +11,7 @@ import {
   AnalysisAlreadyRunningError,
 } from '../../../src/analyzers/analysis-executor.js';
 import { CronScheduler } from '../../../src/scheduler/cron-scheduler.js';
-import { triggerSchedulerConfigChanged } from '../index.js';
+import { triggerSchedulerConfigChanged, triggerAgentConfigChanged } from '../index.js';
 
 interface RequestWithManagers extends Request {
   wsManager?: WebSocketManager;
@@ -243,6 +243,7 @@ router.patch('/config', async (req, res) => {
     const currentConfig = await loadConfig();
 
     // 辅助函数：深度清理对象中的 null 值（表示删除字段）
+    // 注意：保留 undefined 值，因为它们代表"使用默认值"
     const cleanNullValues = (obj: any): any => {
       if (obj === null || obj === undefined) return undefined;
       if (typeof obj !== 'object') return obj;
@@ -256,11 +257,8 @@ router.patch('/config', async (req, res) => {
           // null 表示删除字段，直接跳过
           continue;
         }
-        // 递归清理嵌套对象
-        const cleaned = cleanNullValues(value);
-        if (cleaned !== undefined) {
-          result[key] = cleaned;
-        }
+        // 保留所有其他值，包括 undefined
+        result[key] = cleanNullValues(value);
       }
       return result;
     };
@@ -301,12 +299,14 @@ router.patch('/config', async (req, res) => {
               ...currentConfig.bot?.chat,
               ...updates.bot?.chat,
             },
-            cc: {
-              ...currentConfig.bot?.cc,
-              ...updates.bot?.cc,
-            },
           }
         : currentConfig.bot,
+      agent: updates.agent !== undefined
+        ? {
+            ...currentConfig.agent,
+            ...updates.agent,
+          }
+        : currentConfig.agent,
     };
 
     // 深度清理所有 null 值后再写入
@@ -325,17 +325,29 @@ router.patch('/config', async (req, res) => {
       triggerSchedulerConfigChanged();
     }
 
+    // 检测 Agent 配置变更并触发热重载
+    const agentChanged = updates.agent !== undefined;
+    if (agentChanged) {
+      console.log('[Config Update] Agent config changed');
+      console.log('[Config Update] currentConfig.agent:', JSON.stringify(currentConfig.agent));
+      console.log('[Config Update] updates.agent:', JSON.stringify(updates.agent));
+      console.log('[Config Update] newConfig.agent before clean:', JSON.stringify(newConfig.agent));
+      console.log('[Config Update] cleanedConfig.agent after clean:', JSON.stringify(cleanedConfig.agent));
+      triggerAgentConfigChanged();
+    }
+
     // 广播配置变更事件
     const typedReq = req as RequestWithManagers;
     const changedKeys = Object.keys(updates);
     if (typedReq.wsManager) {
-      typedReq.wsManager.emitConfigChanged({ changedKeys, schedulerChanged });
+      typedReq.wsManager.emitConfigChanged({ changedKeys, schedulerChanged, agentChanged });
     }
 
     res.json({
       success: true,
       data: cleanedConfig,
       schedulerReloaded: schedulerChanged,
+      agentReloaded: agentChanged,
     });
   } catch (error) {
     res.status(500).json({

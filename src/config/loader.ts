@@ -126,6 +126,49 @@ async function backupConfig(configPath: string): Promise<string> {
 }
 
 /**
+ * 迁移 Agent 配置从 bot.cc 到 agent
+ */
+function migrateAgentConfig(config: any): any {
+  const hasBotCC = config.bot?.cc;
+  const hasAgent = config.agent;
+
+  // 如果两者都存在，警告用户
+  if (hasBotCC && hasAgent) {
+    console.warn('[Config Migration] 警告: 同时存在 bot.cc 和 agent 配置，将使用 agent 配置。建议删除 bot.cc 配置。');
+    return config.agent;
+  }
+
+  // 如果只有 agent，直接返回
+  if (hasAgent && !hasBotCC) {
+    return config.agent;
+  }
+
+  // 如果只有 bot.cc，进行迁移
+  if (hasBotCC && !hasAgent) {
+    console.log('[Config Migration] 检测到 bot.cc 配置，正在迁移到 agent...');
+    const botCC = config.bot.cc;
+
+    const migratedAgent = {
+      baseURL: botCC.baseURL,
+      defaultCwd: botCC.defaultCwd || DEFAULT_CONFIG.agent!.defaultCwd,
+      allowedDirs: botCC.allowedDirs || DEFAULT_CONFIG.agent!.allowedDirs,
+      timeoutMs: botCC.timeoutMs ?? DEFAULT_CONFIG.agent!.timeoutMs,
+      maxBudgetUsd: botCC.maxBudgetUsd ?? DEFAULT_CONFIG.agent!.maxBudgetUsd,
+      permissionMode: botCC.permissionMode || DEFAULT_CONFIG.agent!.permissionMode,
+    };
+
+    console.log('[Config Migration] Agent 配置迁移完成');
+    console.log(`[Config Migration] - baseURL: ${migratedAgent.baseURL || '原生 Claude'}`);
+    console.log(`[Config Migration] - defaultCwd: ${migratedAgent.defaultCwd}`);
+
+    return migratedAgent;
+  }
+
+  // 如果都不存在，返回默认配置
+  return DEFAULT_CONFIG.agent;
+}
+
+/**
  * 迁移 LLM 配置从扁平结构到嵌套结构
  */
 function migrateLLMConfig(oldConfig: any): any {
@@ -301,7 +344,40 @@ function migrateConfig(oldConfig: any): any {
     migrated.llm = migrateLLMConfig(migrated);
   }
 
+  // 迁移 13: bot.cc 配置迁移到 agent
+  migrated.agent = migrateAgentConfig(migrated);
+
   return migrated;
+}
+
+/**
+ * 深度移除对象中的 null 和 undefined 值
+ */
+function removeNullValues(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return undefined;
+  }
+
+  if (typeof obj !== 'object') {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => removeNullValues(item)).filter(item => item !== undefined);
+  }
+
+  const result: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === null || value === undefined) {
+      // 跳过 null 和 undefined，让 Zod 使用默认值
+      continue;
+    }
+    const cleaned = removeNullValues(value);
+    if (cleaned !== undefined) {
+      result[key] = cleaned;
+    }
+  }
+  return result;
 }
 
 /**
@@ -314,8 +390,11 @@ export async function saveConfig(config: Config): Promise<void> {
   // 确保目录存在
   await fs.ensureDir(evolutionDir);
 
+  // 移除所有 null 和 undefined 值
+  const cleanedConfig = removeNullValues(config);
+
   // 验证配置
-  const validConfig = ConfigSchema.parse(config);
+  const validConfig = ConfigSchema.parse(cleanedConfig);
 
   // 保存配置
   await fs.writeJSON(configPath, validConfig, { spaces: 2 });

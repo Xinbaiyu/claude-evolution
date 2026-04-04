@@ -4,10 +4,11 @@ import { apiClient } from '../api/client';
 import { toast } from '../components/Toast';
 import LearningTab from './Settings/LearningTab';
 import { LLMProviderConfig } from '../components/LLMProviderConfig';
+import { AgentExecutionConfig } from '../components/AgentExecutionConfig';
 import { addModelToHistory } from '../utils/modelHistory';
 import { TimePicker, Tag, ConfigProvider, theme } from 'antd';
 
-type TabType = 'scheduler' | 'llm' | 'learning' | 'notifications';
+type TabType = 'scheduler' | 'llm' | 'agent' | 'learning' | 'notifications';
 
 const PRESET_LABELS: Record<string, string> = {
   dingtalk: '钉钉',
@@ -58,6 +59,10 @@ export default function Settings() {
       if (activeTab === 'learning' && config.learning) {
         console.log('[Settings] Saving learning config');
         await apiClient.updateLearningConfig(config.learning);
+      } else if (activeTab === 'agent' && config.agent) {
+        // Agent 配置保存
+        console.log('[Settings] Saving agent config');
+        await apiClient.updateConfig({ agent: config.agent });
       } else {
         console.log('[Settings] Saving full config');
         await apiClient.updateConfig(config);
@@ -70,6 +75,8 @@ export default function Settings() {
 
       if (activeTab === 'scheduler') {
         toast.success('配置已保存，调度器已自动重载');
+      } else if (activeTab === 'agent') {
+        toast.success('Agent 配置已保存');
       } else {
         toast.success('配置已保存');
       }
@@ -197,7 +204,17 @@ export default function Settings() {
                   : 'border-transparent text-slate-400 hover:text-slate-300'
               }`}
             >
-              Claude 模型
+              LLM 提供商
+            </button>
+            <button
+              onClick={() => setActiveTab('agent')}
+              className={`px-6 py-3 font-mono font-bold transition-colors border-b-4 ${
+                activeTab === 'agent'
+                  ? 'border-amber-500 text-amber-500'
+                  : 'border-transparent text-slate-400 hover:text-slate-300'
+              }`}
+            >
+              Agent 执行
             </button>
             <button
               onClick={() => setActiveTab('learning')}
@@ -368,6 +385,16 @@ export default function Settings() {
               <LLMProviderConfig
                 config={config}
                 onSave={handleLLMConfigChange}
+              />
+            </div>
+          )}
+
+          {/* Agent 执行配置 */}
+          {activeTab === 'agent' && config && (
+            <div className="border-4 border-slate-700 bg-slate-900 p-6">
+              <AgentExecutionConfig
+                config={config}
+                onConfigChange={setConfig}
               />
             </div>
           )}
@@ -685,143 +712,6 @@ export default function Settings() {
             </div>
           )}
 
-          {/* Claude Code Bridge 配置（通知通道 tab 内） */}
-          {activeTab === 'notifications' && config?.bot?.enabled && (
-            <div className="border-4 border-slate-700 bg-slate-900 p-6">
-              <h2 className="text-xl font-black text-amber-500 mb-4 font-mono">Claude Code 桥接</h2>
-              <div className="text-xs text-slate-500 mb-6">
-                启用后，机器人收到非命令消息时会在你的机器上执行 Claude Code CLI，获得与终端一致的完整能力。
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-bold text-slate-300">启用 CC 桥接</div>
-                    <div className="text-xs text-slate-500">spawn claude -p 子进程处理消息</div>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={config.bot?.cc?.enabled || false}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          bot: {
-                            ...config.bot,
-                            cc: {
-                              ...config.bot?.cc,
-                              enabled: e.target.checked,
-                              defaultCwd: config.bot?.cc?.defaultCwd || '~',
-                              allowedDirs: config.bot?.cc?.allowedDirs || [],
-                              timeoutMs: config.bot?.cc?.timeoutMs || 120000,
-                              maxBudgetUsd: config.bot?.cc?.maxBudgetUsd || 0.5,
-                              permissionMode: config.bot?.cc?.permissionMode || 'bypassPermissions',
-                            },
-                          },
-                        })
-                      }
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-500 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
-                  </label>
-                </div>
-
-                {config.bot?.cc?.enabled && (
-                  <>
-                    <div>
-                      <label className="text-xs font-bold text-slate-400 block mb-1">默认工作目录</label>
-                      <input
-                        type="text"
-                        placeholder="~/projects"
-                        value={config.bot?.cc?.defaultCwd || ''}
-                        onChange={(e) =>
-                          setConfig({
-                            ...config,
-                            bot: { ...config.bot, cc: { ...config.bot?.cc, defaultCwd: e.target.value } },
-                          })
-                        }
-                        className="w-full border-2 border-slate-600 bg-slate-800 text-slate-100 font-mono py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-400 block mb-1">
-                        允许目录 <span className="text-slate-600 font-normal">(白名单，逗号分隔)</span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="~/projects,~/work"
-                        value={(config.bot?.cc?.allowedDirs || []).join(',')}
-                        onChange={(e) => {
-                          const dirs = e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean);
-                          setConfig({
-                            ...config,
-                            bot: { ...config.bot, cc: { ...config.bot?.cc, allowedDirs: dirs } },
-                          });
-                        }}
-                        className="w-full border-2 border-slate-600 bg-slate-800 text-slate-100 font-mono py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                      />
-                      <div className="text-xs text-slate-600 mt-1">为空则不限制（不推荐）</div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-xs font-bold text-slate-400 block mb-1">超时 (秒)</label>
-                        <input
-                          type="number"
-                          min="5"
-                          max="600"
-                          value={Math.round((config.bot?.cc?.timeoutMs || 120000) / 1000)}
-                          onChange={(e) =>
-                            setConfig({
-                              ...config,
-                              bot: { ...config.bot, cc: { ...config.bot?.cc, timeoutMs: parseInt(e.target.value) * 1000 } },
-                            })
-                          }
-                          className="w-full border-2 border-slate-600 bg-slate-800 text-slate-100 font-mono py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-400 block mb-1">单次预算 ($)</label>
-                        <input
-                          type="number"
-                          min="0.01"
-                          max="10"
-                          step="0.1"
-                          value={config.bot?.cc?.maxBudgetUsd || 0.5}
-                          onChange={(e) =>
-                            setConfig({
-                              ...config,
-                              bot: { ...config.bot, cc: { ...config.bot?.cc, maxBudgetUsd: parseFloat(e.target.value) } },
-                            })
-                          }
-                          className="w-full border-2 border-slate-600 bg-slate-800 text-slate-100 font-mono py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-400 block mb-1">
-                        API 代理 <span className="text-slate-600 font-normal">(CCR baseURL，可选)</span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="http://127.0.0.1:3456 (留空继承环境变量)"
-                        value={config.bot?.cc?.baseURL || ''}
-                        onChange={(e) =>
-                          setConfig({
-                            ...config,
-                            bot: { ...config.bot, cc: { ...config.bot?.cc, baseURL: e.target.value || null } },
-                          })
-                        }
-                        className="w-full border-2 border-slate-600 bg-slate-800 text-slate-100 font-mono py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
           <div className="flex gap-4 justify-end">
             <button
               onClick={() => navigate('/')}

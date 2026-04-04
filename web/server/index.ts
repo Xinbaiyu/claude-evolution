@@ -121,6 +121,10 @@ export function closeServer(): Promise<void> {
 type SchedulerConfigChangedCallback = () => Promise<void>;
 let schedulerConfigChangedCallback: SchedulerConfigChangedCallback | null = null;
 
+// Agent 配置变更回调注册
+type AgentConfigChangedCallback = () => Promise<void>;
+let agentConfigChangedCallback: AgentConfigChangedCallback | null = null;
+
 // ReminderService 注入
 let reminderServiceInstance: any = null;
 
@@ -136,6 +140,18 @@ export function triggerSchedulerConfigChanged(): void {
   if (schedulerConfigChangedCallback) {
     schedulerConfigChangedCallback().catch((error) => {
       console.error('[Config] Scheduler reload failed:', error);
+    });
+  }
+}
+
+export function onAgentConfigChanged(callback: AgentConfigChangedCallback): void {
+  agentConfigChangedCallback = callback;
+}
+
+export function triggerAgentConfigChanged(): void {
+  if (agentConfigChangedCallback) {
+    agentConfigChangedCallback().catch((error) => {
+      console.error('[Config] Agent reload failed:', error);
     });
   }
 }

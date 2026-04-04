@@ -139,6 +139,26 @@ export function createReloadScheduler(
 }
 
 // ---------------------------------------------------------------------------
+// Agent Hot-Reload
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a reload function that reloads AgentExecutor config when config.agent changes.
+ */
+export function createReloadAgentExecutor(log: LifecycleLogger): () => Promise<void> {
+  return async () => {
+    log.info('[热重载] 检测到 Agent 配置变更，开始重载...');
+
+    // 动态导入避免循环依赖
+    const { getAgentExecutor } = await import('../agent/executor.js');
+    const executor = await getAgentExecutor();
+    await executor.reloadConfig();
+
+    log.info('[热重载] AgentExecutor 配置已重新加载');
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Start Components
 // ---------------------------------------------------------------------------
 
@@ -239,6 +259,11 @@ export async function startComponents(
         webModule.onSchedulerConfigChanged(reloadFn);
         log.info('调度器热重载回调已注册');
       }
+
+      // Register agent hot-reload callback
+      const agentReloadFn = createReloadAgentExecutor(log);
+      webModule.onAgentConfigChanged(agentReloadFn);
+      log.info('Agent 热重载回调已注册');
 
       await webModule.startServer(port);
       components.webServer = webModule.server;

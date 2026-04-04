@@ -145,7 +145,7 @@ export class WebSocketManager {
     this.broadcast('observation_restored', observation);
   }
 
-  public emitConfigChanged(data: { changedKeys: string[]; schedulerChanged: boolean }) {
+  public emitConfigChanged(data: { changedKeys: string[]; schedulerChanged: boolean; agentChanged?: boolean }) {
     this.broadcast('config_changed', data);
   }
 

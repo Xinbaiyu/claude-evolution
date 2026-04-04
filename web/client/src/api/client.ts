@@ -254,15 +254,14 @@ export interface Config {
       contextWindow: number;
       contextTimeoutMinutes: number;
     };
-    cc?: {
-      enabled: boolean;
-      defaultCwd: string;
-      allowedDirs: string[];
-      timeoutMs: number;
-      maxBudgetUsd: number;
-      permissionMode: string;
-      baseURL?: string;
-    };
+  };
+  agent?: {
+    baseURL?: string;
+    defaultCwd: string;
+    allowedDirs: string[];
+    timeoutMs: number;
+    maxBudgetUsd: number;
+    permissionMode: 'bypassPermissions' | 'auto' | 'manual';
   };
 }
 

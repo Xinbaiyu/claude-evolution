@@ -54,7 +54,7 @@ export function createBotSystem(
   router.register(new HelpCommand(() => router.getHelpText()));
 
   // Fallback: CC Bridge（优先）或 LLM 直调
-  if (config.bot?.cc?.enabled) {
+  if (config.agent) {
     router.setFallback(new CCBridgeHandler(contextManager));
   } else if (chatConfig?.enabled !== false) {
     router.setFallback(new ChatCommand(contextManager));

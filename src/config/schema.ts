@@ -240,21 +240,28 @@ const BotChatSchema = z.object({
   contextTimeoutMinutes: z.number().min(1).max(1440).default(30),
 });
 
-const BotCCSchema = z.object({
-  enabled: z.boolean().default(false),
-  defaultCwd: z.string().default('~'),
-  allowedDirs: z.array(z.string()).default([]),
-  timeoutMs: z.number().min(5000).max(600_000).default(120_000),
-  maxBudgetUsd: z.number().min(0).max(10).default(0.5),
-  permissionMode: z.string().default('bypassPermissions'),
+/**
+ * Agent 执行配置（钉钉任务、定时调研等都使用此配置）
+ */
+const AgentConfigSchema = z.object({
+  /** Claude Code CLI 代理 URL，null 表示原生 Claude，URL 表示通过 CCR 代理 */
   baseURL: z.string().nullish().transform(val => val === null ? undefined : val),
+  /** 默认工作目录 */
+  defaultCwd: z.string().default('~/Desktop'),
+  /** 允许执行的目录白名单，空数组表示不限制 */
+  allowedDirs: z.array(z.string()).default([]),
+  /** 执行超时时间（毫秒） */
+  timeoutMs: z.number().min(5000).max(600_000).default(120_000),
+  /** 单次执行最大预算（美元） */
+  maxBudgetUsd: z.number().min(0).max(10).default(0.5),
+  /** 权限模式 */
+  permissionMode: z.enum(['bypassPermissions', 'auto', 'manual']).default('bypassPermissions'),
 });
 
 const BotConfigSchema = z.object({
   enabled: z.boolean().default(false),
   dingtalk: BotDingTalkSchema.default({}),
   chat: BotChatSchema.default({}),
-  cc: BotCCSchema.default({}),
 });
 
 /**
@@ -267,6 +274,7 @@ export const ConfigSchema = z.object({
   learning: LearningConfigSchema.optional(), // 可选，增量学习配置
   reminders: RemindersConfigSchema.optional(), // 可选，提醒系统配置
   bot: BotConfigSchema.optional(), // 可选，机器人配置
+  agent: AgentConfigSchema.optional(), // 可选，Agent 执行配置
   llm: LLMSchema,
   httpApi: HttpApiSchema,
   filters: FiltersSchema,
@@ -280,6 +288,9 @@ export type ClaudeConfig = z.infer<typeof ClaudeConfigSchema>;
 export type OpenAIConfig = z.infer<typeof OpenAIConfigSchema>;
 export type CCRConfig = z.infer<typeof CCRConfigSchema>;
 export type LLMConfig = z.infer<typeof LLMSchema>;
+
+// Agent 执行配置类型导出
+export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 
 /**
  * 默认配置
@@ -357,6 +368,14 @@ export const DEFAULT_CONFIG: Config = {
       websocket: { enabled: true },
       webhook: { enabled: false, webhooks: [] },
     },
+  },
+  agent: {
+    baseURL: undefined,
+    defaultCwd: '~/Desktop',
+    allowedDirs: [],
+    timeoutMs: 120_000,
+    maxBudgetUsd: 0.5,
+    permissionMode: 'bypassPermissions' as const,
   },
   llm: {
     activeProvider: 'claude' as ActiveProvider,
