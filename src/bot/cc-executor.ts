@@ -5,6 +5,9 @@
 
 import { spawn } from 'child_process';
 import os from 'os';
+import path from 'path';
+import { existsSync, statSync } from 'fs';
+import { logToFile } from './file-logger.js';
 
 export interface CCExecuteOptions {
   prompt: string;
@@ -24,12 +27,56 @@ export interface CCExecuteResult {
   durationMs: number;
 }
 
-/** 展开 ~ 到 home 目录 */
+/** 展开 ~ 到 home 目录，并返回绝对路径 */
 export function expandHome(p: string): string {
-  if (p.startsWith('~/') || p === '~') {
-    return p.replace('~', os.homedir());
+  if (p === '~') {
+    return os.homedir();
   }
-  return p;
+  if (p.startsWith('~/')) {
+    // 使用 path.join 而不是 replace，更健壮
+    return path.join(os.homedir(), p.slice(2));
+  }
+  // 确保返回绝对路径
+  return path.resolve(p);
+}
+
+/**
+ * 验证 cwd 是否有效（存在且为目录）
+ * @returns { valid: boolean, error?: string, expandedPath?: string }
+ */
+export function validateCwd(cwd: string): {
+  valid: boolean;
+  error?: string;
+  expandedPath?: string;
+} {
+  try {
+    const expanded = expandHome(cwd);
+
+    // 检查路径是否存在
+    if (!existsSync(expanded)) {
+      return {
+        valid: false,
+        error: `Directory does not exist: ${expanded} (original: ${cwd})`,
+      };
+    }
+
+    // 检查是否为目录
+    const stats = statSync(expanded);
+    if (!stats.isDirectory()) {
+      return {
+        valid: false,
+        error: `Path is not a directory: ${expanded} (original: ${cwd})`,
+      };
+    }
+
+    return { valid: true, expandedPath: expanded };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return {
+      valid: false,
+      error: `Failed to validate cwd: ${errorMsg} (path: ${cwd})`,
+    };
+  }
 }
 
 /** 执行 claude -p 子进程 */
@@ -50,7 +97,8 @@ export async function executeCC(options: CCExecuteOptions): Promise<CCExecuteRes
     '--output-format', 'json',
     '--permission-mode', permissionMode,
     '--max-budget-usd', maxBudgetUsd.toString(),
-    '--no-session-persistence',
+    // 移除 --no-session-persistence，可能导致进程卡住
+    // '--no-session-persistence',
   ];
 
   if (systemPrompt) {
@@ -64,38 +112,85 @@ export async function executeCC(options: CCExecuteOptions): Promise<CCExecuteRes
     env.ANTHROPIC_BASE_URL = baseURL;
   }
 
+  // 验证 cwd
+  const validation = validateCwd(cwd);
+  if (!validation.valid) {
+    logToFile('[executeCC] CWD validation failed:', validation.error);
+    return Promise.resolve({
+      success: false,
+      error: `Invalid working directory: ${validation.error}`,
+      durationMs: Date.now() - startTime,
+    });
+  }
+
+  const expandedCwd = validation.expandedPath!;
+  logToFile('[executeCC] Using cwd:', expandedCwd);
+
   return new Promise<CCExecuteResult>((resolve) => {
     let stdout = '';
     let stderr = '';
     let killed = false;
 
-    console.log(`[CC Executor] 启动 claude -p (cwd: ${expandHome(cwd)}, timeout: ${timeoutMs}ms)`);
+    logToFile('[executeCC] Spawn config:', {
+      command: 'claude',
+      args,
+      cwd: expandedCwd,
+      timeout: timeoutMs,
+    });
 
     const child = spawn('claude', args, {
-      cwd: expandHome(cwd),
+      cwd: expandedCwd,
       env,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['pipe', 'pipe', 'pipe'], // stdin 改为 pipe 以便立即关闭
+      shell: false, // 直接执行，避免通过 shell 导致进程分离
+      detached: false, // 确保子进程跟随父进程退出
     });
+
+    logToFile('[CC Executor] 进程已启动:', { pid: child.pid });
+
+    // 写入换行符后关闭 stdin，让 Claude Code 收到 EOF
+    if (child.stdin) {
+      child.stdin.write('\n');
+      child.stdin.end();
+      logToFile('[CC Executor] stdin 已写入换行符并关闭');
+    }
 
     const timer = setTimeout(() => {
       killed = true;
+      logToFile('[CC Executor] 执行超时，发送 SIGTERM:', { pid: child.pid });
       child.kill('SIGTERM');
       setTimeout(() => {
-        if (!child.killed) child.kill('SIGKILL');
+        if (!child.killed) {
+          logToFile('[CC Executor] SIGTERM 无效，发送 SIGKILL:', { pid: child.pid });
+          child.kill('SIGKILL');
+        }
       }, 5000);
     }, timeoutMs);
 
     child.stdout.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
+      logToFile('[CC Executor] 收到 stdout:', { bytes: chunk.length, preview: chunk.toString().slice(0, 100) });
     });
 
     child.stderr.on('data', (chunk: Buffer) => {
       stderr += chunk.toString();
-      console.log(`[CC Executor] stderr: ${chunk.toString().slice(0, 200)}`);
+      logToFile('[CC Executor] 收到 stderr:', chunk.toString().slice(0, 200));
+    });
+
+    child.on('exit', (code, signal) => {
+      logToFile('[CC Executor] exit 事件:', { code, signal, pid: child.pid });
     });
 
     child.on('error', (err) => {
       clearTimeout(timer);
+      logToFile('[executeCC] Spawn error:', {
+        error: err.message,
+        code: (err as NodeJS.ErrnoException).code,
+        errno: (err as NodeJS.ErrnoException).errno,
+        syscall: (err as NodeJS.ErrnoException).syscall,
+        path: (err as NodeJS.ErrnoException).path,
+        cwd: expandedCwd,
+      });
       resolve({
         success: false,
         error: err.message.includes('ENOENT')
@@ -108,7 +203,12 @@ export async function executeCC(options: CCExecuteOptions): Promise<CCExecuteRes
     child.on('close', (code) => {
       clearTimeout(timer);
       const durationMs = Date.now() - startTime;
-      console.log(`[CC Executor] 进程退出 code=${code} killed=${killed} duration=${durationMs}ms stdout=${stdout.length}bytes`);
+      logToFile('[CC Executor] 进程退出:', {
+        code,
+        killed,
+        durationMs,
+        stdoutBytes: stdout.length,
+      });
 
       if (killed) {
         return resolve({
@@ -121,7 +221,9 @@ export async function executeCC(options: CCExecuteOptions): Promise<CCExecuteRes
       // 尝试解析 JSON 输出
       const parsed = parseOutput(stdout);
 
-      if (code !== 0 && !parsed.result) {
+      // 仅当退出码是非零数值且没有解析到结果时才认为失败
+      // null 退出码（进程正常退出但未设置退出码）视为成功
+      if (typeof code === 'number' && code !== 0 && !parsed.result) {
         return resolve({
           success: false,
           error: parsed.error || stderr.slice(0, 500) || `进程退出码 ${code}`,

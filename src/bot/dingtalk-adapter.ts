@@ -11,6 +11,7 @@ import type { DWClientDownStream } from 'dingtalk-stream';
 import type { BotAdapter } from './adapter.js';
 import type { BotMessage, BotReply } from './types.js';
 import { sendAsyncReply } from './async-reply.js';
+import { logToFile } from './file-logger.js';
 
 interface DingTalkStreamConfig {
   clientId: string;
@@ -28,31 +29,52 @@ export class DingTalkBotAdapter implements BotAdapter {
   }
 
   async start(): Promise<void> {
+    logToFile('[DingTalk Bot] start() 方法被调用');
+
     if (!this.config.clientId || !this.config.clientSecret) {
-      console.log('[DingTalk Bot] clientId 或 clientSecret 未配置，跳过 Stream 连接');
+      logToFile('[DingTalk Bot] clientId 或 clientSecret 未配置，跳过 Stream 连接');
       return;
     }
 
+    // Intercept console.log to capture SDK debug output
+    const originalLog = console.log;
+    const originalError = console.error;
+    console.log = (...args: unknown[]) => {
+      logToFile('[SDK-LOG]', ...args);
+      originalLog.apply(console, args);
+    };
+    console.error = (...args: unknown[]) => {
+      logToFile('[SDK-ERROR]', ...args);
+      originalError.apply(console, args);
+    };
+
+    logToFile('[DingTalk Bot] 准备创建 DWClient');
     this.client = new DWClient({
       clientId: this.config.clientId,
       clientSecret: this.config.clientSecret,
-      debug: false,
+      debug: true,  // 启用 debug 模式查看详细日志
       keepAlive: false,
     });
 
     // 捕获 SDK 内部未处理的错误，防止进程崩溃
     this.client.on('error', (err: Error) => {
-      console.error('[DingTalk Bot] Stream 错误:', err.message);
+      logToFile('[DingTalk Bot] Stream 错误:', err.message);
     });
 
     // 注册机器人消息回调
-    this.client.registerCallbackListener(TOPIC_ROBOT, (msg: DWClientDownStream) => {
-      console.log('[DingTalk Bot] 收到消息:', msg.headers.messageId);
+    // 使用钉钉 2.0 API 的 topic
+    const CALLBACK_TOPIC = '/v1.0/im/bot/messages/get';
+    this.client.registerCallbackListener(CALLBACK_TOPIC, (msg: DWClientDownStream) => {
+      logToFile('[DingTalk Bot] 收到消息:', msg.headers.messageId);
       this.handleStreamMessage(msg);
     });
 
+    logToFile('[DingTalk Bot] 正在连接...');
     await this.client.connect();
-    console.log('[DingTalk Bot] Stream 连接已建立');
+    logToFile('[DingTalk Bot] Stream 连接已建立');
+
+    // Keep console intercept active to capture all SDK logs
+    // Don't restore console.log/error yet
   }
 
   async stop(): Promise<void> {
@@ -73,21 +95,25 @@ export class DingTalkBotAdapter implements BotAdapter {
   }
 
   private handleStreamMessage(downstream: DWClientDownStream): void {
+    logToFile('[DingTalk Bot] handleStreamMessage 被调用');
+    logToFile('[DingTalk Bot] downstream.data:', downstream.data);
+
     // 立即响应 ACK，避免钉钉 60s 内重试
     if (this.client) {
       this.client.socketCallBackResponse(downstream.headers.messageId, { status: 'SUCCESS', message: 'OK' });
+      logToFile('[DingTalk Bot] ACK 已发送');
     }
 
     // 异步处理消息
     this.processMessage(downstream).catch((error) => {
-      console.error('[DingTalk Bot] 处理消息失败:', error);
+      logToFile('[DingTalk Bot] 处理消息失败:', error);
     });
   }
 
   private async processMessage(downstream: DWClientDownStream): Promise<void> {
     const body = JSON.parse(downstream.data);
-    console.log('[DingTalk Bot] 消息内容:', body.msgtype, body.text?.content || '(非文本)');
-    console.log('[DingTalk Bot] sessionWebhook:', body.sessionWebhook ? '有' : '无');
+    logToFile('[DingTalk Bot] 消息内容:', body.msgtype, body.text?.content || '(非文本)');
+    logToFile('[DingTalk Bot] sessionWebhook:', body.sessionWebhook ? '有' : '无');
 
     if (body.msgtype !== 'text') {
       // 非文本消息通过 sessionWebhook 回复提示
@@ -116,7 +142,10 @@ export class DingTalkBotAdapter implements BotAdapter {
       sessionWebhook: body.sessionWebhook,
     };
 
+    logToFile('[DingTalk Bot] 检查 handler 是否存在:', this.handler ? '是' : '否');
+
     if (!this.handler) {
+      logToFile('[DingTalk Bot] handler 不存在，回复「机器人未就绪」');
       if (message.sessionWebhook) {
         await sendAsyncReply(message.sessionWebhook, {
           content: '机器人未就绪',
@@ -126,11 +155,15 @@ export class DingTalkBotAdapter implements BotAdapter {
       return;
     }
 
+    logToFile('[DingTalk Bot] 准备调用 handler 处理消息');
     const reply = await this.handler(message);
+    logToFile('[DingTalk Bot] handler 返回结果:', reply);
 
     // Stream 模式下所有回复都通过 sessionWebhook 推送
     if (message.sessionWebhook) {
+      logToFile('[DingTalk Bot] 准备发送异步回复');
       await sendAsyncReply(message.sessionWebhook, reply);
+      logToFile('[DingTalk Bot] 异步回复已发送');
     }
   }
 }
