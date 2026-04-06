@@ -274,7 +274,7 @@ export const ConfigSchema = z.object({
   learning: LearningConfigSchema.optional(), // 可选，增量学习配置
   reminders: RemindersConfigSchema.optional(), // 可选，提醒系统配置
   bot: BotConfigSchema.optional(), // 可选，机器人配置
-  agent: AgentConfigSchema.optional(), // 可选，Agent 执行配置
+  agent: AgentConfigSchema.nullable().optional(), // 可选，支持 null 以禁用 Agent 模式
   llm: LLMSchema,
   httpApi: HttpApiSchema,
   filters: FiltersSchema,
@@ -369,14 +369,8 @@ export const DEFAULT_CONFIG: Config = {
       webhook: { enabled: false, webhooks: [] },
     },
   },
-  agent: {
-    baseURL: undefined,
-    defaultCwd: '~/Desktop',
-    allowedDirs: [],
-    timeoutMs: 120_000,
-    maxBudgetUsd: 0.5,
-    permissionMode: 'bypassPermissions' as const,
-  },
+  // agent 默认不配置（undefined），需要用户主动配置
+  // agent: undefined,
   llm: {
     activeProvider: 'claude' as ActiveProvider,
     claude: {
