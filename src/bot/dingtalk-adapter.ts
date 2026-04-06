@@ -87,7 +87,7 @@ export class DingTalkBotAdapter implements BotAdapter {
       clientId: this.config.clientId,
       clientSecret: this.config.clientSecret,
       debug: true,  // 启用 debug 模式查看详细日志
-      keepAlive: false,
+      keepAlive: true,  // 启用 SDK 内置心跳保活
     });
 
     // 捕获 SDK 内部未处理的错误，防止进程崩溃
@@ -110,7 +110,8 @@ export class DingTalkBotAdapter implements BotAdapter {
 
     this.setState('connected');
     this.resetReconnectState();
-    this.startHeartbeat();
+    // Disable custom heartbeat - rely on SDK's built-in mechanism
+    // this.startHeartbeat();
   }
 
   async stop(): Promise<void> {
