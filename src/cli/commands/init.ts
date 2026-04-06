@@ -6,6 +6,7 @@ import { saveConfig, getEvolutionDir, DEFAULT_CONFIG } from '../../config/index.
 import { logger } from '../../utils/index.js';
 import type { ActiveProvider, LLMConfig } from '../../config/schema.js';
 import { createInterface } from 'readline';
+import { regenerateClaudeMdFromDisk } from '../../memory/claudemd-generator.js';
 
 /**
  * 辅助函数：封装 readline 问题提示
@@ -308,6 +309,14 @@ function printNextSteps(
   llmConfig?: LLMConfig
 ) {
   console.log(chalk.bold.green('\n✅ 初始化完成!\n'));
+
+  // 软链接说明
+  console.log(chalk.blue('📁 配置文件布局:'));
+  console.log(chalk.gray('   源文件: ~/.claude-evolution/source/*.md (手动维护)'));
+  console.log(chalk.gray('   学习内容: ~/.claude-evolution/learned/*.md (自动生成)'));
+  console.log(chalk.gray('   生成文件: ~/.claude-evolution/output/CLAUDE.md'));
+  console.log(chalk.green('   软链接: ~/.claude/CLAUDE.md -> output/CLAUDE.md ✓\n'));
+
   console.log(chalk.bold('下一步:\n'));
 
   // ✨ NEW: Claude-Mem warning if not available
@@ -466,6 +475,9 @@ export async function initCommand(): Promise<void> {
   // 安装 Skill 文件
   await installSkillFiles();
 
+  // 生成初始的 CLAUDE.md 并创建软链接
+  await generateInitialClaudeMd();
+
   // 显示下一步提示
   printNextSteps(llmConfig.activeProvider, webUIConfig.port, claudeMemCheck.available, llmConfig);
 }
@@ -592,5 +604,24 @@ async function installSkillFiles(): Promise<void> {
     logger.debug('  已尝试的路径:');
     possiblePaths.forEach(p => logger.debug(`    - ${p}`));
     console.log(chalk.gray('  提示: Skill 可以稍后手动安装'));
+  }
+}
+
+/**
+ * 生成初始的 CLAUDE.md 并创建软链接
+ */
+async function generateInitialClaudeMd(): Promise<void> {
+  try {
+    console.log(chalk.blue('\n正在生成初始 CLAUDE.md...'));
+
+    // 从 source 目录生成初始配置（此时还没有 learned 内容）
+    const outputPath = await regenerateClaudeMdFromDisk();
+
+    logger.success(`✓ 已生成 ${outputPath}`);
+    logger.success('✓ 已创建软链接: ~/.claude/CLAUDE.md -> ~/.claude-evolution/output/CLAUDE.md');
+  } catch (error) {
+    logger.error('生成初始 CLAUDE.md 失败', error);
+    console.log(chalk.yellow('\n⚠️  初始配置生成失败，但不影响后续使用'));
+    console.log(chalk.gray('    可以稍后运行 claude-evolution start 时自动生成'));
   }
 }

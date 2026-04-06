@@ -6,6 +6,7 @@
 
 import fs from 'fs-extra';
 import path from 'path';
+import os from 'os';
 import { getEvolutionDir } from '../config/loader.js';
 import { logger } from '../utils/index.js';
 import { loadContextObservations } from './observation-manager.js';
@@ -18,6 +19,83 @@ import type { Preference, Pattern, Workflow } from '../types/index.js';
 export function getClaudeMdPath(): string {
   const evolutionDir = getEvolutionDir();
   return path.join(evolutionDir, 'output', 'CLAUDE.md');
+}
+
+/**
+ * Get global CLAUDE.md path in ~/.claude/
+ */
+export function getGlobalClaudeMdPath(): string {
+  return path.join(os.homedir(), '.claude', 'CLAUDE.md');
+}
+
+/**
+ * Create symlink from generated CLAUDE.md to ~/.claude/CLAUDE.md
+ */
+export async function createSymlinkToGlobal(sourcePath: string): Promise<void> {
+  const targetPath = getGlobalClaudeMdPath();
+
+  try {
+    // Check if target already exists (use lstat to detect broken symlinks)
+    let stats;
+    try {
+      stats = await fs.lstat(targetPath);
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        // File doesn't exist, proceed to create symlink
+        stats = null;
+      } else {
+        throw error;
+      }
+    }
+
+    if (stats) {
+
+      if (stats.isSymbolicLink()) {
+        // If it's already a symlink, check if it points to our file
+        const linkTarget = await fs.readlink(targetPath);
+        const resolvedLink = path.resolve(path.dirname(targetPath), linkTarget);
+        const resolvedSource = path.resolve(sourcePath);
+
+        if (resolvedLink === resolvedSource) {
+          logger.debug('Symlink already points to the correct location');
+          return;
+        }
+
+        // Remove old symlink (use unlink for better reliability with symlinks)
+        logger.info('Updating symlink', {
+          old: linkTarget,
+          new: sourcePath,
+          resolvedOld: resolvedLink,
+          resolvedNew: resolvedSource
+        });
+        await fs.unlink(targetPath);
+
+        // Verify deletion
+        if (await fs.pathExists(targetPath)) {
+          throw new Error(`Failed to remove old symlink: ${targetPath}`);
+        }
+        logger.debug('Old symlink removed successfully');
+      } else {
+        // It's a regular file, backup first
+        const backupPath = `${targetPath}.before-evolution`;
+        logger.warn('Backing up existing CLAUDE.md', { from: targetPath, to: backupPath });
+        await fs.move(targetPath, backupPath, { overwrite: true });
+      }
+    }
+
+    // Ensure .claude directory exists
+    await fs.ensureDir(path.dirname(targetPath));
+
+    // Create symlink
+    await fs.symlink(sourcePath, targetPath);
+    logger.success('Created symlink to global CLAUDE.md', {
+      from: sourcePath,
+      to: targetPath,
+    });
+  } catch (error) {
+    logger.error('Failed to create symlink', error);
+    throw error;
+  }
 }
 
 /**
@@ -328,6 +406,9 @@ export async function regenerateClaudeMd(
       ignored: observations.length - activeObservations.length,
     });
 
+    // Create symlink to ~/.claude/CLAUDE.md
+    await createSymlinkToGlobal(outputPath);
+
     return outputPath;
   } catch (error) {
     logger.error('Failed to regenerate CLAUDE.md', error);
@@ -385,6 +466,9 @@ export async function regenerateClaudeMdFromDisk(): Promise<string> {
     logger.success(`Generated CLAUDE.md from disk (${activeObservations.length} observations)`, {
       path: outputPath,
     });
+
+    // Create symlink to ~/.claude/CLAUDE.md
+    await createSymlinkToGlobal(outputPath);
 
     return outputPath;
   } catch (error) {
