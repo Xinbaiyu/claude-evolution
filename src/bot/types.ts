@@ -43,3 +43,25 @@ export interface CommandHandler {
   match(content: string): boolean;
   execute(ctx: CommandContext): Promise<BotReply>;
 }
+
+/** 连接状态 */
+export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
+
+/** 重连配置 */
+export interface ReconnectConfig {
+  enabled: boolean;
+  maxRetries: number;
+  initialDelay: number;
+  maxDelay: number;
+  backoffMultiplier: number;
+}
+
+/** 连接状态信息 */
+export interface ConnectionStatus {
+  state: ConnectionState;
+  lastConnectedAt?: Date;
+  lastDisconnectAt?: Date;
+  reconnectAttempts: number;
+  maxReconnectAttempts: number;
+  uptimeSeconds?: number;
+}
