@@ -34,12 +34,16 @@ export class CCBridgeHandler implements CommandHandler {
 
     // 后台异步执行 CC
     this.executeCCAndReply(message).catch((error) => {
-      console.error('[CC Bridge] 执行失败:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error('[CC Bridge] 执行失败:', errorMsg);
+      // 使用 logToFile 确保在 daemon 模式下也能看到日志
       if (message.sessionWebhook) {
         sendAsyncReply(message.sessionWebhook, {
-          content: `CC 执行失败: ${error instanceof Error ? error.message : '未知错误'}`,
+          content: `CC 执行失败: ${errorMsg}`,
           format: 'text',
-        }).catch(() => { /* 静默 */ });
+        }).catch((replyError) => {
+          console.error('[CC Bridge] 异步回复发送失败:', replyError);
+        });
       }
     });
 
@@ -87,6 +91,13 @@ export class CCBridgeHandler implements CommandHandler {
         ? result.result || '(无输出)'
         : `执行失败: ${result.error}`;
 
+      console.log('[CC Bridge] Agent 执行完成:', {
+        success: result.success,
+        durationMs: result.durationMs,
+        resultLength: result.result?.length,
+        error: result.error,
+      });
+
       // 记录回复到上下文
       this.contextManager.addMessage(message.chatId, 'assistant', replyText);
 
@@ -96,10 +107,12 @@ export class CCBridgeHandler implements CommandHandler {
           ? `\n\n---\n_耗时 ${(result.durationMs / 1000).toFixed(1)}s | 费用 $${result.costUsd.toFixed(4)}_`
           : `\n\n---\n_耗时 ${(result.durationMs / 1000).toFixed(1)}s_`;
 
+        console.log('[CC Bridge] 准备发送异步回复，内容长度:', (replyText + costInfo).length);
         await sendAsyncReply(message.sessionWebhook, {
           content: replyText + costInfo,
           format: 'markdown',
         });
+        console.log('[CC Bridge] 异步回复已发送');
       }
     } catch (error) {
       // 捕获执行错误

@@ -18,21 +18,44 @@ export interface PathResolveResult {
  * - "在~/projects/myapp下 帮我看下" → cwd: ~/projects/myapp, prompt: "帮我看下"
  * - "cd ~/projects && 帮我看下" → cwd: ~/projects, prompt: "帮我看下"
  * - "帮我看下bug" → cwd: defaultCwd, prompt: "帮我看下bug"
+ *
+ * 注意：如果提取的路径看起来像文件（有扩展名），则忽略，使用 defaultCwd
  */
 export function resolveWorkingDir(content: string, defaultCwd: string): PathResolveResult {
   // 匹配 "在 <path> <prompt>" 或 "在<path>下 <prompt>"
   const zhMatch = content.match(/^在\s*(\/[^\s下]+|~\/[^\s下]+)下?\s+(.+)$/s);
   if (zhMatch) {
-    return { cwd: zhMatch[1], prompt: zhMatch[2].trim() };
+    const extractedPath = zhMatch[1];
+    // 检查路径是否看起来像文件（有常见扩展名）
+    if (looksLikeFile(extractedPath)) {
+      // 不提取，使用完整消息和默认 cwd
+      return { cwd: defaultCwd, prompt: content };
+    }
+    return { cwd: extractedPath, prompt: zhMatch[2].trim() };
   }
 
   // 匹配 "cd <path> && <prompt>" 或 "cd <path> <prompt>"
   const cdMatch = content.match(/^cd\s+(\/[^\s]+|~\/[^\s]+)\s*(?:&&|\s)\s*(.+)$/s);
   if (cdMatch) {
-    return { cwd: cdMatch[1], prompt: cdMatch[2].trim() };
+    const extractedPath = cdMatch[1];
+    // 检查路径是否看起来像文件
+    if (looksLikeFile(extractedPath)) {
+      return { cwd: defaultCwd, prompt: content };
+    }
+    return { cwd: extractedPath, prompt: cdMatch[2].trim() };
   }
 
   return { cwd: defaultCwd, prompt: content };
+}
+
+/**
+ * 简单检查路径是否看起来像文件（有扩展名）
+ */
+function looksLikeFile(pathStr: string): boolean {
+  const basename = path.basename(pathStr);
+  // 检查是否有扩展名（至少一个点，且点后面有字符）
+  const hasExtension = /\.\w+$/.test(basename);
+  return hasExtension;
 }
 
 /**

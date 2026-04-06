@@ -315,8 +315,11 @@ export async function startComponents(
       if (config.bot?.enabled && config.bot?.dingtalk?.enabled) {
         log.info('启动机器人服务 (Stream 模式)...');
         const { createBotSystem } = await import('../bot/index.js');
+        log.info(`钉钉配置: clientId=${config.bot.dingtalk.clientId?.substring(0, 10)}...`);
         const botSystem = createBotSystem(config, executor, components.reminderService);
+        log.info('BotSystem 已创建，准备调用 adapter.start()');
         await botSystem.adapter.start();
+        log.info('adapter.start() 已完成');
         components.botSystem = botSystem;
         log.info('钉钉机器人已启用 (Stream 长连接)');
       }
