@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 📚 Documentation
+
+#### README Restructured
+Completely restructured README.md from 1000+ lines to ~130 lines, focusing on initialization and architecture.
+
+**Changes**:
+- **Simplified Structure**: 4 core sections (Header, Quick Start, System Architecture, Detailed Documentation)
+- **Removed Content**: Moved CLI reference, Web UI guide, development guide, troubleshooting, and configuration details to `docs/` directory (to be created in future PR)
+- **Enhanced Visuals**: Added Mermaid diagram showing automatic analysis pipeline
+- **Clear Guidance**: P0/P1/P2 configuration model with WebUI links for advanced settings
+
+**Note**: Detailed documentation will be migrated to `docs/` directory in a follow-up PR. Links are prepared but files are not yet created.
+
 ### ✨ Features
 
 #### Simplified Init Command
