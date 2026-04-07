@@ -255,7 +255,7 @@ const AgentConfigSchema = z.object({
   /** 单次执行最大预算（美元） */
   maxBudgetUsd: z.number().min(0).max(10).default(0.5),
   /** 权限模式 */
-  permissionMode: z.enum(['bypassPermissions', 'auto', 'manual']).default('bypassPermissions'),
+  permissionMode: z.enum(['bypassPermissions', 'acceptEdits', 'default', 'dontAsk', 'plan', 'auto']).default('bypassPermissions'),
 });
 
 const BotConfigSchema = z.object({

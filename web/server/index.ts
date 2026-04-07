@@ -63,7 +63,17 @@ app.use('/api', remindersRouter);
 // 静态文件服务（前端构建产物）
 // 使用 __dirname 相对路径定位，确保全局安装后在任意目录都能找到静态资源
 const clientDistPath = path.join(__dirname, '../client/dist');
-app.use(express.static(clientDistPath));
+app.use(express.static(clientDistPath, {
+  // 禁用缓存，确保每次都获取最新文件
+  maxAge: 0,
+  etag: false,
+  lastModified: false,
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+}));
 
 // SPA fallback - 所有未匹配的路由返回 index.html
 app.get('*', (req: Request, res: Response) => {

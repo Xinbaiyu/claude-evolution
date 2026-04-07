@@ -87,7 +87,7 @@ export class DingTalkBotAdapter implements BotAdapter {
       clientId: this.config.clientId,
       clientSecret: this.config.clientSecret,
       debug: true,  // 启用 debug 模式查看详细日志
-      keepAlive: true,  // 启用 SDK 内置心跳保活
+      keepAlive: false,  // 禁用 SDK 心跳（有 bug）
     });
 
     // 捕获 SDK 内部未处理的错误，防止进程崩溃

@@ -231,14 +231,17 @@ export function AgentExecutionConfig({ config, onConfigChange }: AgentExecutionC
             value={config.agent?.permissionMode || 'bypassPermissions'}
             onChange={(e) =>
               updateAgentConfig({
-                permissionMode: e.target.value as 'bypassPermissions' | 'auto' | 'manual',
+                permissionMode: e.target.value as 'bypassPermissions' | 'acceptEdits' | 'default' | 'dontAsk' | 'plan' | 'auto',
               })
             }
             className="w-full border-2 border-slate-600 bg-slate-800 text-slate-100 font-mono py-2 px-3 text-sm rounded focus:outline-none focus:ring-2 focus:ring-cyan-500"
           >
-            <option value="bypassPermissions">绕过权限检查</option>
+            <option value="bypassPermissions">绕过所有权限检查</option>
+            <option value="acceptEdits">自动接受编辑操作</option>
+            <option value="default">默认确认模式</option>
+            <option value="dontAsk">不询问直接执行</option>
+            <option value="plan">计划模式</option>
             <option value="auto">自动判断</option>
-            <option value="manual">手动确认</option>
           </select>
           <p className="text-xs text-slate-400 mt-1">
             控制 Claude Code 执行时的权限检查

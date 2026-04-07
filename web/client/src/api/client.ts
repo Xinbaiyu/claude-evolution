@@ -261,7 +261,7 @@ export interface Config {
     allowedDirs: string[];
     timeoutMs: number;
     maxBudgetUsd: number;
-    permissionMode: 'bypassPermissions' | 'auto' | 'manual';
+    permissionMode: 'bypassPermissions' | 'acceptEdits' | 'default' | 'dontAsk' | 'plan' | 'auto';
   };
 }
 
