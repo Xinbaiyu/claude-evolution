@@ -4,7 +4,7 @@
  * ⚠️ WARNING: These types are from the v0.2.x suggestion system and are DEPRECATED.
  *
  * The suggestion system (pending/approved/rejected workflow) has been replaced
- * with the observation-based learning system in v0.3.0+.
+ * with the observation-based learning system in v0.4.0+.
  *
  * These types remain temporarily to support:
  * 1. Migration script (migrate-suggestions command)
@@ -13,7 +13,7 @@
  * DO NOT use these types in new code. Use ObservationWithMetadata from
  * src/types/learning.ts instead.
  *
- * @deprecated since v0.3.0 - Will be removed in v0.5.0
+ * @deprecated since v0.4.0 - Will be removed in v0.5.0
  */
 
 // ==================== 经验提取类型 (DEPRECATED) ====================
@@ -63,7 +63,7 @@ export interface ExtractionResult {
 // ==================== 学习结果类型 (DEPRECATED) ====================
 
 /**
- * @deprecated The toApply/toSuggest split is no longer used in v0.3.0+
+ * @deprecated The toApply/toSuggest split is no longer used in v0.4.0+
  */
 export interface LearningResult {
   toApply: (Preference | Pattern | Workflow)[];
@@ -84,7 +84,7 @@ export interface ConflictItem {
 
 /**
  * @deprecated The pending/approved/rejected suggestion system has been replaced
- * with active/context observation pools in v0.3.0
+ * with active/context observation pools in v0.4.0
  */
 export interface Suggestion {
   id: string;

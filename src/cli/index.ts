@@ -273,7 +273,7 @@ program
 // migrate-suggestions 命令
 program
   .command('migrate-suggestions')
-  .description('Migrate v0.2.x pending.json to v0.3.0 active.json (one-time)')
+  .description('Migrate v0.2.x pending.json to v0.4.0 active.json (one-time)')
   .action(async () => {
     try {
       console.log('🔄 开始迁移建议数据...\n');

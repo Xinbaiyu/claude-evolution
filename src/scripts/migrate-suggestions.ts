@@ -1,7 +1,7 @@
 /**
  * Migration Script: pending.json → active.json
  *
- * Converts v0.2.x suggestion format to v0.3.0 observation format
+ * Converts v0.2.x suggestion format to v0.4.0 observation format
  */
 
 import fs from 'fs-extra';
