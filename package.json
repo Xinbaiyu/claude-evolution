@@ -1,6 +1,6 @@
 {
   "name": "claude-evolution",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Self-evolution system for Claude Code to learn from historical sessions",
   "type": "module",
   "main": "dist/index.js",
