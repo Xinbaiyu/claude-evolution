@@ -36,7 +36,22 @@ export async function analyzeCommand(options: { now?: boolean }): Promise<void> 
     const executor = new AnalysisExecutor();
     const result = await executor.execute();
 
-    console.log(chalk.bold.green(`\n✅ 分析完成! 发现 ${result.observationsCount} 条观察 (${result.duration}s)\n`));
+    console.log(chalk.bold.green(`\n✅ 分析完成! (${result.duration}s)\n`));
+
+    // 显示详细统计信息
+    if (result.stats) {
+      const { timeRange, dataCollected, extracted, learningCycle } = result.stats;
+
+      console.log(chalk.bold('📊 分析详情:'));
+      console.log(chalk.gray(`  时间范围: ${new Date(timeRange.start).toLocaleString()} - ${new Date(timeRange.end).toLocaleString()}`));
+      console.log(chalk.gray(`  采集数据: ${dataCollected.observations} 条观察 + ${dataCollected.prompts} 条提示`));
+      console.log(chalk.gray(`  提取经验: ${extracted.preferences} 偏好 + ${extracted.patterns} 模式 + ${extracted.workflows} 工作流`));
+      console.log(chalk.gray(`  学习循环: 合并 ${learningCycle.merged} | 晋升 ${learningCycle.promoted} | 归档 ${learningCycle.archived}`));
+      console.log(chalk.gray(`  存储池: ${learningCycle.finalActiveCount} 活跃 | ${learningCycle.finalContextCount} 上下文\n`));
+    } else {
+      console.log(chalk.gray(`发现 ${result.observationsCount} 条观察\n`));
+    }
+
     console.log(chalk.bold('查看结果:'));
     console.log(chalk.cyan('  claude-evolution review  ') + chalk.gray('# 查看待审批建议'));
     console.log(chalk.cyan('  cat ~/.claude-evolution/output/CLAUDE.md  ') + chalk.gray('# 查看生成的配置\n'));

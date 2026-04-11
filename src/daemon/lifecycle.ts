@@ -69,17 +69,34 @@ export function createAnalysisCallback(
 
     try {
       const result = await executor.execute();
-      log.info(`定时分析任务完成 (${result.duration}s, ${result.observationsCount} 条观察)`);
+
+      // 构建详细的日志信息
+      let logMessage = `定时分析任务完成 (${result.duration}s)`;
+      if (result.stats) {
+        const { dataCollected, extracted, learningCycle } = result.stats;
+        logMessage += ` | 采集: ${dataCollected.observations}+${dataCollected.prompts} | 提取: ${extracted.preferences + extracted.patterns + extracted.workflows} | 合并: ${learningCycle.merged}`;
+      } else {
+        logMessage += `, ${result.observationsCount} 条观察`;
+      }
+      log.info(logMessage);
 
       const currentConfig = await loadConfig();
       if (
         currentConfig.scheduler?.notifications?.enabled &&
         currentConfig.scheduler?.notifications?.onSuccess
       ) {
-        await notifySuccess(
-          '定时分析完成',
-          `分析任务已成功完成\n耗时: ${result.duration}秒\n观察: ${result.observationsCount} 条`
-        );
+        // 构建通知消息
+        let notificationBody = `分析任务已成功完成\n耗时: ${result.duration}秒`;
+        if (result.stats) {
+          const { dataCollected, extracted, learningCycle } = result.stats;
+          notificationBody += `\n采集: ${dataCollected.observations} 观察 + ${dataCollected.prompts} 提示`;
+          notificationBody += `\n提取: ${extracted.preferences + extracted.patterns + extracted.workflows} 项经验`;
+          notificationBody += `\n学习: 合并 ${learningCycle.merged} | 晋升 ${learningCycle.promoted}`;
+        } else {
+          notificationBody += `\n观察: ${result.observationsCount} 条`;
+        }
+
+        await notifySuccess('定时分析完成', notificationBody);
       }
     } catch (error) {
       log.error('定时分析任务失败', error as Error);
@@ -236,6 +253,7 @@ export async function startComponents(
             observationsCount: result.observationsCount,
             duration: result.duration,
             timestamp: result.timestamp,
+            stats: result.stats,
           });
           // 桌面通知
           webModule.notificationManager?.notifyAnalysisComplete({

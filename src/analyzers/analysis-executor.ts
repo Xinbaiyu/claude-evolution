@@ -8,7 +8,7 @@
 import path from 'path';
 import fs from 'fs-extra';
 import { getEvolutionDir } from '../config/loader.js';
-import { runAnalysisPipeline } from './pipeline.js';
+import { runAnalysisPipeline, AnalysisStats } from './pipeline.js';
 import { AnalysisLogger } from './analysis-logger.js';
 
 // ---------------------------------------------------------------------------
@@ -29,6 +29,7 @@ export interface AnalysisResult {
   duration: number;
   observationsCount: number;
   timestamp: string;
+  stats?: AnalysisStats | null;
 }
 
 export interface AnalysisExecutorOptions {
@@ -91,7 +92,7 @@ export class AnalysisExecutor {
 
     try {
       await logger.logAnalysisStart(runId);
-      await runAnalysisPipeline({ runId, analysisLogger: logger });
+      const stats = await runAnalysisPipeline({ runId, analysisLogger: logger });
 
       const duration = Math.round((Date.now() - startTime) / 1000);
       const observationsCount = await this.readObservationsCount();
@@ -102,6 +103,7 @@ export class AnalysisExecutor {
         duration,
         observationsCount,
         timestamp,
+        stats,
       };
 
       this.hooks.onComplete?.(result);

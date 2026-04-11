@@ -21,7 +21,8 @@ export default function AnalysisRunCard({ run }: Props) {
   };
 
   const formatDuration = (seconds?: number) => {
-    if (!seconds) return '计算中...';
+    if (typeof seconds !== 'number') return '计算中...';
+    if (seconds === 0) return '< 1秒';
     if (seconds < 60) return `${seconds}秒`;
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;

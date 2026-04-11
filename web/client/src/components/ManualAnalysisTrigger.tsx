@@ -58,9 +58,44 @@ export function ManualAnalysisTrigger() {
       setStartTime(null);
       setElapsedTime(0);
 
-      // Support both legacy (suggestionsCount) and new (observationsCount) format
-      const count = data?.observationsCount ?? data?.suggestionsCount ?? 0;
-      toast.success(`✅ 分析完成，发现 ${count} 条新观察`);
+      // 构建详细的分析结果信息
+      let message = '✅ 分析完成';
+
+      if (data?.stats) {
+        const { dataCollected, extracted, learningCycle } = data.stats;
+        const details = [];
+
+        if (dataCollected) {
+          details.push(`采集: ${dataCollected.observations} 条观察 + ${dataCollected.prompts} 条提示`);
+        }
+
+        if (extracted) {
+          const total = extracted.preferences + extracted.patterns + extracted.workflows;
+          if (total > 0) {
+            details.push(`提取: ${total} 项经验`);
+          }
+        }
+
+        if (learningCycle) {
+          const changes = [];
+          if (learningCycle.merged > 0) changes.push(`合并 ${learningCycle.merged}`);
+          if (learningCycle.promoted > 0) changes.push(`晋升 ${learningCycle.promoted}`);
+          if (learningCycle.archived > 0) changes.push(`归档 ${learningCycle.archived}`);
+          if (changes.length > 0) {
+            details.push(changes.join(', '));
+          }
+        }
+
+        if (details.length > 0) {
+          message += `\n${details.join(' | ')}`;
+        }
+      } else {
+        // 兼容旧格式
+        const count = data?.observationsCount ?? data?.suggestionsCount ?? 0;
+        message += `，发现 ${count} 条新观察`;
+      }
+
+      toast.success(message);
     });
 
     // 分析失败

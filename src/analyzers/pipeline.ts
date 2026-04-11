@@ -89,12 +89,39 @@ function convertToObservations(extracted: ExtractionResult): ObservationWithMeta
 }
 
 /**
+ * 分析统计信息
+ */
+export interface AnalysisStats {
+  timeRange: {
+    start: string;
+    end: string;
+  };
+  dataCollected: {
+    observations: number;
+    prompts: number;
+  };
+  extracted: {
+    preferences: number;
+    patterns: number;
+    workflows: number;
+  };
+  learningCycle: {
+    merged: number;
+    promoted: number;
+    deleted: number;
+    archived: number;
+    finalActiveCount: number;
+    finalContextCount: number;
+  };
+}
+
+/**
  * 运行完整的分析流程
  */
 export async function runAnalysisPipeline(options?: {
   runId?: string;
   analysisLogger?: AnalysisLogger;
-}): Promise<void> {
+}): Promise<AnalysisStats | null> {
   logger.info('========================================');
   logger.info('开始分析流程');
   logger.info('========================================');
@@ -129,7 +156,14 @@ export async function runAnalysisPipeline(options?: {
     const config = await loadConfig();
     const lastAnalysisTime = await getLastAnalysisTime();
 
+    // 计算时间范围
+    const timeStart = lastAnalysisTime
+      ? lastAnalysisTime
+      : new Date(Date.now() - config.filters.sessionRetentionDays * 24 * 60 * 60 * 1000);
+    const timeEnd = new Date();
+
     logger.info(`  上次分析时间: ${lastAnalysisTime?.toLocaleString() || '从未'}`);
+    logger.info(`  本次查询范围: ${timeStart.toLocaleString()} 至 ${timeEnd.toLocaleString()}`);
     await logStep(1, '加载配置', 'success', '配置加载完成');
 
     // 2. 连接 HTTP API
@@ -188,7 +222,45 @@ export async function runAnalysisPipeline(options?: {
       if (observations.length === 0 && prompts.length === 0) {
         logger.warn('没有新数据需要分析');
         await updateAfterAnalysis(true);
-        return;
+
+        // 记录分析结束（即使没有数据）
+        if (runId && analysisLogger) {
+          await analysisLogger.logAnalysisEnd(runId, {
+            status: 'success',
+            stats: {
+              merged: 0,
+              promoted: 0,
+              archived: 0,
+            },
+          });
+        }
+
+        // 返回空的统计结果
+        const stats: AnalysisStats = {
+          timeRange: {
+            start: timeStart.toISOString(),
+            end: timeEnd.toISOString(),
+          },
+          dataCollected: {
+            observations: 0,
+            prompts: 0,
+          },
+          extracted: {
+            preferences: 0,
+            patterns: 0,
+            workflows: 0,
+          },
+          learningCycle: {
+            merged: 0,
+            promoted: 0,
+            deleted: 0,
+            archived: 0,
+            finalActiveCount: 0,
+            finalContextCount: 0,
+          },
+        };
+
+        return stats;
       }
 
       // 4. 提取经验
@@ -260,6 +332,24 @@ export async function runAnalysisPipeline(options?: {
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
       logger.success(`\n✅ 分析流程完成 (耗时 ${duration}s)`);
 
+      // 构建统计信息
+      const stats: AnalysisStats = {
+        timeRange: {
+          start: timeStart.toISOString(),
+          end: timeEnd.toISOString(),
+        },
+        dataCollected: {
+          observations: observations.length,
+          prompts: prompts.length,
+        },
+        extracted: {
+          preferences: extracted.preferences.length,
+          patterns: extracted.patterns.length,
+          workflows: extracted.workflows.length,
+        },
+        learningCycle: cycleStats,
+      };
+
       // 更新 daemon-process 中的统计信息
       if (runId && analysisLogger) {
         await analysisLogger.logAnalysisEnd(runId, {
@@ -271,6 +361,8 @@ export async function runAnalysisPipeline(options?: {
           },
         });
       }
+
+      return stats;
     } finally {
       // 确保断开 HTTP 连接
       await httpClient.disconnect();
