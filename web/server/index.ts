@@ -9,6 +9,7 @@ import learningRouter from './routes/learning.js';
 import analysisLogsRouter from './routes/analysis-logs.js';
 import statsRouter from './routes/stats.js';
 import remindersRouter from './routes/reminders.js';
+import versionUpdateRouter from './routes/version-update.js';
 import { WebSocketManager } from './websocket.js';
 import { NotificationManager } from './notifications.js';
 
@@ -59,6 +60,7 @@ app.use('/api/learning', learningRouter);
 app.use('/api', analysisLogsRouter);
 app.use('/api', statsRouter);
 app.use('/api', remindersRouter);
+app.use('/api/version-update', versionUpdateRouter);
 
 // 静态文件服务（前端构建产物）
 // 使用 __dirname 相对路径定位，确保全局安装后在任意目录都能找到静态资源

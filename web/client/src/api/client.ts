@@ -838,6 +838,49 @@ export const apiClient = {
     }
     return response.data;
   },
+
+  // ========== Version Update API ==========
+
+  async getVersionUpdate(): Promise<VersionUpdateInfo> {
+    const response = await request<VersionUpdateInfo>('/version-update');
+    if (!response.success || !response.data) {
+      throw new ApiError(response.error || '获取版本更新信息失败');
+    }
+    return response.data;
+  },
+
+  async markVersionAsRead(version: string): Promise<void> {
+    const response = await request('/version-update/mark-read', {
+      method: 'POST',
+      body: JSON.stringify({ version }),
+    });
+    if (!response.success) {
+      throw new ApiError(response.error || '标记已读失败');
+    }
+  },
+
+  async upgradeVersion(): Promise<UpgradeResult> {
+    const response = await request<any>('/version-update/upgrade', {
+      method: 'POST',
+    });
+    if (!response.success) {
+      if ((response as any).requiresSudo) {
+        return {
+          success: false,
+          message: response.error || '升级失败',
+          requiresSudo: true,
+        };
+      }
+      throw new ApiError(response.error || '升级失败');
+    }
+    // 后端返回格式: { success: true, message: "...", data: { oldVersion, newVersion } }
+    // 需要合并 response 和 response.data
+    return {
+      success: response.success,
+      message: (response as any).message || '升级成功',
+      data: response.data,
+    };
+  },
 };
 
 export { ApiError };
@@ -853,4 +896,24 @@ export interface Reminder {
   schedule?: string;
   cronExpression: string;
   status: 'active' | 'triggered' | 'cancelled';
+}
+
+// ========== Version Update Types ==========
+
+export interface VersionUpdateInfo {
+  currentVersion: string;
+  latestVersion: string;
+  hasUpdate: boolean;
+  needsNotify: boolean;
+  notifiedVersion: string | null;
+}
+
+export interface UpgradeResult {
+  success: boolean;
+  message: string;
+  requiresSudo?: boolean;
+  data?: {
+    oldVersion: string;
+    newVersion: string;
+  };
 }

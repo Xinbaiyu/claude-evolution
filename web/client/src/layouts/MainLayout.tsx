@@ -1,7 +1,9 @@
-import { Suspense } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Navigation from '../components/Navigation';
 import Toast from '../components/Toast';
+import VersionUpdateModal from '../components/VersionUpdateModal';
+import { apiClient } from '../api/client';
 
 function LoadingFallback() {
   return (
@@ -19,6 +21,59 @@ function LoadingFallback() {
 }
 
 export default function MainLayout() {
+  const [versionUpdateVisible, setVersionUpdateVisible] = useState(false);
+  const [versionInfo, setVersionInfo] = useState<{
+    currentVersion: string;
+    latestVersion: string;
+  } | null>(null);
+
+  // 页面加载时检查版本更新
+  useEffect(() => {
+    const checkVersionUpdate = async () => {
+      try {
+        const result = await apiClient.getVersionUpdate();
+
+        // 如果有更新且需要通知，显示弹窗
+        if (result.hasUpdate && result.needsNotify) {
+          setVersionInfo({
+            currentVersion: result.currentVersion,
+            latestVersion: result.latestVersion,
+          });
+          setVersionUpdateVisible(true);
+        }
+      } catch (error) {
+        // 静默失败，不影响用户体验
+        console.error('[版本检查] 检查失败:', error);
+      }
+    };
+
+    checkVersionUpdate();
+  }, []);
+
+  const handleVersionUpdateClose = async () => {
+    // 标记为已读
+    if (versionInfo) {
+      try {
+        await apiClient.markVersionAsRead(versionInfo.latestVersion);
+      } catch (error) {
+        console.error('[版本检查] 标记已读失败:', error);
+      }
+    }
+    setVersionUpdateVisible(false);
+  };
+
+  const handleVersionUpgrade = async () => {
+    try {
+      const result = await apiClient.upgradeVersion();
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : '升级失败',
+      };
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       {/* Shared Navigation Header */}
@@ -45,6 +100,17 @@ export default function MainLayout() {
       </Suspense>
 
       <Toast />
+
+      {/* Version Update Modal */}
+      {versionInfo && (
+        <VersionUpdateModal
+          visible={versionUpdateVisible}
+          currentVersion={versionInfo.currentVersion}
+          latestVersion={versionInfo.latestVersion}
+          onClose={handleVersionUpdateClose}
+          onUpgrade={handleVersionUpgrade}
+        />
+      )}
     </div>
   );
 }

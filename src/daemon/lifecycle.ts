@@ -21,6 +21,7 @@ import { NotificationDispatcher } from '../notifications/dispatcher.js';
 import { DesktopChannel } from '../notifications/desktop-channel.js';
 import type { BotSystem } from '../bot/index.js';
 import type { FSWatcher } from 'chokidar';
+import { VersionUpdateScheduler } from '../version-update/version-update-scheduler.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,6 +40,7 @@ export interface DaemonComponents {
   webServer: any | null;
   reminderService: ReminderService | null;
   botSystem: BotSystem | null;
+  versionUpdateScheduler: VersionUpdateScheduler | null;
 }
 
 /** Options for startComponents — each mode fills in its own values */
@@ -197,6 +199,7 @@ export async function startComponents(
     webServer: null,
     reminderService: null,
     botSystem: null,
+    versionUpdateScheduler: null,
   };
 
   const analysisCallback = createAnalysisCallback(executor, log);
@@ -209,6 +212,14 @@ export async function startComponents(
       components.scheduler.start(config, analysisCallback);
       log.info('调度器已启动');
     }
+
+    // 1.5 Version Update Scheduler
+    log.info('启动版本更新检查调度器...');
+    components.versionUpdateScheduler = new VersionUpdateScheduler();
+    components.versionUpdateScheduler.start((result) => {
+      log.info(`[版本检查] 发现新版本: ${result.latestVersion} (当前: ${result.currentVersion})`);
+    });
+    log.info('版本更新检查调度器已启动（每天 11:00 执行）');
 
     // 2. Data migration (idempotent, runs before file watcher)
     try {
@@ -372,6 +383,12 @@ export async function stopComponents(
     components.scheduler.stop();
     components.scheduler = null;
     log.info('调度器已停止');
+  }
+
+  if (components.versionUpdateScheduler) {
+    components.versionUpdateScheduler.stop();
+    components.versionUpdateScheduler = null;
+    log.info('版本更新检查调度器已停止');
   }
 
   if (components.reminderService) {
